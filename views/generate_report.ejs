@@ -1,0 +1,49 @@
+<%- include('partials/head', { title: 'Generation report' }) %>
+<div class="page-head">
+  <h1>Generation report - week of <%= result.weekStart %></h1>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="/newsletter/preview">Back to preview</a>
+    <a class="btn btn-ghost" href="/newsletter/issues">All issues</a>
+  </div>
+</div>
+
+<% if (result.status === 'draft_created') { %>
+  <div class="alert alert-ok">
+    <strong>✅ Draft campaign created in Mailchimp.</strong>
+    Nothing was sent - review it and press Send in Mailchimp.
+    <% if (result.campaignWebUrl) { %>
+      <div class="btn-row" style="margin-top:10px;">
+        <a class="btn btn-primary" href="<%= result.campaignWebUrl %>" target="_blank" rel="noopener">Open the draft in Mailchimp</a>
+      </div>
+    <% } %>
+  </div>
+<% } else { %>
+  <div class="alert alert-error">
+    <strong>❌ No draft was created in Mailchimp.</strong>
+    The newsletter was saved locally (see Issues), but it did not reach Mailchimp - the failed steps below say exactly why.
+  </div>
+<% } %>
+
+<div class="card">
+  <h2>What happened, step by step</h2>
+  <table class="table">
+    <tbody>
+      <% result.steps.forEach(function(s) { %>
+        <tr>
+          <td width="30" style="font-size:17px;"><%= s.ok ? '✅' : '❌' %></td>
+          <td><strong><%= s.label %></strong><% if (s.detail) { %><br><span class="muted"><%= s.detail %></span><% } %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<% if (result.warnings.length) { %>
+<div class="card">
+  <h2>Warnings</h2>
+  <ul class="plain-list">
+    <% result.warnings.forEach(function(w) { %><li>⚠ <%= w %></li><% }) %>
+  </ul>
+</div>
+<% } %>
+<%- include('partials/foot') %>

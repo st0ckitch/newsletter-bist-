@@ -35,19 +35,26 @@ function photoPublicUrl(photo) {
 // Push photos that have not been uploaded yet to the Mailchimp File Manager so
 // the campaign references CDN-hosted images.
 async function ensurePhotosUploaded(photos, warnings) {
-  if (!mailchimp.isConfigured()) return;
+  const counts = { already: 0, uploaded: 0, failed: 0 };
+  if (!mailchimp.isConfigured()) return counts;
   for (const photo of photos) {
-    if (photo.mailchimp_url) continue;
+    if (photo.mailchimp_url) {
+      counts.already += 1;
+      continue;
+    }
     try {
       const filePath = path.join(config.uploadDir, photo.filename);
       const buffer = fs.readFileSync(filePath);
       const url = await mailchimp.uploadFile(photo.filename, buffer);
       db.prepare('UPDATE photos SET mailchimp_url = ? WHERE id = ?').run(url, photo.id);
       photo.mailchimp_url = url;
+      counts.uploaded += 1;
     } catch (err) {
+      counts.failed += 1;
       warnings.push(`Photo "${photo.original_name || photo.filename}" could not be uploaded to Mailchimp: ${err.message}`);
     }
   }
+  return counts;
 }
 
 function buildRenderData(data, { placeholders = false, editable = false, csrf = '' } = {}) {
@@ -95,14 +102,56 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
 async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   weekStart = weekStart || generationWeekStart();
   const warnings = [];
+  // Step-by-step diagnostic shown on the generation report page, so it is
+  // obvious whether the draft really landed in Mailchimp and why not if it
+  // did not.
+  const steps = [];
+  const step = (ok, label, detail) => steps.push({ ok, label, detail: detail || null });
   const data = collectWeekData(weekStart);
 
   if (!data.principalMessage) warnings.push("No principal's message was submitted this week.");
   if (data.news.length === 0) warnings.push('No news articles were submitted this week.');
   if (data.events.length === 0) warnings.push('There are no upcoming events on or after the issue date.');
 
+  step(
+    true,
+    'Content collected',
+    `${data.news.length} article(s), ${data.events.length} upcoming event(s), principal's message ${
+      data.principalMessage ? 'present' : 'MISSING'
+    }, week of ${weekStart}`
+  );
+  step(
+    mailchimp.isConfigured(),
+    'Mailchimp API key',
+    mailchimp.isConfigured()
+      ? `configured (server "${config.mailchimp.serverPrefix}")`
+      : 'MAILCHIMP_API_KEY / MAILCHIMP_SERVER_PREFIX missing in .env'
+  );
+  step(
+    Boolean(config.mailchimp.audienceId),
+    'Parents audience ID',
+    config.mailchimp.audienceId || 'MAILCHIMP_AUDIENCE_ID missing in .env - run: npm run mailchimp:setup'
+  );
+  if (mailchimp.isConfigured()) {
+    try {
+      const pong = await mailchimp.ping();
+      step(true, 'Mailchimp API connection', `reachable (${(pong && pong.health_status) || 'healthy'})`);
+    } catch (err) {
+      step(false, 'Mailchimp API connection', err.message);
+    }
+  }
+
   const allPhotos = Object.values(data.photosByNews).flat();
-  await ensurePhotosUploaded(allPhotos, warnings);
+  const photoCounts = await ensurePhotosUploaded(allPhotos, warnings);
+  if (allPhotos.length || (data.principalMessage && data.principalMessage.photo)) {
+    step(
+      photoCounts.failed === 0,
+      'Photos on the Mailchimp CDN',
+      mailchimp.isConfigured()
+        ? `${photoCounts.uploaded} uploaded now, ${photoCounts.already} already hosted, ${photoCounts.failed} failed (of ${allPhotos.length})`
+        : 'skipped - Mailchimp not configured, photos will use local links'
+    );
+  }
 
   // The principal's portrait moves to the Mailchimp CDN the same way.
   const pm = data.principalMessage;
@@ -132,8 +181,10 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
 
   if (!mailchimp.isConfigured()) {
     warnings.push('Mailchimp is not configured - the draft was saved locally but no Mailchimp campaign was created.');
+    step(false, 'Draft campaign in Mailchimp', 'NOT created - Mailchimp is not configured');
   } else if (!config.mailchimp.audienceId) {
     warnings.push('MAILCHIMP_AUDIENCE_ID is not set - no Mailchimp campaign was created.');
+    step(false, 'Draft campaign in Mailchimp', 'NOT created - MAILCHIMP_AUDIENCE_ID is not set');
   } else {
     const subject = `${getSetting('newsletter_name')} - ${getSetting('school_name')} Weekly Newsletter`;
     const title = `${getSetting('newsletter_name')} ${data.issueDate}`;
@@ -164,8 +215,14 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
         campaignWebUrl = mailchimp.campaignEditUrl(campaign);
       }
       status = 'draft_created';
+      step(
+        true,
+        'Draft campaign in Mailchimp',
+        `${existing && campaignId === existing.campaign_id ? 'existing draft updated' : 'created'} (campaign id ${campaignId}) - review and send it from Mailchimp`
+      );
     } catch (err) {
       warnings.push(`Mailchimp draft creation failed: ${err.message}`);
+      step(false, 'Draft campaign in Mailchimp', `FAILED - ${err.message}`);
     }
   }
 
@@ -185,7 +242,7 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
     `[generate] Issue for week ${weekStart} generated (${trigger}); status=${status}` +
       (warnings.length ? `; warnings: ${warnings.join(' | ')}` : '')
   );
-  return { weekStart, issueDate: data.issueDate, html, status, campaignId, campaignWebUrl, warnings };
+  return { weekStart, issueDate: data.issueDate, html, status, campaignId, campaignWebUrl, warnings, steps };
 }
 
 module.exports = { generateIssue, collectWeekData, buildRenderData, SECTION_LABELS };

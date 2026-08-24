@@ -43,11 +43,12 @@ router.get('/newsletter/issues/:id.html', requireLogin, (req, res) => {
   res.type('html').send(issue.html);
 });
 
-// Manual "aggregate now": renders and creates/updates the Mailchimp draft.
+// Manual "aggregate now": renders, creates/updates the Mailchimp draft and
+// shows a step-by-step report of exactly what happened.
 router.post('/newsletter/generate', requireRole('principal', 'admin'), async (req, res, next) => {
   try {
-    await generateIssue({ trigger: `manual (${req.user.email})` });
-    res.redirect('/newsletter/issues?generated=1');
+    const result = await generateIssue({ trigger: `manual (${req.user.email})` });
+    res.render('generate_report', { result });
   } catch (err) {
     next(err);
   }

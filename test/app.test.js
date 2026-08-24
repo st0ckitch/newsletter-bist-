@@ -264,6 +264,17 @@ test('live editor API rejects teachers and bad CSRF', async () => {
   assert.strictEqual(noCsrf.status, 403);
 });
 
+test('generate button shows a step-by-step report of the Mailchimp outcome', async () => {
+  const res = await post('/newsletter/generate', {});
+  assert.strictEqual(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Generation report/);
+  assert.match(html, /No draft was created in Mailchimp/);
+  assert.match(html, /Mailchimp API key/);
+  assert.match(html, /MAILCHIMP_API_KEY \/ MAILCHIMP_SERVER_PREFIX missing/);
+  assert.match(html, /Content collected/);
+});
+
 test('newsletter preview renders submitted content', async () => {
   const res = await get('/newsletter/preview.html');
   assert.strictEqual(res.status, 200);

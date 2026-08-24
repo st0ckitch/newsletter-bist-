@@ -952,6 +952,13 @@ function generateIssue() {
   const entry = { week_start: week, generated_at: new Date().toISOString().slice(0, 16).replace('T', ' '), status: 'simulated', warnings };
   if (existing) Object.assign(existing, entry); else S.issues.unshift(entry);
   save();
+  const steps = [
+    { ok: true, label: 'Content collected', detail: `${data.articles.length} article(s), ${data.events.length} upcoming event(s), principal's message ${data.principalMessage ? 'present' : 'MISSING'}` },
+    { ok: false, label: 'Mailchimp API key', detail: 'not configured in this browser demo - in production it comes from .env on the server' },
+    { ok: false, label: 'Draft campaign in Mailchimp', detail: 'simulated here - the real server creates the draft via the Mailchimp API and links straight to it' },
+  ];
+  modalHtml = modal('Generation report', `<p class="muted">In production every step runs against the real Mailchimp API and any failure shows the exact error message.</p>
+    <table class="table"><tbody>${steps.map((st) => `<tr><td width="30" style="font-size:17px;">${st.ok ? '\u2705' : '\u274c'}</td><td><strong>${st.label}</strong><br><span class="muted">${st.detail}</span></td></tr>`).join('')}</tbody></table>`);
   go('issues', 'generated');
 }
 
