@@ -4,11 +4,15 @@
   <p class="muted">Appears in this week's issue, assembled <%= deadlineHuman %> at 15:00.</p>
   <% if (saved) { %><div class="alert alert-ok">Saved. It will be included in this week's newsletter.</div><% } %>
   <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
-  <form method="post" action="/principal-message">
+  <form method="post" action="/principal-message" enctype="multipart/form-data">
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <label>Message to parents *
       <textarea name="body" rows="14" required placeholder="Dear Parents, …"><%= message ? message.body : '' %></textarea>
     </label>
+    <label>Portrait photo (shown beside the message)
+      <input type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+    </label>
+    <p class="muted"><strong>Recommended:</strong> a portrait crop around <strong>400 × 500 px</strong> (minimum 200 px wide), JPEG, under <strong>1 MB</strong>. Uploading a new photo replaces the current one.</p>
     <div class="field-row">
       <label>Quote of the week
         <input type="text" name="quote" value="<%= message && message.quote ? message.quote : '' %>" maxlength="300" placeholder="The future belongs to those who believe in the beauty of their dreams.">
@@ -22,5 +26,17 @@
       <a class="btn btn-secondary" href="/newsletter/preview">Preview newsletter</a>
     </div>
   </form>
+  <% if (message && message.photo) { %>
+    <h2>Current portrait</h2>
+    <div class="photo-grid">
+      <div class="photo-tile">
+        <img src="/uploads/<%= message.photo %>" alt="Principal portrait">
+        <form method="post" action="/principal-message/photo/delete" data-confirm="Remove the portrait photo?">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn btn-danger btn-sm">Remove</button>
+        </form>
+      </div>
+    </div>
+  <% } %>
 </div>
 <%- include('partials/foot') %>

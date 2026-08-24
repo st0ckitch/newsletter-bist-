@@ -106,6 +106,8 @@ function ensureColumn(table, column, ddl) {
 }
 ensureColumn('news', 'included', "included INTEGER NOT NULL DEFAULT 1");
 ensureColumn('news', 'slot', "slot TEXT NOT NULL DEFAULT 'D'");
+ensureColumn('principal_messages', 'photo', 'photo TEXT');
+ensureColumn('principal_messages', 'photo_mailchimp_url', 'photo_mailchimp_url TEXT');
 
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi',

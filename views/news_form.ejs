@@ -33,7 +33,8 @@
     <label>Photos (JPEG/PNG/WebP/GIF, up to 12, max 10&nbsp;MB each)
       <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
     </label>
-    <p class="muted">The first photo becomes the large hero image in the newsletter; the rest appear in a two-column grid.</p>
+    <p class="muted">The first photo becomes the large hero image in the newsletter; the rest appear in a two-column grid.<br>
+    <strong>Recommended:</strong> landscape photos around <strong>1200 × 800 px</strong> (minimum 800 px wide), JPEG, under <strong>2 MB</strong> each — that is sharp on retina screens and keeps the email fast to load. Phone photos work fine; avoid tiny thumbnails and heavy 10 MB originals.</p>
     <div class="btn-row">
       <button type="submit" class="btn btn-primary"><%= item && item.id ? 'Save changes' : 'Add article' %></button>
       <a class="btn btn-secondary" href="/news">Cancel</a>

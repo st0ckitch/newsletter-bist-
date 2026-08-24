@@ -68,7 +68,14 @@ function buildRenderData(data, { placeholders = false } = {}) {
         ? { text: data.principalMessage.quote, author: data.principalMessage.quote_author }
         : null,
     events: data.events,
-    principalMessage: data.principalMessage,
+    principalMessage: data.principalMessage
+      ? {
+          body: data.principalMessage.body,
+          photoUrl: data.principalMessage.photo
+            ? data.principalMessage.photo_mailchimp_url || `${config.appBaseUrl}/uploads/${data.principalMessage.photo}`
+            : null,
+        }
+      : null,
     articles,
     footerNote: getSetting('footer_note'),
     calendarUrl: getSetting('calendar_url'),
@@ -91,6 +98,19 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
 
   const allPhotos = Object.values(data.photosByNews).flat();
   await ensurePhotosUploaded(allPhotos, warnings);
+
+  // The principal's portrait moves to the Mailchimp CDN the same way.
+  const pm = data.principalMessage;
+  if (mailchimp.isConfigured() && pm && pm.photo && !pm.photo_mailchimp_url) {
+    try {
+      const buffer = fs.readFileSync(path.join(config.uploadDir, pm.photo));
+      const url = await mailchimp.uploadFile(pm.photo, buffer);
+      db.prepare('UPDATE principal_messages SET photo_mailchimp_url = ? WHERE id = ?').run(url, pm.id);
+      pm.photo_mailchimp_url = url;
+    } catch (err) {
+      warnings.push(`The principal's photo could not be uploaded to Mailchimp: ${err.message}`);
+    }
+  }
   const localPhotos = allPhotos.filter((p) => !p.mailchimp_url);
   if (localPhotos.length && mailchimp.isConfigured()) {
     warnings.push(

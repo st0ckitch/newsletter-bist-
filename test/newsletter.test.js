@@ -52,6 +52,17 @@ test('slots map onto the two columns: left column (events, D) before right colum
   assert.ok(principal < slotE, "principal's message opens the right column");
 });
 
+test('principal portrait renders beside the message when provided', () => {
+  const html = renderNewsletter({
+    ...baseData,
+    principalMessage: { body: 'Dear Parents', photoUrl: 'http://x/principal.jpg' },
+  });
+  assert.match(html, /alt="Principal"/);
+  assert.match(html, /principal\.jpg/);
+  const without = renderNewsletter(baseData);
+  assert.ok(!/alt="Principal"/.test(without));
+});
+
 test('footer staff directory renders names and titles', () => {
   const html = renderNewsletter(baseData);
   assert.match(html, /Robert Snowden/);

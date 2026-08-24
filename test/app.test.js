@@ -303,6 +303,29 @@ test('a real PNG upload is accepted and served', async () => {
   assert.strictEqual(served.headers.get('cross-origin-resource-policy'), 'cross-origin');
 });
 
+test('principal message accepts a portrait photo shown in the preview', async () => {
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const form = new FormData();
+  form.append('_csrf', csrf);
+  form.append('body', 'Dear Parents,\n\nA short test message.');
+  form.append('quote', 'Test quote');
+  form.append('quote_author', 'Tester');
+  form.append('photo', new Blob([png], { type: 'image/png' }), 'principal.png');
+  const res = await fetch(base + '/principal-message', {
+    method: 'POST',
+    headers: { cookie: cookies },
+    body: form,
+    redirect: 'manual',
+  });
+  assert.strictEqual(res.status, 302);
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /alt="Principal"/);
+  assert.match(preview, /Test quote/);
+});
+
 test('preview falls back gracefully on a garbage ?week parameter', async () => {
   const res = await get('/newsletter/preview.html?week=garbage');
   assert.strictEqual(res.status, 200);

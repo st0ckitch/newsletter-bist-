@@ -30,7 +30,7 @@ function verifyCsrf(req, res, next) {
 // Only the news routes accept multipart bodies; they parse them with multer
 // and then run verifyCsrf themselves. Multipart posts anywhere else would
 // slip past the token check (their body is never parsed), so reject them.
-const MULTIPART_PATHS = [/^\/news$/, /^\/news\/\d+$/];
+const MULTIPART_PATHS = [/^\/news$/, /^\/news\/\d+$/, /^\/principal-message$/];
 
 function csrfProtection(req, res, next) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();

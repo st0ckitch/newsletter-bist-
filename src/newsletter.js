@@ -199,6 +199,13 @@ function renderPrincipalBlock(principalMessage) {
       <tr><td height="3" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
       <tr>
         <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:16px 14px 6px 14px;">
+          ${
+            principalMessage.photoUrl
+              ? `<img src="${escapeHtml(
+                  principalMessage.photoUrl
+                )}" alt="Principal" width="96" align="right" style="width:96px; height:auto; border-radius:8px; margin:0 0 8px 12px;">`
+              : ''
+          }
           ${textToHtml(principalMessage.body, INK, 13.5)}
         </td>
       </tr>
