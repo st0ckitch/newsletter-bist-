@@ -1,6 +1,6 @@
 <%- include('partials/head', { title: 'Settings' }) %>
 <div class="page-head"><h1>Settings</h1></div>
-<% if (saved) { %><div class="alert alert-ok">Settings saved — schedules have been reloaded.</div><% } %>
+<% if (saved) { %><div class="alert alert-ok">Settings saved - schedules have been reloaded.</div><% } %>
 <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
 
 <div class="grid-2">
@@ -36,7 +36,7 @@
       <label>Friday aggregation → Mailchimp draft (cron)
         <input type="text" name="friday_generate_cron" value="<%= settings.friday_generate_cron %>">
       </label>
-      <p class="muted">Cron format: <code>minute hour day month weekday</code> — e.g. <code>0 15 * * 5</code> = Friday 15:00.</p>
+      <p class="muted">Cron format: <code>minute hour day month weekday</code> - e.g. <code>0 15 * * 5</code> = Friday 15:00.</p>
 
       <h2>Newsletter identity</h2>
       <label>Newsletter name
@@ -54,8 +54,8 @@
       <label>School calendar link (shown next to Upcoming Events)
         <input type="url" name="calendar_url" value="<%= settings.calendar_url %>" placeholder="https://bist.ge/calendar">
       </label>
-      <label>Footer staff directory (one per line: Name — Title)
-        <textarea name="footer_note" rows="5" placeholder="Robert Snowden — Principal&#10;Simon Rooney — Head of Primary"><%= settings.footer_note %></textarea>
+      <label>Footer staff directory (one per line: Name - Title)
+        <textarea name="footer_note" rows="5" placeholder="Robert Snowden - Principal&#10;Simon Rooney - Head of Primary"><%= settings.footer_note %></textarea>
       </label>
       <button type="submit" class="btn btn-primary">Save settings</button>
     </form>

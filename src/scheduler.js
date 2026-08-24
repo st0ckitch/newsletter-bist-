@@ -11,7 +11,7 @@ let jobs = [];
 
 function schedule(expr, tz, name, fn) {
   if (!cron.validate(expr)) {
-    console.error(`[scheduler] Invalid cron expression for ${name}: "${expr}" — job not scheduled.`);
+    console.error(`[scheduler] Invalid cron expression for ${name}: "${expr}" - job not scheduled.`);
     return;
   }
   const task = cron.schedule(

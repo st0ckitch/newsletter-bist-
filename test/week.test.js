@@ -58,7 +58,7 @@ test('submissions at/after the Friday cutoff roll into next week', () => {
 });
 
 test('issueWeekStart never rolls forward', () => {
-  // Fri 17:00 Tbilisi — regenerating rebuilds the finished week
+  // Fri 17:00 Tbilisi - regenerating rebuilds the finished week
   assert.strictEqual(issueWeekStart(TZ, new Date('2026-08-28T13:00:00Z')), '2026-08-24');
   // Sat and Sun still refer to the week that just finished
   assert.strictEqual(issueWeekStart(TZ, new Date('2026-08-29T10:00:00Z')), '2026-08-24');

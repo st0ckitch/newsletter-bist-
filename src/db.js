@@ -1,15 +1,17 @@
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
+// Node's built-in SQLite (stable since Node 24, available from 22.13) — no
+// native compilation, so installs work on any machine and any Node release.
+const { DatabaseSync } = require('node:sqlite');
 const bcrypt = require('bcryptjs');
 const config = require('./config');
 
 fs.mkdirSync(config.dataDir, { recursive: true });
 fs.mkdirSync(config.uploadDir, { recursive: true });
 
-const db = new Database(config.dbPath);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const db = new DatabaseSync(config.dbPath);
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -111,11 +113,11 @@ ensureColumn('principal_messages', 'photo_mailchimp_url', 'photo_mailchimp_url T
 
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi',
-  // Reminder to fill in content — every Monday morning
+  // Reminder to fill in content - every Monday morning
   monday_reminder_cron: '0 9 * * 1',
-  // Hard-deadline reminder — Thursday morning, only to those who have not submitted
+  // Hard-deadline reminder - Thursday morning, only to those who have not submitted
   thursday_reminder_cron: '0 9 * * 4',
-  // Aggregation + Mailchimp draft creation — Friday 15:00
+  // Aggregation + Mailchimp draft creation - Friday 15:00
   friday_generate_cron: '0 15 * * 5',
   newsletter_name: 'The Roar',
   school_name: 'British International School of Tbilisi',
@@ -145,7 +147,7 @@ function allSettings() {
 
 // First run: create the initial admin account so the panel is reachable.
 // Without ADMIN_PASSWORD set, a random password is generated and printed
-// once — there is no well-known default to leave lying around.
+// once - there is no well-known default to leave lying around.
 function seedAdmin() {
   const count = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
   if (count > 0) return;
@@ -160,7 +162,7 @@ function seedAdmin() {
   );
   console.log(
     `[db] Created initial admin user ${config.admin.email}` +
-      (generated ? ` with generated password: ${password}  — log in and change it now.` : '.')
+      (generated ? ` with generated password: ${password}  - log in and change it now.` : '.')
   );
 }
 

@@ -90,7 +90,7 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
 
 // Generates the issue for the given week (defaults to the current week):
 // renders HTML, creates or updates the Mailchimp draft campaign, and records
-// the result in the issues table. Never sends the campaign — staff review the
+// the result in the issues table. Never sends the campaign - staff review the
 // draft in Mailchimp and press send themselves.
 async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   weekStart = weekStart || generationWeekStart();
@@ -131,11 +131,11 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   let status = 'local_only';
 
   if (!mailchimp.isConfigured()) {
-    warnings.push('Mailchimp is not configured — the draft was saved locally but no Mailchimp campaign was created.');
+    warnings.push('Mailchimp is not configured - the draft was saved locally but no Mailchimp campaign was created.');
   } else if (!config.mailchimp.audienceId) {
-    warnings.push('MAILCHIMP_AUDIENCE_ID is not set — no Mailchimp campaign was created.');
+    warnings.push('MAILCHIMP_AUDIENCE_ID is not set - no Mailchimp campaign was created.');
   } else {
-    const subject = `${getSetting('newsletter_name')} — ${getSetting('school_name')} Weekly Newsletter`;
+    const subject = `${getSetting('newsletter_name')} - ${getSetting('school_name')} Weekly Newsletter`;
     const title = `${getSetting('newsletter_name')} ${data.issueDate}`;
     const existing = db
       .prepare('SELECT * FROM issues WHERE week_start = ? AND campaign_id IS NOT NULL ORDER BY id DESC')

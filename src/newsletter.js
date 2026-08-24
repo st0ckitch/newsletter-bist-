@@ -2,11 +2,11 @@
 // The layout mirrors the school's original three-page issue of The Roar,
 // rebuilt in the BIST navy/gold design language:
 //   A  masthead ("THE ROAR" + "Newsletter by …") and the quote banner
-//   B  Upcoming Events table — left column
-//   C  Principal's Message — right column
-//   D/F/H and E/G/I — admin-assigned article slots in the left and right
+//   B  Upcoming Events table - left column
+//   C  Principal's Message - right column
+//   D/F/H and E/G/I - admin-assigned article slots in the left and right
 //   columns, each article under a colored header bar with its photos
-//   Footer — staff directory grid + branding.
+//   Footer - staff directory grid + branding.
 const { formatIssueDate } = require('./week');
 const { LEFT_SLOTS, RIGHT_SLOTS, DEFAULT_SLOT } = require('./slots');
 
@@ -21,12 +21,12 @@ const MUTED = '#75809A';
 const CARD_BORDER = '#E9E2D2';
 const BAR_COLORS = ['#B23A32', '#2F6DA3', '#B9862B', '#1B2F5B'];
 
-// FiraGO (OFL) — Fira with full Georgian support. Heavy carries titles,
+// FiraGO (OFL) - Fira with full Georgian support. Heavy carries titles,
 // Light carries running text; email clients without webfont support fall
 // back to the system sans stack.
 const FIRAGO = "'FiraGO', 'Fira Sans', 'Segoe UI', Helvetica, Arial, sans-serif";
-const SERIF = FIRAGO; // display/title role — used with font-weight:800
-const SANS = FIRAGO; // text role — used with font-weight:300
+const SERIF = FIRAGO; // display/title role - used with font-weight:800
+const SANS = FIRAGO; // text role - used with font-weight:300
 
 const FONT_WEIGHTS = [
   ['Light', 300],
@@ -145,9 +145,9 @@ function renderEventRow(ev, editable) {
   if (ev.end_date && ev.end_date !== ev.event_date) {
     const end = dayParts(ev.end_date);
     if (ev.end_date.slice(0, 7) === ev.event_date.slice(0, 7)) {
-      range = `<span style="font-size:10px; color:#f7ecd8;">&ndash;${end.num}</span>`;
+      range = `<span style="font-size:10px; color:#f7ecd8;">-${end.num}</span>`;
     } else {
-      // Range crosses a month boundary — "31–2" would mislead, spell it out.
+      // Range crosses a month boundary - "31-2" would mislead, spell it out.
       metaHtml.push(escapeHtml(`Until ${end.num} ${monthLabel(ev.end_date)}`));
     }
   }
@@ -239,7 +239,7 @@ function renderPrincipalBlock(principalMessage, editable) {
   </div>`;
 }
 
-/* ---------- Article slots D–I ---------- */
+/* ---------- Article slots D-I ---------- */
 
 const photoUrl = (p) => (typeof p === 'string' ? p : p.url);
 const photoAttr = (p, editable) => (editable && typeof p !== 'string' && p.id ? ` data-photo="${p.id}"` : '');
@@ -332,7 +332,7 @@ function columnHtml(letters, articles, articleHtml, placeholders, strays = []) {
     } else if (placeholders) {
       const side = LEFT_SLOTS.includes(letter) ? 'left' : 'right';
       const pos = ['top', 'middle', 'bottom'][(LEFT_SLOTS.includes(letter) ? LEFT_SLOTS : RIGHT_SLOTS).indexOf(letter)];
-      html += placeholderBox(letter, `Article slot — ${side} column, ${pos}`, 'Assign an article to this section in the News list.');
+      html += placeholderBox(letter, `Article slot - ${side} column, ${pos}`, 'Assign an article to this section in the News list.');
     }
   }
   html += strays.filter((a) => !known.has(a.slot || DEFAULT_SLOT)).map((a) => articleHtml(a, DEFAULT_SLOT)).join('');
@@ -341,7 +341,7 @@ function columnHtml(letters, articles, articleHtml, placeholders, strays = []) {
 
 /* ---------- Footer ---------- */
 
-// Lines like "Robert Snowden — Principal" become a staff directory grid;
+// Lines like "Robert Snowden - Principal" become a staff directory grid;
 // anything else falls back to plain text.
 function parseDirectory(footerNote) {
   const lines = String(footerNote || '')
@@ -349,8 +349,8 @@ function parseDirectory(footerNote) {
     .map((l) => l.trim())
     .filter(Boolean);
   return lines.map((line) => {
-    const parts = line.split(/\s+(?:—|–|\||-)\s+/);
-    return { name: parts[0], title: parts.slice(1).join(' — ') };
+    const parts = line.split(/\s+(?:-|-|\||-)\s+/);
+    return { name: parts[0], title: parts.slice(1).join(' - ') };
   });
 }
 
@@ -474,7 +474,7 @@ function renderNewsletter(data) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(newsletterName)} — ${escapeHtml(issueDateLabel)}</title>
+<title>${escapeHtml(newsletterName)} - ${escapeHtml(issueDateLabel)}</title>
 <style>
 ${fontFaceCss(fontBase)}
 </style>
@@ -567,7 +567,7 @@ ${fontFaceCss(fontBase || '')}
     }
     <tr><td style="padding:12px 26px 22px 26px; font-family:${SANS}; font-size:12px; color:#8a8a8a;">${escapeHtml(
     schoolName
-  )} — automated newsletter reminder.</td></tr>
+  )} - automated newsletter reminder.</td></tr>
   </table>
   </center>
 </body>

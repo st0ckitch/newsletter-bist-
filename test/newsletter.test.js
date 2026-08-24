@@ -22,7 +22,7 @@ const baseData = {
     },
     { title: 'Khachapuri Baking', body: 'Foundation students baked.', slot: 'E', sectionLabel: 'Primary', photos: [] },
   ],
-  footerNote: 'Robert Snowden — Principal\nSimon Rooney — Head of Primary',
+  footerNote: 'Robert Snowden - Principal\nSimon Rooney - Head of Primary',
   calendarUrl: 'https://bist.ge/calendar',
 };
 
@@ -134,12 +134,12 @@ test('placeholder mode fills a slot once an article is assigned to it', () => {
 
 test('multi-day events show a range; month-boundary ranges spell out the end month', () => {
   const html = renderNewsletter(baseData);
-  assert.match(html, /&ndash;4/);
+  assert.match(html, /-4/);
   const cross = renderNewsletter({
     ...baseData,
     events: [{ title: 'Book Fair', event_date: '2026-08-31', end_date: '2026-09-02', time_note: null, location: null }],
   });
-  assert.ok(!cross.includes('&ndash;2'));
+  assert.ok(!cross.includes('-2'));
   assert.match(cross, /Until 2 September/);
 });
 

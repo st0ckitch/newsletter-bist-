@@ -11,9 +11,9 @@
         <tr>
           <td><strong><%= e.event_date %></strong><% if (e.end_date) { %> → <%= e.end_date %><% } %></td>
           <td><%= e.title %></td>
-          <td><%= e.location || '—' %></td>
-          <td><%= e.time_note || '—' %></td>
-          <td class="muted"><%= e.author || '—' %></td>
+          <td><%= e.location || '-' %></td>
+          <td><%= e.time_note || '-' %></td>
+          <td class="muted"><%= e.author || '-' %></td>
           <td class="row-actions">
             <% if (['principal','admin'].includes(currentUser.role) || e.created_by === currentUser.id) { %>
               <a class="btn btn-ghost btn-sm" href="/events/<%= e.id %>/edit">Edit</a>

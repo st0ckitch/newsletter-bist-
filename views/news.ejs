@@ -4,7 +4,7 @@
   <div class="page-actions"><a class="btn btn-primary" href="/news/new">+ Add news</a></div>
 </div>
 <% if (isManager) { %>
-  <p class="muted">You decide what goes to parents: toggle <strong>Included</strong> to pick the articles for this week's issue, and set the <strong>template section</strong> (D/F/H = left column, E/G/I = right column, top to bottom). Sections A–C are fixed: header &amp; quote, upcoming events, principal's message.</p>
+  <p class="muted">You decide what goes to parents: toggle <strong>Included</strong> to pick the articles for this week's issue, and set the <strong>template section</strong> (D/F/H = left column, E/G/I = right column, top to bottom). Sections A-C are fixed: header &amp; quote, upcoming events, principal's message.</p>
 <% } %>
 <div class="card">
   <table class="table">
@@ -34,7 +34,7 @@
               <form method="post" action="/news/<%= n.id %>/include">
                 <input type="hidden" name="_csrf" value="<%= csrf %>">
                 <input type="hidden" name="included" value="<%= n.included ? '0' : '1' %>">
-                <button class="btn btn-sm <%= n.included ? 'btn-ghost' : 'btn-danger' %>"><%= n.included ? '✅ in — exclude' : '🚫 out — include' %></button>
+                <button class="btn btn-sm <%= n.included ? 'btn-ghost' : 'btn-danger' %>"><%= n.included ? '✅ in - exclude' : '🚫 out - include' %></button>
               </form>
             <% } else { %>
               <%= n.included ? '✅' : '🚫 excluded' %>
@@ -42,7 +42,7 @@
           </td>
           <td><%= n.photo_count %> 📷</td>
           <td><%= n.week_start %><%= n.week_start === weekStart ? ' (this week)' : '' %></td>
-          <td class="muted"><%= n.author || '—' %></td>
+          <td class="muted"><%= n.author || '-' %></td>
           <td class="row-actions">
             <% if (['principal','admin'].includes(currentUser.role) || n.created_by === currentUser.id) { %>
               <a class="btn btn-ghost btn-sm" href="/news/<%= n.id %>/edit">Edit</a>
@@ -54,7 +54,7 @@
           </td>
         </tr>
       <% }) %>
-      <% if (!rows.length) { %><tr><td colspan="8" class="muted">No news yet — add the first article!</td></tr><% } %>
+      <% if (!rows.length) { %><tr><td colspan="8" class="muted">No news yet - add the first article!</td></tr><% } %>
     </tbody>
   </table>
 </div>

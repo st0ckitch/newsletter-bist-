@@ -1,9 +1,9 @@
-/* The Roar — live preview editor.
+/* The Roar - live preview editor.
    Runs inside the newsletter preview document when a manager opens it with
    ?edit=1: click any annotated text to edit it in place, click photos to
    replace or remove them, add photos straight into an article.
-   Transport: the admin server API (fetch + CSRF header), or — when the page
-   runs inside the interactive demo — the parent window's DemoEditor bridge. */
+   Transport: the admin server API (fetch + CSRF header), or - when the page
+   runs inside the interactive demo - the parent window's DemoEditor bridge. */
 (function () {
   'use strict';
 
@@ -193,7 +193,7 @@
     if (isBody(target)) {
       var words = (value.match(/\S+/g) || []).length;
       if (words > MAX_WORDS) {
-        showToast('Article text is limited to ' + MAX_WORDS + ' words — currently ' + words + '. Keep editing or press Esc to undo.');
+        showToast('Article text is limited to ' + MAX_WORDS + ' words - currently ' + words + '. Keep editing or press Esc to undo.');
         el.focus();
         return;
       }
@@ -207,7 +207,7 @@
       } else {
         el.innerHTML = original;
         setStatus('');
-        showToast((res && res.error) || 'Could not save — try again.');
+        showToast((res && res.error) || 'Could not save - try again.');
       }
     });
   }
@@ -255,7 +255,7 @@
         T.refresh();
       } else {
         setStatus('');
-        showToast((res && res.error) || 'Could not save — try again.');
+        showToast((res && res.error) || 'Could not save - try again.');
       }
     });
   }

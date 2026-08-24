@@ -61,7 +61,7 @@ async function upsertMember(listId, email, name, tags = []) {
     status_if_new: 'subscribed',
     merge_fields: name ? { FNAME: name } : {},
   });
-  // Staff reminders are operational email — if a teacher previously
+  // Staff reminders are operational email - if a teacher previously
   // unsubscribed/was archived, try to re-activate them; Mailchimp rejects
   // this for compliance-state members, which the caller reports.
   if (member && ['unsubscribed', 'archived'].includes(member.status)) {

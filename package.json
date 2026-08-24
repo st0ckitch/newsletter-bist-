@@ -11,11 +11,10 @@
     "mailchimp:setup": "node scripts/mailchimp-setup.js"
   },
   "engines": {
-    "node": ">=18.17"
+    "node": ">=22.13"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.10.0",
     "cookie-session": "^2.1.0",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",

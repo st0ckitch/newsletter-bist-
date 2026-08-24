@@ -59,7 +59,7 @@ function validate(body, user) {
   if (!bodyText) errors.push('The article text is required.');
   const words = wordCount(bodyText);
   if (words > MAX_ARTICLE_WORDS) {
-    errors.push(`Article text is limited to ${MAX_ARTICLE_WORDS} words — currently ${words}. Please shorten it.`);
+    errors.push(`Article text is limited to ${MAX_ARTICLE_WORDS} words - currently ${words}. Please shorten it.`);
   }
   if (!allowedSections(user).includes(section)) errors.push('Invalid section.');
   // Template placement is the admin's / principal's call.

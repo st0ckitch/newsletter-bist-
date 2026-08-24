@@ -17,7 +17,7 @@
 </div>
 
 <% if (!mailchimpConfigured) { %>
-  <div class="alert alert-warn">Mailchimp is not configured — reminders and draft creation are disabled. Set <code>MAILCHIMP_API_KEY</code>, <code>MAILCHIMP_SERVER_PREFIX</code> and <code>MAILCHIMP_AUDIENCE_ID</code> in <code>.env</code>.</div>
+  <div class="alert alert-warn">Mailchimp is not configured - reminders and draft creation are disabled. Set <code>MAILCHIMP_API_KEY</code>, <code>MAILCHIMP_SERVER_PREFIX</code> and <code>MAILCHIMP_AUDIENCE_ID</code> in <code>.env</code>.</div>
 <% } %>
 
 <div class="grid-2">
@@ -33,7 +33,7 @@
             <td><%= s.submitted ? '✅ submitted' : '⏳ nothing yet' %></td>
           </tr>
         <% }) %>
-        <% if (!submissions.length) { %><tr><td colspan="3" class="muted">No teacher accounts yet — add them under Users.</td></tr><% } %>
+        <% if (!submissions.length) { %><tr><td colspan="3" class="muted">No teacher accounts yet - add them under Users.</td></tr><% } %>
       </tbody>
     </table>
     <% if (isManager) { %>
@@ -50,20 +50,20 @@
     <h3>Latest news</h3>
     <ul class="plain-list">
       <% news.slice(0, 6).forEach(function(n) { %>
-        <li><a href="/news/<%= n.id %>/edit"><%= n.title %></a> <span class="muted">— <%= n.section.replace('_',' ') %>, by <%= n.author || 'unknown' %></span></li>
+        <li><a href="/news/<%= n.id %>/edit"><%= n.title %></a> <span class="muted">- <%= n.section.replace('_',' ') %>, by <%= n.author || 'unknown' %></span></li>
       <% }) %>
       <% if (!news.length) { %><li class="muted">Nothing submitted yet this week.</li><% } %>
     </ul>
     <h3>Next events</h3>
     <ul class="plain-list">
       <% events.slice(0, 6).forEach(function(e) { %>
-        <li><strong><%= e.event_date %></strong> — <%= e.title %><% if (e.location) { %> <span class="muted">(<%= e.location %>)</span><% } %></li>
+        <li><strong><%= e.event_date %></strong> - <%= e.title %><% if (e.location) { %> <span class="muted">(<%= e.location %>)</span><% } %></li>
       <% }) %>
       <% if (!events.length) { %><li class="muted">No upcoming events.</li><% } %>
     </ul>
     <% if (issue) { %>
       <h3>Generated issue</h3>
-      <p class="muted">Last generated <%= issue.generated_at %> UTC — status: <%= issue.status %><% if (issue.campaign_web_url) { %> · <a href="<%= issue.campaign_web_url %>" target="_blank" rel="noopener">open draft in Mailchimp</a><% } %></p>
+      <p class="muted">Last generated <%= issue.generated_at %> UTC - status: <%= issue.status %><% if (issue.campaign_web_url) { %> · <a href="<%= issue.campaign_web_url %>" target="_blank" rel="noopener">open draft in Mailchimp</a><% } %></p>
       <% if (issueWarnings.length) { %>
         <div class="alert alert-warn"><ul class="plain-list"><% issueWarnings.forEach(function(w) { %><li><%= w %></li><% }) %></ul></div>
       <% } %>

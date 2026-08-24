@@ -8,7 +8,7 @@ let sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
   sessionSecret = crypto.randomBytes(32).toString('hex');
   console.warn(
-    '[config] SESSION_SECRET is not set — using a random secret. ' +
+    '[config] SESSION_SECRET is not set - using a random secret. ' +
       'All sessions will be invalidated on restart. Set SESSION_SECRET in .env.'
   );
 }

@@ -51,7 +51,7 @@ function parseCronTime(expr, fallback = { hour: 15, minute: 0 }) {
 }
 
 // Monday of the working week a submission made "now" belongs to.
-// Mon–Thu → this week's Monday. After the Friday generation cutoff (and on
+// Mon-Thu → this week's Monday. After the Friday generation cutoff (and on
 // Sat/Sun) the issue has already been assembled, so submissions roll into
 // next week's issue.
 function currentWeekStart(tz, date = new Date(), cutoff = null) {
@@ -68,7 +68,7 @@ function currentWeekStart(tz, date = new Date(), cutoff = null) {
 }
 
 // Monday of the week whose issue should be (re)generated "now": always the
-// Monday of the current calendar week — on Sat/Sun that is the Monday of the
+// Monday of the current calendar week - on Sat/Sun that is the Monday of the
 // week that just finished. Never rolls forward, so generating on Friday
 // evening or over the weekend rebuilds the finished week, not an empty one.
 function issueWeekStart(tz, date = new Date()) {

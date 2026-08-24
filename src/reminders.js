@@ -110,18 +110,18 @@ async function sendThursdayReminder() {
   const users = [...pendingTeachers, ...pendingPrincipals];
   if (!users.length) {
     logReminder('thursday', weekStart, [], 'skipped', 'Everyone has already submitted.');
-    return { sent: false, reason: 'Everyone has already submitted — no reminder needed.' };
+    return { sent: false, reason: 'Everyone has already submitted - no reminder needed.' };
   }
   const bodyHtml = `
     <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;"><strong>Today is the hard deadline</strong> for this
-    week's issue of <strong>${escapeHtml(getSetting('newsletter_name'))}</strong> — and we have not received your content yet.</p>
+    week's issue of <strong>${escapeHtml(getSetting('newsletter_name'))}</strong> - and we have not received your content yet.</p>
     <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">Please submit your events, news and photos in the
     admin panel <strong>today</strong>. The newsletter is assembled automatically tomorrow at 15:00; anything missing by
     then will not be included.</p>`;
   return sendReminder({
     type: 'thursday',
     users,
-    subject: `🚨 HARD DEADLINE TODAY — ${getSetting('newsletter_name')} newsletter content missing`,
+    subject: `🚨 HARD DEADLINE TODAY - ${getSetting('newsletter_name')} newsletter content missing`,
     heading: 'Hard deadline: today',
     headingColor: '#D64541',
     bodyHtml,

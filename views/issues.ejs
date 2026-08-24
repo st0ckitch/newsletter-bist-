@@ -15,7 +15,7 @@
             <%= i.status === 'draft_created' ? '✅ draft in Mailchimp' : '📄 saved locally only' %>
             <% if (i.warnings.length) { %><br><span class="muted">⚠ <%= i.warnings.join(' · ') %></span><% } %>
           </td>
-          <td><% if (i.campaign_web_url) { %><a href="<%= i.campaign_web_url %>" target="_blank" rel="noopener">open draft</a><% } else { %>—<% } %></td>
+          <td><% if (i.campaign_web_url) { %><a href="<%= i.campaign_web_url %>" target="_blank" rel="noopener">open draft</a><% } else { %>-<% } %></td>
           <td><a class="btn btn-ghost btn-sm" href="/newsletter/issues/<%= i.id %>.html" target="_blank" rel="noopener">View HTML</a></td>
         </tr>
       <% }) %>

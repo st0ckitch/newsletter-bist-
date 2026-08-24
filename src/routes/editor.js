@@ -26,7 +26,7 @@ function photoUpload(req, res, next) {
     }
     if (!csrfOk(req)) {
       cleanup();
-      return bad(res, 'Your session expired — reload the page and try again.', 403);
+      return bad(res, 'Your session expired - reload the page and try again.', 403);
     }
     if (!req.file) return bad(res, 'No photo was uploaded.');
     if (!isRealImage(req.file)) {
@@ -79,14 +79,14 @@ router.post('/api/edit/text', manager, (req, res) => {
   const fieldSpec = spec && spec.fields[field];
   if (!fieldSpec) return bad(res, 'Unknown edit target.');
   const row = spec.load(ref);
-  if (!row) return bad(res, 'That item no longer exists — reload the preview.', 404);
+  if (!row) return bad(res, 'That item no longer exists - reload the preview.', 404);
 
   const text = String(value ?? '').trim();
   if (fieldSpec.required && !text) return bad(res, 'This text cannot be empty.');
   if (fieldSpec.max && text.length > fieldSpec.max) return bad(res, `Keep it under ${fieldSpec.max} characters.`);
   if (fieldSpec.words) {
     const words = wordCount(text);
-    if (words > fieldSpec.words) return bad(res, `Article text is limited to ${fieldSpec.words} words — currently ${words}.`);
+    if (words > fieldSpec.words) return bad(res, `Article text is limited to ${fieldSpec.words} words - currently ${words}.`);
   }
   spec.save(ref, field, text || null, fieldSpec.column);
   res.json({ ok: true });

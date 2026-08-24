@@ -14,7 +14,7 @@ const router = express.Router();
 router.get('/newsletter/preview.html', requireLogin, (req, res) => {
   const weekStart = isValidDateStr(req.query.week) ? req.query.week : submissionWeekStart();
   // The preview always shows the template's structure: empty sections render
-  // as labelled placeholders. With ?edit=1, managers get the live editor —
+  // as labelled placeholders. With ?edit=1, managers get the live editor -
   // click any text or photo to change it in place. The generated Mailchimp
   // draft contains neither placeholders nor editor markup.
   const editable = req.query.edit === '1' && ['principal', 'admin'].includes(req.user.role);

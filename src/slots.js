@@ -1,16 +1,16 @@
-// Named template sections. A–C are fixed parts of the layout; articles are
+// Named template sections. A-C are fixed parts of the layout; articles are
 // placed by the admin into the lettered content slots, which map onto the
 // newsletter's two columns (D/F/H = left, E/G/I = right, top to bottom).
 const SLOT_LABELS = {
-  A: 'A — Header & quote of the week (fixed)',
-  B: 'B — Upcoming events · left column (fixed)',
-  C: "C — Principal's message · right column (fixed)",
-  D: 'D — Left column · top',
-  E: 'E — Right column · top',
-  F: 'F — Left column · middle',
-  G: 'G — Right column · middle',
-  H: 'H — Left column · bottom',
-  I: 'I — Right column · bottom',
+  A: 'A - Header & quote of the week (fixed)',
+  B: 'B - Upcoming events · left column (fixed)',
+  C: "C - Principal's message · right column (fixed)",
+  D: 'D - Left column · top',
+  E: 'E - Right column · top',
+  F: 'F - Left column · middle',
+  G: 'G - Right column · middle',
+  H: 'H - Left column · bottom',
+  I: 'I - Right column · bottom',
 };
 
 const CONTENT_SLOTS = ['D', 'E', 'F', 'G', 'H', 'I'];
