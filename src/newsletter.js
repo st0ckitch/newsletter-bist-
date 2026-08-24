@@ -67,6 +67,8 @@ const MOBILE_CSS = `
     .wrap-pad { padding: 14px 10px 2px 10px !important; }
     .atext p { font-size: 16px !important; line-height: 1.7 !important; }
     .ph-hero, .ph-pair { width: 100% !important; max-width: 100% !important; }
+    .mob-principal { display: block !important; max-height: none !important; overflow: visible !important; }
+    .desk-principal { display: none !important; }
     .dir-cell { display: block !important; width: 100% !important; text-align: center !important; padding: 5px 0 !important; }
     .foot-pad { padding: 22px 16px 20px 16px !important; }
   }`;
@@ -471,8 +473,18 @@ function renderNewsletter(data) {
       ? placeholderBox('C', "Principal's Message", "Written on the Principal's message page.")
       : '';
 
+  // Phones read top-down, so the stacked order there is: principal's message
+  // first, then the events calendar, then the articles. Desktop keeps the
+  // print layout (events left, principal right). Implemented with a small
+  // mobile-only copy of the principal block: hidden by default (and from
+  // Outlook via mso-hide), shown on <=640px while the in-column copy hides.
+  const mobilePrincipal = principalHtml
+    ? `<div class="mob-principal" style="display:none; max-height:0; overflow:hidden; mso-hide:all;">${principalHtml}</div>`
+    : '';
   const leftColumn = eventsHtml + columnHtml(LEFT_SLOTS, articles, articleHtml, placeholders, articles);
-  const rightColumn = principalHtml + columnHtml(RIGHT_SLOTS, articles, articleHtml, placeholders);
+  const rightColumn =
+    (principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '') +
+    columnHtml(RIGHT_SLOTS, articles, articleHtml, placeholders);
 
   const quoteBlock =
     quote && quote.text
@@ -548,6 +560,7 @@ ${fontFaceCss(fontBase)}
     <!-- B/C + article slots: two columns, as in the print layout -->
     <tr>
       <td class="wrap-pad" style="padding:20px 14px 6px 14px;">
+        ${mobilePrincipal}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
             <td class="col" width="${COL_W}" valign="top">${leftColumn || '&nbsp;'}</td>

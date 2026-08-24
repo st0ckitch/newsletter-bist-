@@ -47,7 +47,9 @@ test('slots map onto the two columns: left column (events, D) before right colum
   const html = renderNewsletter(baseData);
   const events = html.indexOf('Upcoming Events');
   const slotD = html.indexOf('Tennis &lt;win&gt;');
-  const principal = html.indexOf('PRINCIPAL&#39;S MESSAGE');
+  // The desktop copy of the principal block (the mobile-only copy legitimately
+  // renders earlier in the source, above the columns).
+  const principal = html.indexOf('PRINCIPAL&#39;S MESSAGE', html.indexOf('class="desk-principal"'));
   const slotE = html.indexOf('Khachapuri Baking');
   assert.ok(events !== -1 && slotD !== -1 && principal !== -1 && slotE !== -1);
   assert.ok(events < slotD, 'events open the left column');
@@ -225,4 +227,21 @@ test('masthead background image renders email-safe with the navy fallback', () =
   assert.ok(!editable.includes('data-no-bg'), 'has a background, so no empty-state flag');
   const editableEmpty = renderNewsletter({ ...baseData, editable: true });
   assert.match(editableEmpty, /data-masthead="1" data-no-bg="1"/);
+});
+
+test('mobile: principal message stacks first, before events; desktop keeps it in the right column', () => {
+  const html = renderNewsletter(baseData);
+  const mob = html.indexOf('class="mob-principal"');
+  const events = html.indexOf('Upcoming Events');
+  const desk = html.indexOf('class="desk-principal"');
+  assert.ok(mob !== -1 && desk !== -1, 'both principal copies present');
+  assert.ok(mob < events, 'mobile principal copy comes before the events block in source order');
+  // Hidden everywhere by default (incl. mso-hide for Outlook); the media query flips visibility.
+  assert.match(html, /class="mob-principal" style="display:none; max-height:0; overflow:hidden; mso-hide:all;"/);
+  assert.match(html, /\.mob-principal \{ display: block !important;/);
+  assert.match(html, /\.desk-principal \{ display: none !important; \}/);
+  // No principal message and no placeholders -> neither copy renders (the
+  // CSS rules stay in the stylesheet; only the class= usages disappear).
+  const none = renderNewsletter({ ...baseData, principalMessage: null });
+  assert.ok(!none.includes('class="mob-principal"') && !none.includes('class="desk-principal"'));
 });
