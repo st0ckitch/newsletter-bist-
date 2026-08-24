@@ -17,10 +17,14 @@
 
   /* ---------------- transport ---------------- */
 
+  // The page's CSP forbids inline scripts, so the CSRF token arrives as an
+  // attribute on <body> rather than a window.CSRF assignment.
+  var CSRF = (document.body && document.body.getAttribute('data-csrf')) || window.CSRF || '';
+
   function api(path, payload) {
     return fetch(path, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-csrf-token': window.CSRF || '' },
+      headers: { 'content-type': 'application/json', 'x-csrf-token': CSRF },
       body: JSON.stringify(payload),
     }).then(function (r) {
       return r.json().catch(function () {
@@ -35,7 +39,7 @@
       form.append(k, fields[k]);
     });
     form.append('photo', file);
-    return fetch(path, { method: 'POST', headers: { 'x-csrf-token': window.CSRF || '' }, body: form }).then(function (r) {
+    return fetch(path, { method: 'POST', headers: { 'x-csrf-token': CSRF }, body: form }).then(function (r) {
       return r.json().catch(function () {
         return { ok: false, error: 'Unexpected server response.' };
       });
@@ -94,6 +98,10 @@
       }
       return api('/api/edit/photo/delete', { photo_id: ref });
     },
+    moveSlot: function (newsId, slot) {
+      if (demo) return Promise.resolve(demo.moveSlot(newsId, slot));
+      return api('/api/edit/slot', { news_id: newsId, slot: slot });
+    },
     setMasthead: function (file) {
       if (demo)
         return fileToDataUri(file).then(function (uri) {
@@ -137,13 +145,17 @@
     '[data-masthead]{position:relative;}' +
     '.re-mast-tools{position:absolute; top:8px; left:8px; display:none; gap:4px; z-index:5;}' +
     '[data-masthead]:hover .re-mast-tools{display:flex;}' +
-    '[data-masthead]:hover{outline:2px solid rgba(217,164,65,.9); outline-offset:-2px;}';
+    '[data-masthead]:hover{outline:2px solid rgba(217,164,65,.9); outline-offset:-2px;}' +
+    '[data-drag-bar]{cursor:grab;}' +
+    '.re-grip{display:inline-block; margin-right:8px; color:rgba(255,255,255,.85); font-size:12px; letter-spacing:1px; vertical-align:1px;}' +
+    '.re-drop{outline:3px dashed #D9A441 !important; outline-offset:3px; border-radius:10px;}' +
+    '.re-dragging{opacity:.45;}';
   document.head.appendChild(style);
 
   var bar = document.createElement('div');
   bar.className = 're-bar';
   bar.innerHTML =
-    '<b>LIVE EDITOR</b><span>Click any text to edit it. Hover a photo to replace or remove it. Changes save instantly.</span><span class="re-status" id="re-status"></span>';
+    '<b>LIVE EDITOR</b><span>Click any text to edit it. Hover a photo to replace or remove it. Drag a section by its ⠿ header onto another section to swap them. Changes save instantly.</span><span class="re-status" id="re-status"></span>';
   document.body.insertBefore(bar, document.body.firstChild);
   var statusEl = bar.querySelector('#re-status');
 
@@ -180,6 +192,13 @@
     if (active && active.el === el) return;
     finishEdit(true);
     active = { el: el, original: el.innerHTML };
+    // Links turn back into their editable source - [label](url) or the bare
+    // URL - so they survive the edit round-trip (Esc restores the original).
+    el.querySelectorAll('a[href]').forEach(function (a) {
+      var href = a.getAttribute('href');
+      var label = a.textContent;
+      a.replaceWith(document.createTextNode(label === href ? href : '[' + label + '](' + href + ')'));
+    });
     el.classList.add('re-editing');
     el.setAttribute('contenteditable', 'true');
     el.focus();
@@ -355,5 +374,67 @@
       });
     };
     card.appendChild(btn);
+  });
+
+  /* ---------------- section drag-and-drop (slots D-I) ---------------- */
+
+  var CONTENT_LETTERS = ['D', 'E', 'F', 'G', 'H', 'I'];
+  var dragState = null;
+
+  document.querySelectorAll('[data-slot-block]').forEach(function (block) {
+    var letter = block.getAttribute('data-slot-block');
+    if (CONTENT_LETTERS.indexOf(letter) === -1) return;
+
+    // Every D-I block - articles and empty placeholders - accepts drops.
+    function over(e) {
+      if (!dragState || dragState.block === block) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      block.classList.add('re-drop');
+    }
+    block.addEventListener('dragover', over);
+    block.addEventListener('dragenter', over);
+    block.addEventListener('dragleave', function () {
+      block.classList.remove('re-drop');
+    });
+    block.addEventListener('drop', function (e) {
+      block.classList.remove('re-drop');
+      if (!dragState || dragState.block === block) return;
+      e.preventDefault();
+      var target = block.getAttribute('data-slot-block');
+      var state = dragState;
+      dragState = null;
+      if (target !== state.slot) handle(T.moveSlot(state.id, target), 'Moving section…');
+    });
+
+    // Articles drag by their colored header bar.
+    var barEl = block.querySelector('[data-drag-bar]');
+    if (barEl) {
+      barEl.setAttribute('draggable', 'true');
+      var grip = document.createElement('span');
+      grip.className = 're-grip';
+      grip.textContent = '⠿';
+      grip.title = 'Drag onto another section to swap';
+      barEl.insertBefore(grip, barEl.firstChild);
+      barEl.addEventListener('dragstart', function (e) {
+        dragState = { id: barEl.getAttribute('data-drag-bar'), slot: letter, block: block };
+        block.classList.add('re-dragging');
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          try {
+            e.dataTransfer.setData('text/plain', dragState.id);
+          } catch (err) {
+            /* older engines */
+          }
+        }
+      });
+      barEl.addEventListener('dragend', function () {
+        dragState = null;
+        document.querySelectorAll('.re-drop, .re-dragging').forEach(function (b) {
+          b.classList.remove('re-drop');
+          b.classList.remove('re-dragging');
+        });
+      });
+    }
   });
 })();

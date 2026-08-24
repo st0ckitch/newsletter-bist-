@@ -1,5 +1,6 @@
 <%- include('partials/head', { title: item && item.id ? 'Edit news' : 'New news' }) %>
-<div class="card card-narrow">
+<div class="grid-2 grid-form-preview">
+<div class="card">
   <h1><%= item && item.id ? 'Edit news article' : 'Add a news article' %></h1>
   <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
   <form method="post" action="<%= item && item.id ? '/news/' + item.id : '/news' %>" enctype="multipart/form-data">
@@ -18,6 +19,7 @@
       <textarea name="body" rows="10" required data-word-limit="<%= maxWords %>" placeholder="Write the article. Leave an empty line between paragraphs."><%= item ? item.body : '' %></textarea>
     </label>
     <p class="muted"><span data-word-count></span></p>
+    <p class="muted"><strong>Links:</strong> paste a URL (https://…) or write <code>[link text](https://…)</code> - both become clickable links in the newsletter.</p>
     <% if (isManager) { %>
     <label>Template section
       <select name="slot">
@@ -55,5 +57,12 @@
       <% }) %>
     </div>
   <% } %>
+</div>
+
+<div class="card">
+  <div class="card-head-row"><h2>Live preview</h2></div>
+  <p class="muted">The article exactly as it will appear in the newsletter column - updates as you type. Photos show once selected; the first one becomes the hero image.</p>
+  <iframe id="article-preview" class="preview-frame" title="Article preview"></iframe>
+</div>
 </div>
 <%- include('partials/foot') %>

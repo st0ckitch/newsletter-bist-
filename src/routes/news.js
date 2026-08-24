@@ -4,8 +4,17 @@ const { requireLogin, requireRole, csrfOk, canEditRecord, canManage } = require(
 const { submissionWeekStart } = require('../appweek');
 const { CONTENT_SLOTS, DEFAULT_SLOT, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount } = require('../slots');
 const { upload, isRealImage, removeFiles } = require('../uploads');
+const { renderArticlePreview } = require('../newsletter');
 
 const router = express.Router();
+
+// Live preview beside the news form: the draft article rendered with the
+// real newsletter template. Reads title/body/photos (data URIs of the
+// selected files) from JSON; nothing is stored.
+router.post('/news/preview.html', requireLogin, (req, res) => {
+  const { title, body, sectionLabel, photos } = req.body || {};
+  res.type('html').send(renderArticlePreview({ title, body, sectionLabel, photos }));
+});
 
 // Parses the multipart body (multer), then verifies the CSRF token from it
 // and that every uploaded file really is an image. On any failure the files

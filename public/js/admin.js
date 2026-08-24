@@ -27,3 +27,80 @@ document.addEventListener('input', function (e) {
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('textarea[data-word-limit]').forEach(updateWordCount);
 });
+
+// Live article preview beside the news form: renders the draft through the
+// real newsletter template (POST /news/preview.html) as the user types.
+(function () {
+  var frame = document.getElementById('article-preview');
+  var form = document.querySelector('form[action^="/news"]');
+  if (!frame || !form) return;
+  var csrfInput = form.querySelector('input[name=_csrf]');
+  var filePhotos = []; // downscaled data URIs of newly selected files
+
+  function existingPhotos() {
+    return Array.prototype.map.call(document.querySelectorAll('.photo-grid img'), function (img) {
+      return img.getAttribute('src');
+    });
+  }
+
+  function readFiles(input, cb) {
+    var files = Array.prototype.slice.call(input.files || []).slice(0, 12);
+    if (!files.length) return cb([]);
+    var out = [];
+    var left = files.length;
+    files.forEach(function (file, idx) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.min(1, 900 / img.width);
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          out[idx] = canvas.toDataURL('image/jpeg', 0.8);
+          if (--left === 0) cb(out.filter(Boolean));
+        };
+        img.onerror = function () {
+          if (--left === 0) cb(out.filter(Boolean));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  var timer = null;
+  function refresh() {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      var titleEl = form.querySelector('input[name=title]');
+      var bodyEl = form.querySelector('textarea[name=body]');
+      var sectionEl = form.querySelector('select[name=section]');
+      fetch('/news/preview.html', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-csrf-token': csrfInput ? csrfInput.value : '' },
+        body: JSON.stringify({
+          title: titleEl ? titleEl.value : '',
+          body: bodyEl ? bodyEl.value : '',
+          sectionLabel: sectionEl ? sectionEl.options[sectionEl.selectedIndex].text : '',
+          photos: existingPhotos().concat(filePhotos),
+        }),
+      })
+        .then(function (r) { return r.text(); })
+        .then(function (html) { frame.srcdoc = html; })
+        .catch(function () { /* preview is best-effort */ });
+    }, 350);
+  }
+
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', function (e) {
+    if (e.target && e.target.matches && e.target.matches('input[type=file]')) {
+      readFiles(e.target, function (uris) {
+        filePhotos = uris;
+        refresh();
+      });
+    }
+  });
+  refresh();
+})();

@@ -28,7 +28,9 @@ function createApp() {
   );
 
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
-  app.use(express.json({ limit: '1mb' }));
+  // JSON payloads carry downscaled photo data URIs for the article form
+  // preview, so the limit is generous; this is an internal staff panel.
+  app.use(express.json({ limit: '15mb' }));
   app.use(
     cookieSession({
       name: 'roar.sid',

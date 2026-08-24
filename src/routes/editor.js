@@ -7,7 +7,7 @@ const config = require('../config');
 const { db, getSetting, setSetting } = require('../db');
 const { requireRole, csrfOk } = require('../auth');
 const { upload, isRealImage, removeFiles } = require('../uploads');
-const { MAX_ARTICLE_WORDS, wordCount } = require('../slots');
+const { MAX_ARTICLE_WORDS, wordCount, CONTENT_SLOTS, DEFAULT_SLOT } = require('../slots');
 const { isValidDateStr } = require('../week');
 
 const router = express.Router();
@@ -89,6 +89,26 @@ router.post('/api/edit/text', manager, (req, res) => {
     if (words > fieldSpec.words) return bad(res, `Article text is limited to ${fieldSpec.words} words - currently ${words}.`);
   }
   spec.save(ref, field, text || null, fieldSpec.column);
+  res.json({ ok: true });
+});
+
+/* ---------------- section drag-and-drop ---------------- */
+
+// Move an article to another template section (D-I). A true section swap:
+// whatever already lives in the target section takes the dragged article's
+// old place, so dragging section E onto G exchanges the two.
+router.post('/api/edit/slot', manager, (req, res) => {
+  const { news_id, slot } = req.body || {};
+  const item = db.prepare('SELECT * FROM news WHERE id = ?').get(news_id);
+  if (!item) return bad(res, 'That article no longer exists - reload the preview.', 404);
+  if (!CONTENT_SLOTS.includes(slot)) return bad(res, 'Unknown template section.');
+  const from = item.slot || DEFAULT_SLOT;
+  if (from !== slot) {
+    db.prepare(
+      "UPDATE news SET slot = ?, updated_at = datetime('now') WHERE week_start = ? AND slot = ? AND id != ?"
+    ).run(from, item.week_start, slot, item.id);
+    db.prepare("UPDATE news SET slot = ?, updated_at = datetime('now') WHERE id = ?").run(slot, item.id);
+  }
   res.json({ ok: true });
 });
 

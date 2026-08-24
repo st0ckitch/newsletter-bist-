@@ -82,6 +82,27 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+// Hyperlinks in plain text: "[link text](https://url)" and bare
+// http(s):// URLs become styled anchors. Runs on already-escaped text (so
+// user HTML stays inert) and only ever links http/https URLs.
+function anchorHtml(url, label) {
+  return `<a href="${url}" style="color:${GOLD_DEEP}; font-weight:600; text-decoration:underline;">${label}</a>`;
+}
+
+function linkify(escaped) {
+  return escaped.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g,
+    (match, label, url, bare) => {
+      if (bare) {
+        // Trailing punctuation belongs to the sentence, not the URL.
+        const trimmed = bare.replace(/[.,;:!?]+$/, '');
+        return anchorHtml(trimmed, trimmed) + bare.slice(trimmed.length);
+      }
+      return anchorHtml(url, label);
+    }
+  );
+}
+
 // Plain text -> paragraphs. Blank line separates paragraphs, single newline = <br>.
 function textToHtml(text, color = INK, size = 15) {
   return escapeHtml(text)
@@ -89,10 +110,9 @@ function textToHtml(text, color = INK, size = 15) {
     .filter((p) => p.trim() !== '')
     .map(
       (p) =>
-        `<p style="margin:0 0 12px 0; line-height:1.65; font-size:${size}px; font-weight:300; font-family:${SANS}; color:${color};">${p.replace(
-          /\r?\n/g,
-          '<br>'
-        )}</p>`
+        `<p style="margin:0 0 12px 0; line-height:1.65; font-size:${size}px; font-weight:300; font-family:${SANS}; color:${color};">${linkify(
+          p
+        ).replace(/\r?\n/g, '<br>')}</p>`
     )
     .join('');
 }
@@ -140,8 +160,10 @@ function columnHeading(kicker, title, rightHtml = '') {
 // In the admin preview every template section stays visible: an empty slot
 // renders as a labelled dashed box and fills with content once assigned.
 function placeholderBox(letter, title, hint) {
+  // data-slot-block makes empty sections drop targets for the live editor's
+  // drag-and-drop; placeholders never reach the generated draft.
   return `
-  <div style="padding:0 0 18px 0;">
+  <div data-slot-block="${escapeHtml(letter)}" data-empty="1" style="padding:0 0 18px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; border:2px dashed #D9CFBA; border-radius:10px; background:#FDFBF3;">
       <tr>
         <td align="center" style="padding:22px 14px;">
@@ -310,11 +332,15 @@ function renderArticle(article, barColor, slotLetter, editable) {
         slotLetter
       )}</span>`
     : '';
+  // In the live editor the block advertises its slot and the header bar is
+  // the drag handle for section drag-and-drop; drafts carry none of this.
+  const dragBlock = editable && slotLetter && article.id ? ` data-slot-block="${escapeHtml(slotLetter)}"` : '';
+  const dragBar = editable && slotLetter && article.id ? ` data-drag-bar="${article.id}"` : '';
   return `
-  <div style="padding:0 0 18px 0;">
+  <div${dragBlock} style="padding:0 0 18px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
       <tr>
-        <td style="background:${barColor}; border-radius:10px 10px 0 0; padding:11px 14px;">
+        <td${dragBar} style="background:${barColor}; border-radius:10px 10px 0 0; padding:11px 14px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
             <td style="font-family:${SANS}; font-size:14px; font-weight:600; color:#ffffff; line-height:1.35;">${slotChip}<span${ed(
     'title'
@@ -527,7 +553,9 @@ ${fontFaceCss(fontBase)}
   ${MOBILE_CSS}
 </style>
 </head>
-<body style="margin:0; padding:0; background:#EDEAE2; -webkit-text-size-adjust:100%;">
+<body style="margin:0; padding:0; background:#EDEAE2; -webkit-text-size-adjust:100%;"${
+    editable ? ` data-csrf="${escapeHtml(data.csrf || '')}"` : ''
+  }>
   <center>
   <table role="presentation" class="sheet" width="680" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:680px; max-width:100%; background:${IVORY};">
 
@@ -575,10 +603,47 @@ ${fontFaceCss(fontBase)}
   </table>
   </center>
   ${
-    editable
-      ? `<script>window.CSRF=${JSON.stringify(data.csrf || '')};</script><script src="/js/preview-editor.js"></script>`
-      : ''
+    // The CSRF token travels as an attribute on <body> - the page's CSP
+    // (script-src 'self') forbids inline scripts, so an inline
+    // window.CSRF assignment would be silently blocked and every editor
+    // save would fail with 403.
+    editable ? `<script src="/js/preview-editor.js"></script>` : ''
   }
+</body>
+</html>`;
+}
+
+// One article rendered exactly as the newsletter will show it, at column
+// width - the live preview beside the news form. Photo sources are limited
+// to data URIs, local uploads and http(s) images.
+function renderArticlePreview({ title, body, sectionLabel = '', photos = [] } = {}) {
+  const safePhotos = (Array.isArray(photos) ? photos : [])
+    .filter((u) => typeof u === 'string' && /^(data:image\/|\/uploads\/|https?:\/\/)/.test(u))
+    .slice(0, 12)
+    .map((url) => ({ id: null, url }));
+  const article = {
+    id: null,
+    title: String(title || '').slice(0, 200) || 'Untitled article',
+    body: String(body || '').slice(0, 20000) || 'Start typing the article text…',
+    sectionLabel: String(sectionLabel || ''),
+    photos: safePhotos,
+  };
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Article preview</title>
+<style>
+${fontFaceCss('')}
+</style>
+</head>
+<body style="margin:0; padding:18px 10px; background:${IVORY};">
+  <center>
+  <table role="presentation" width="${COL_W}" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:${COL_W}px; max-width:100%;">
+    <tr><td>${renderArticle(article, BAR_COLORS[0], null, false)}</td></tr>
+  </table>
+  </center>
 </body>
 </html>`;
 }
@@ -621,6 +686,7 @@ ${fontFaceCss(fontBase || '')}
 module.exports = {
   renderNewsletter,
   renderReminderEmail,
+  renderArticlePreview,
   escapeHtml,
   textToHtml,
   PALETTE: { NAVY, NAVY_DEEP, GOLD, GOLD_DEEP, IVORY, INK },

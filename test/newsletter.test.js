@@ -245,3 +245,36 @@ test('mobile: principal message stacks first, before events; desktop keeps it in
   const none = renderNewsletter({ ...baseData, principalMessage: null });
   assert.ok(!none.includes('class="mob-principal"') && !none.includes('class="desk-principal"'));
 });
+
+test('article text: bare URLs and [text](url) become safe styled links', () => {
+  const html = textToHtml('See [our site](https://bist.ge/news) and https://example.com/page?a=1&b=2. Also [x](javascript:alert(1))');
+  assert.match(html, /<a href="https:\/\/bist\.ge\/news"[^>]*>our site<\/a>/);
+  assert.match(html, /<a href="https:\/\/example\.com\/page\?a=1&amp;b=2"[^>]*>[^<]+<\/a>\./);
+  assert.ok(!/href="javascript/.test(html), 'non-http schemes never become links');
+  assert.match(html, /text-decoration:underline/);
+  const plain = textToHtml('No links here.');
+  assert.ok(!plain.includes('<a '), 'plain text stays plain');
+});
+
+test('drag-and-drop annotations only in editable previews', () => {
+  const withIds = baseData.articles.map((a, i) => ({ ...a, id: i + 1 }));
+  const editable = renderNewsletter({ ...baseData, articles: withIds, placeholders: true, editable: true });
+  assert.match(editable, /data-slot-block="D"/);
+  assert.match(editable, /data-drag-bar="/);
+  const draft = renderNewsletter(baseData);
+  assert.ok(!draft.includes('data-slot-block') && !draft.includes('data-drag-bar'), 'drafts carry no drag markup');
+});
+
+test('renderArticlePreview renders the draft article and filters photo sources', () => {
+  const { renderArticlePreview } = require('../src/newsletter');
+  const html = renderArticlePreview({
+    title: 'Preview <Test>',
+    body: 'Read [more](https://bist.ge) now',
+    photos: ['data:image/png;base64,AAAA', 'javascript:alert(1)', '/uploads/x.png'],
+  });
+  assert.match(html, /Preview &lt;Test&gt;/);
+  assert.match(html, /<a href="https:\/\/bist\.ge"/);
+  assert.match(html, /data:image\/png;base64,AAAA/);
+  assert.match(html, /\/uploads\/x\.png/);
+  assert.ok(!html.includes('javascript:alert'), 'unsafe photo sources dropped');
+});

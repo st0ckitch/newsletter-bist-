@@ -614,6 +614,81 @@ test('generation report flags a non-public APP_BASE_URL', async () => {
   assert.match(result.html, /url\('http:\/\/localhost:3000\/fonts\/FiraGO-/);
 });
 
+
+test('article form preview endpoint renders the draft with links and photos', async () => {
+  const res = await fetch(base + '/news/preview.html', {
+    method: 'POST',
+    headers: { cookie: cookies, 'content-type': 'application/json', 'x-csrf-token': csrf },
+    body: JSON.stringify({
+      title: 'Form Preview Test',
+      body: 'Read [more](https://bist.ge) now',
+      sectionLabel: 'whole school',
+      photos: ['data:image/png;base64,AAAA', 'javascript:alert(1)'],
+    }),
+  });
+  assert.strictEqual(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Form Preview Test/);
+  assert.match(html, /<a href="https:\/\/bist\.ge"/);
+  assert.match(html, /data:image\/png;base64,AAAA/);
+  assert.ok(!html.includes('javascript:alert'));
+  // requires login
+  const anon = await fetch(base + '/news/preview.html', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
+    redirect: 'manual',
+  });
+  assert.ok([302, 403].includes(anon.status));
+});
+
+test('live editor API: drag-and-drop swaps two template sections', async () => {
+  await post('/news', { title: 'Drag Article A', body: 'aaa', section: 'whole_school', slot: 'D' });
+  await post('/news', { title: 'Drag Article B', body: 'bbb', section: 'primary', slot: 'E' });
+  const idOf = (t) => db.prepare('SELECT id FROM news WHERE title = ?').get(t).id;
+  const slotOf = (t) => db.prepare('SELECT slot FROM news WHERE title = ?').get(t).slot;
+  const move = (id, slot) =>
+    fetch(base + '/api/edit/slot', {
+      method: 'POST',
+      headers: { cookie: cookies, 'content-type': 'application/json', 'x-csrf-token': csrf },
+      body: JSON.stringify({ news_id: id, slot }),
+    });
+
+  const res = await move(idOf('Drag Article A'), 'E');
+  assert.strictEqual((await res.json()).ok, true);
+  assert.strictEqual(slotOf('Drag Article A'), 'E', 'dragged article takes the target section');
+  assert.strictEqual(slotOf('Drag Article B'), 'D', 'displaced article takes the vacated section');
+
+  // moving onto an empty section just moves, and bad slots are rejected
+  await move(idOf('Drag Article A'), 'I');
+  assert.strictEqual(slotOf('Drag Article A'), 'I');
+  assert.strictEqual(slotOf('Drag Article B'), 'D', 'unrelated article untouched');
+  const bad = await move(idOf('Drag Article A'), 'Z');
+  assert.strictEqual(bad.status, 400);
+
+  // not available without a manager session
+  const anon = await fetch(base + '/api/edit/slot', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ news_id: 1, slot: 'D' }),
+    redirect: 'manual',
+  });
+  assert.ok([302, 403].includes(anon.status));
+  db.prepare("DELETE FROM news WHERE title IN ('Drag Article A', 'Drag Article B')").run();
+});
+
+
+test('editable preview is CSP-safe: no inline scripts, CSRF via body attribute', async () => {
+  const edit = await (await get('/newsletter/preview.html?edit=1')).text();
+  // helmet serves script-src 'self': an inline <script> would be silently
+  // blocked and every editor save would 403 (the "images not replacing" bug).
+  assert.ok(!/<script>/.test(edit), 'no inline scripts in the editable preview');
+  assert.match(edit, /<script src="\/js\/preview-editor\.js"><\/script>/);
+  assert.match(edit, /<body[^>]* data-csrf="[^"]+"/);
+  const plain = await (await get('/newsletter/preview.html')).text();
+  assert.ok(!plain.includes('data-csrf'), 'plain preview carries no token');
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');
