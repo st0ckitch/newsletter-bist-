@@ -23,7 +23,9 @@ module.exports = {
   admin: {
     email: process.env.ADMIN_EMAIL || 'admin@bist.ge',
     name: process.env.ADMIN_NAME || 'Administrator',
-    password: process.env.ADMIN_PASSWORD || 'change-me',
+    // No well-known default: when unset, a random password is generated at
+    // first boot and printed to the server log.
+    password: process.env.ADMIN_PASSWORD || '',
   },
   mailchimp: {
     apiKey: process.env.MAILCHIMP_API_KEY || '',

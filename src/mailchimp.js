@@ -55,13 +55,25 @@ async function ping() {
 // Add or update a member of an audience (used to keep teachers subscribed so
 // reminder campaigns can reach them).
 async function upsertMember(listId, email, name, tags = []) {
-  await request('PUT', `/lists/${listId}/members/${subscriberHash(email)}`, {
+  const hash = subscriberHash(email);
+  const member = await request('PUT', `/lists/${listId}/members/${hash}`, {
     email_address: email,
     status_if_new: 'subscribed',
     merge_fields: name ? { FNAME: name } : {},
   });
+  // Staff reminders are operational email — if a teacher previously
+  // unsubscribed/was archived, try to re-activate them; Mailchimp rejects
+  // this for compliance-state members, which the caller reports.
+  if (member && ['unsubscribed', 'archived'].includes(member.status)) {
+    await request('PUT', `/lists/${listId}/members/${hash}`, {
+      email_address: email,
+      status: 'subscribed',
+    });
+  } else if (member && member.status === 'cleaned') {
+    throw new MailchimpError(`${email} has hard-bounced (status "cleaned") and cannot receive reminders.`, 0);
+  }
   if (tags.length) {
-    await request('POST', `/lists/${listId}/members/${subscriberHash(email)}/tags`, {
+    await request('POST', `/lists/${listId}/members/${hash}/tags`, {
       tags: tags.map((t) => ({ name: t, status: 'active' })),
     });
   }
@@ -118,16 +130,30 @@ async function uploadFile(name, buffer) {
 
 // Send one-off email to a specific set of addresses: upsert them into the
 // teachers audience, build a static segment, create a campaign for that
-// segment and send it.
+// segment and send it. One problematic address must not block the others,
+// so upsert failures are collected and reported instead of thrown.
 async function sendToEmails({ listId, emails, subject, title, html, fromName, replyTo, memberNames = {}, tags = [] }) {
+  const reachable = [];
+  const failed = [];
   for (const email of emails) {
-    await upsertMember(listId, email, memberNames[email], tags);
+    try {
+      await upsertMember(listId, email, memberNames[email], tags);
+      reachable.push(email);
+    } catch (err) {
+      failed.push({ email, error: err.message });
+    }
   }
-  const segmentId = await createStaticSegment(listId, title, emails);
+  if (!reachable.length) {
+    throw new MailchimpError(
+      `No recipient could be added to the audience: ${failed.map((f) => `${f.email} (${f.error})`).join('; ')}`,
+      0
+    );
+  }
+  const segmentId = await createStaticSegment(listId, title, reachable);
   const campaign = await createCampaign({ listId, segmentId, subject, title, fromName, replyTo });
   await setCampaignContent(campaign.id, html);
   await sendCampaign(campaign.id);
-  return campaign;
+  return { campaign, sentTo: reachable, failed };
 }
 
 function campaignEditUrl(campaign) {

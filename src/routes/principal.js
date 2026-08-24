@@ -1,13 +1,13 @@
 const express = require('express');
-const { db, getSetting } = require('../db');
+const { db } = require('../db');
 const { requireRole } = require('../auth');
-const { currentWeekStart, weekDeadline, formatHuman } = require('../week');
+const { weekDeadline, formatHuman } = require('../week');
+const { submissionWeekStart } = require('../appweek');
 
 const router = express.Router();
 
 router.get('/principal-message', requireRole('principal', 'admin'), (req, res) => {
-  const tz = getSetting('timezone');
-  const weekStart = currentWeekStart(tz);
+  const weekStart = submissionWeekStart();
   const message = db.prepare('SELECT * FROM principal_messages WHERE week_start = ?').get(weekStart) || null;
   res.render('principal', {
     message,
@@ -19,8 +19,7 @@ router.get('/principal-message', requireRole('principal', 'admin'), (req, res) =
 });
 
 router.post('/principal-message', requireRole('principal', 'admin'), (req, res) => {
-  const tz = getSetting('timezone');
-  const weekStart = currentWeekStart(tz);
+  const weekStart = submissionWeekStart();
   const body = (req.body.body || '').trim();
   const quote = (req.body.quote || '').trim() || null;
   const quote_author = (req.body.quote_author || '').trim() || null;

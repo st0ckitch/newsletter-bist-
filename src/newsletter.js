@@ -80,11 +80,18 @@ function sectionHeading(kicker, title) {
 function renderEventCard(ev) {
   const day = dayParts(ev.event_date);
   let range = '';
+  const metaBits = [];
   if (ev.end_date && ev.end_date !== ev.event_date) {
     const end = dayParts(ev.end_date);
-    range = `<span style="font-size:11px; color:#f7ecd8;">&ndash;${end.num}</span>`;
+    if (ev.end_date.slice(0, 7) === ev.event_date.slice(0, 7)) {
+      range = `<span style="font-size:11px; color:#f7ecd8;">&ndash;${end.num}</span>`;
+    } else {
+      // Range crosses a month boundary — "31–2" would mislead, spell it out.
+      metaBits.push(`Until ${end.num} ${monthLabel(ev.end_date)}`);
+    }
   }
-  const metaBits = [ev.location, ev.time_note].filter(Boolean).map(escapeHtml);
+  metaBits.push(...[ev.location, ev.time_note].filter(Boolean));
+  const metaHtml = metaBits.map(escapeHtml);
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; background:#ffffff; border:1px solid ${CARD_BORDER}; border-radius:12px; margin:0 0 10px 0;">
       <tr>
@@ -97,8 +104,8 @@ function renderEventCard(ev) {
     ev.title
   )}</p>
           ${
-            metaBits.length
-              ? `<p style="margin:4px 0 0 0; font-family:${SANS}; font-size:12px; color:${MUTED};">${metaBits.join(
+            metaHtml.length
+              ? `<p style="margin:4px 0 0 0; font-family:${SANS}; font-size:12px; color:${MUTED};">${metaHtml.join(
                   ' &nbsp;&bull;&nbsp; '
                 )}</p>`
               : ''
@@ -137,12 +144,14 @@ function renderEvents(events) {
 
 function renderPhotos(photos) {
   if (!photos || !photos.length) return '';
-  // First photo runs full width as a hero; the rest flow in a two-column grid.
+  // First photo runs full width as a hero; the rest flow in a two-column
+  // grid. Widths fit the 482px article-card content area (600 - 2×32 outer
+  // padding - 2×1 border - 2×26 inner padding) so Outlook does not overflow.
   const [hero, ...rest] = photos;
   let html = `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:14px;">
           <tr><td style="padding:0;">
-            <img src="${escapeHtml(hero)}" alt="Newsletter photo" width="536" style="width:100%; max-width:536px; height:auto; display:block; border-radius:12px;">
+            <img src="${escapeHtml(hero)}" alt="Newsletter photo" width="482" style="width:100%; max-width:482px; height:auto; display:block; border-radius:12px;">
           </td></tr>
         </table>`;
   for (let i = 0; i < rest.length; i += 2) {
@@ -154,7 +163,7 @@ function renderPhotos(photos) {
               .map(
                 (url) => `
             <td width="50%" valign="top" style="padding:0 5px;">
-              <img src="${escapeHtml(url)}" alt="Newsletter photo" width="258" style="width:100%; max-width:258px; height:auto; display:block; border-radius:10px;">
+              <img src="${escapeHtml(url)}" alt="Newsletter photo" width="231" style="width:100%; max-width:231px; height:auto; display:block; border-radius:10px;">
             </td>`
               )
               .join('')}

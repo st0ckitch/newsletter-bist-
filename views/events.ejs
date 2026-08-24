@@ -17,7 +17,7 @@
           <td class="row-actions">
             <% if (['principal','admin'].includes(currentUser.role) || e.created_by === currentUser.id) { %>
               <a class="btn btn-ghost btn-sm" href="/events/<%= e.id %>/edit">Edit</a>
-              <form method="post" action="/events/<%= e.id %>/delete" onsubmit="return confirm('Delete this event?');">
+              <form method="post" action="/events/<%= e.id %>/delete" data-confirm="Delete this event?">
                 <input type="hidden" name="_csrf" value="<%= csrf %>">
                 <button class="btn btn-danger btn-sm">Delete</button>
               </form>

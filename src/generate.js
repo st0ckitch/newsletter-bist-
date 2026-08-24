@@ -6,7 +6,8 @@ const { db, getSetting } = require('./db');
 const config = require('./config');
 const mailchimp = require('./mailchimp');
 const { renderNewsletter } = require('./newsletter');
-const { currentWeekStart, weekDeadline } = require('./week');
+const { weekDeadline } = require('./week');
+const { generationWeekStart } = require('./appweek');
 
 const SECTION_ORDER = [
   { key: 'whole_school', label: 'Whole School' },
@@ -16,9 +17,10 @@ const SECTION_ORDER = [
 
 function collectWeekData(weekStart) {
   const issueDate = weekDeadline(weekStart); // the Friday of that week
+  // Upcoming events, including multi-day events that are already running.
   const events = db
-    .prepare('SELECT * FROM events WHERE event_date >= ? ORDER BY event_date, time_note IS NULL, time_note')
-    .all(issueDate);
+    .prepare('SELECT * FROM events WHERE event_date >= ? OR (end_date IS NOT NULL AND end_date >= ?) ORDER BY event_date, created_at')
+    .all(issueDate, issueDate);
   const news = db.prepare('SELECT * FROM news WHERE week_start = ? ORDER BY created_at').all(weekStart);
   const photosByNews = {};
   for (const n of news) {
@@ -84,8 +86,7 @@ function buildRenderData(data) {
 // the result in the issues table. Never sends the campaign — staff review the
 // draft in Mailchimp and press send themselves.
 async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
-  const tz = getSetting('timezone');
-  weekStart = weekStart || currentWeekStart(tz);
+  weekStart = weekStart || generationWeekStart();
   const warnings = [];
   const data = collectWeekData(weekStart);
 
@@ -95,6 +96,13 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
 
   const allPhotos = Object.values(data.photosByNews).flat();
   await ensurePhotosUploaded(allPhotos, warnings);
+  const localPhotos = allPhotos.filter((p) => !p.mailchimp_url);
+  if (localPhotos.length && mailchimp.isConfigured()) {
+    warnings.push(
+      `${localPhotos.length} photo(s) are not on the Mailchimp CDN; the draft links to ${config.appBaseUrl}/uploads/… ` +
+        'which must be publicly reachable for parents to see them.'
+    );
+  }
 
   const html = renderNewsletter(buildRenderData(data));
 

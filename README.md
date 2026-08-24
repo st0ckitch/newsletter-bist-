@@ -18,7 +18,10 @@ Mailchimp and press send.
 
 All times run in the school's timezone (`Asia/Tbilisi` by default) and every
 schedule is editable in **Settings** (cron syntax) without a restart.
-Content submitted on Saturday/Sunday counts toward the *next* issue.
+Content submitted after the Friday generation time (or over the weekend)
+automatically counts toward the *next* issue, so nothing can silently land
+in an already-generated newsletter. Regenerating on Friday evening or during
+the weekend rebuilds the week that just finished.
 
 ## Roles
 
@@ -41,8 +44,9 @@ npm start                 # http://localhost:3000
 ```
 
 On first start an admin account is created from `ADMIN_EMAIL` /
-`ADMIN_PASSWORD` in `.env` (defaults: `admin@bist.ge` / `change-me` — change
-it immediately under Users).
+`ADMIN_PASSWORD` in `.env`. If `ADMIN_PASSWORD` is not set, a random
+password is generated and printed once in the server log — log in with it
+and change it under Users.
 
 ### Mailchimp
 

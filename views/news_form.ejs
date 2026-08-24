@@ -2,7 +2,8 @@
 <div class="card card-narrow">
   <h1><%= item && item.id ? 'Edit news article' : 'Add a news article' %></h1>
   <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
-  <form method="post" action="<%= (item && item.id ? '/news/' + item.id : '/news') + '?_csrf=' + csrf %>" enctype="multipart/form-data">
+  <form method="post" action="<%= item && item.id ? '/news/' + item.id : '/news' %>" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
     <label>Title *
       <input type="text" name="title" value="<%= item ? item.title : '' %>" required maxlength="200" placeholder="e.g. Inter-School Friendly Tennis Tournament Success">
     </label>
@@ -32,7 +33,7 @@
       <% photos.forEach(function(p) { %>
         <div class="photo-tile">
           <img src="/uploads/<%= p.filename %>" alt="<%= p.original_name || 'photo' %>">
-          <form method="post" action="/photos/<%= p.id %>/delete" onsubmit="return confirm('Remove this photo?');">
+          <form method="post" action="/photos/<%= p.id %>/delete" data-confirm="Remove this photo?">
             <input type="hidden" name="_csrf" value="<%= csrf %>">
             <button class="btn btn-danger btn-sm">Remove</button>
           </form>

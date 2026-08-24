@@ -40,8 +40,16 @@ function createApp() {
 
   app.use(express.static(path.join(__dirname, '..', 'public')));
   // Uploaded photos: filenames are random, and the same files are embedded in
-  // the parents' newsletter, so they are served without auth.
-  app.use('/uploads', express.static(config.uploadDir, { maxAge: '7d' }));
+  // the parents' newsletter, so they are served without auth. Email clients
+  // load them cross-origin, which helmet's default CORP header would block.
+  app.use(
+    '/uploads',
+    (req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+    express.static(config.uploadDir, { maxAge: '7d' })
+  );
 
   app.use(attachUser);
   app.use(csrfProtection);

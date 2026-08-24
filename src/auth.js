@@ -15,19 +15,29 @@ function attachUser(req, res, next) {
   next();
 }
 
+function csrfOk(req) {
+  const token = (req.body && req.body._csrf) || req.get('x-csrf-token');
+  return Boolean(req.session && req.session.csrf && token === req.session.csrf);
+}
+
 function verifyCsrf(req, res, next) {
-  // Multipart forms put the token in the query string (the body is not parsed
-  // until multer runs inside the route); regular forms use a hidden field.
-  const token = (req.body && req.body._csrf) || req.query._csrf || req.get('x-csrf-token');
-  if (!req.session || !req.session.csrf || token !== req.session.csrf) {
+  if (!csrfOk(req)) {
     return res.status(403).send('Invalid CSRF token. Go back, reload the page and try again.');
   }
   next();
 }
 
-// Every mutating request is checked, multipart included.
+// Only the news routes accept multipart bodies; they parse them with multer
+// and then run verifyCsrf themselves. Multipart posts anywhere else would
+// slip past the token check (their body is never parsed), so reject them.
+const MULTIPART_PATHS = [/^\/news$/, /^\/news\/\d+$/];
+
 function csrfProtection(req, res, next) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  if ((req.get('content-type') || '').startsWith('multipart/form-data')) {
+    if (MULTIPART_PATHS.some((re) => re.test(req.path))) return next();
+    return res.status(403).send('Unexpected multipart request.');
+  }
   return verifyCsrf(req, res, next);
 }
 
@@ -53,4 +63,4 @@ function canEditRecord(user, record) {
   return canManage(user) || (record && record.created_by === user.id);
 }
 
-module.exports = { attachUser, csrfProtection, verifyCsrf, requireLogin, requireRole, canManage, canEditRecord };
+module.exports = { attachUser, csrfProtection, csrfOk, verifyCsrf, requireLogin, requireRole, canManage, canEditRecord };

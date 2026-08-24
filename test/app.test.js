@@ -189,12 +189,27 @@ test('multipart requests cannot bypass CSRF protection', async () => {
   assert.strictEqual(res.status, 403);
 });
 
-test('multipart requests succeed with the CSRF token in the query string', async () => {
+test('multipart posts to news routes without a token are rejected after parsing', async () => {
   const form = new FormData();
+  form.append('title', 'x');
+  form.append('body', 'y');
+  form.append('section', 'primary');
+  const res = await fetch(base + '/news', {
+    method: 'POST',
+    headers: { cookie: cookies },
+    body: form,
+    redirect: 'manual',
+  });
+  assert.strictEqual(res.status, 403);
+});
+
+test('multipart requests succeed with the CSRF token in the form body', async () => {
+  const form = new FormData();
+  form.append('_csrf', csrf);
   form.append('title', 'Multipart Article');
   form.append('body', 'Uploaded via multipart form.');
   form.append('section', 'secondary');
-  const res = await fetch(base + `/news?_csrf=${csrf}`, {
+  const res = await fetch(base + '/news', {
     method: 'POST',
     headers: { cookie: cookies },
     body: form,
@@ -203,6 +218,85 @@ test('multipart requests succeed with the CSRF token in the query string', async
   assert.strictEqual(res.status, 302);
   const list = await get('/news');
   assert.match(await list.text(), /Multipart Article/);
+});
+
+test('a file that is not really an image is rejected by content sniffing', async () => {
+  const form = new FormData();
+  form.append('_csrf', csrf);
+  form.append('title', 'Fake Photo Article');
+  form.append('body', 'Trying to upload a script as an image.');
+  form.append('section', 'primary');
+  form.append('photos', new Blob(['<script>alert(1)</script>'], { type: 'image/png' }), 'evil.png');
+  const res = await fetch(base + '/news', {
+    method: 'POST',
+    headers: { cookie: cookies },
+    body: form,
+    redirect: 'manual',
+  });
+  assert.strictEqual(res.status, 400);
+  await new Promise((r) => setTimeout(r, 200)); // file cleanup is async
+  const uploads = fs.readdirSync(path.join(process.env.DATA_DIR, 'uploads'));
+  assert.strictEqual(uploads.length, 0, 'rejected upload must be removed from disk');
+});
+
+test('a real PNG upload is accepted and served', async () => {
+  // 1×1 transparent PNG
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const form = new FormData();
+  form.append('_csrf', csrf);
+  form.append('title', 'Real Photo Article');
+  form.append('body', 'With an actual image.');
+  form.append('section', 'whole_school');
+  form.append('photos', new Blob([png], { type: 'image/png' }), 'pixel.png');
+  const res = await fetch(base + '/news', {
+    method: 'POST',
+    headers: { cookie: cookies },
+    body: form,
+    redirect: 'manual',
+  });
+  assert.strictEqual(res.status, 302);
+  const uploads = fs.readdirSync(path.join(process.env.DATA_DIR, 'uploads'));
+  assert.strictEqual(uploads.length, 1);
+  const served = await fetch(base + '/uploads/' + uploads[0], { headers: { cookie: '' } });
+  assert.strictEqual(served.status, 200);
+  assert.strictEqual(served.headers.get('cross-origin-resource-policy'), 'cross-origin');
+});
+
+test('preview falls back gracefully on a garbage ?week parameter', async () => {
+  const res = await get('/newsletter/preview.html?week=garbage');
+  assert.strictEqual(res.status, 200);
+  assert.match(await res.text(), /THE ROAR/);
+});
+
+test('an ongoing multi-day event stays in the newsletter after its start date', async () => {
+  await post('/events', {
+    title: 'Ongoing Book Fair',
+    event_date: '2000-01-01',
+    end_date: '2099-12-31',
+    time_note: '',
+    location: 'Library',
+  });
+  const res = await get('/newsletter/preview.html');
+  assert.match(await res.text(), /Ongoing Book Fair/);
+});
+
+test('login throttles after repeated failures', async () => {
+  const loginPage = await fetch(base + '/login');
+  const jar = (loginPage.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
+  const tok = await extractCsrf(await loginPage.text());
+  let last;
+  for (let i = 0; i < 11; i++) {
+    last = await fetch(base + '/login', {
+      method: 'POST',
+      headers: { cookie: jar, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ _csrf: tok, email: 'bruteforce@test.local', password: 'nope' }).toString(),
+      redirect: 'manual',
+    });
+  }
+  assert.strictEqual(last.status, 429);
 });
 
 test('generateIssue works without Mailchimp and records warnings', async () => {

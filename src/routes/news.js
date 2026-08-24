@@ -4,9 +4,9 @@ const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const config = require('../config');
-const { db, getSetting } = require('../db');
-const { requireLogin, canEditRecord, canManage } = require('../auth');
-const { currentWeekStart } = require('../week');
+const { db } = require('../db');
+const { requireLogin, csrfOk, canEditRecord, canManage } = require('../auth');
+const { submissionWeekStart } = require('../appweek');
 
 const router = express.Router();
 
@@ -24,14 +24,51 @@ const upload = multer({
   },
 });
 
-// CSRF for these routes is verified from the query string by the global
-// middleware (the multipart body is only parsed here, by multer).
+// Magic-byte check so a renamed non-image (or spoofed Content-Type) is
+// rejected regardless of what the client claims.
+const MAGIC_CHECKS = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  'image/gif': (b) => ['GIF87a', 'GIF89a'].includes(b.subarray(0, 6).toString('latin1')),
+  'image/webp': (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP',
+};
+
+function isRealImage(file) {
+  try {
+    const fd = fs.openSync(path.join(config.uploadDir, file.filename), 'r');
+    const buf = Buffer.alloc(12);
+    fs.readSync(fd, buf, 0, 12, 0);
+    fs.closeSync(fd);
+    const check = MAGIC_CHECKS[file.mimetype];
+    return Boolean(check && check(buf));
+  } catch {
+    return false;
+  }
+}
+
+// Parses the multipart body (multer), then verifies the CSRF token from it
+// and that every uploaded file really is an image. On any failure the files
+// already written to disk are removed.
 function photosUpload(req, res, next) {
   upload.array('photos', 12)(req, res, (err) => {
+    const cleanup = () => removeFiles((req.files || []).map((f) => f.filename));
     if (err) {
+      cleanup();
       err.status = 400;
       err.expose = true;
       return next(err);
+    }
+    if (!csrfOk(req)) {
+      cleanup();
+      return res.status(403).send('Invalid CSRF token. Go back, reload the page and try again.');
+    }
+    const fake = (req.files || []).find((f) => !isRealImage(f));
+    if (fake) {
+      cleanup();
+      const e = new Error(`"${fake.originalname}" is not a valid image file.`);
+      e.status = 400;
+      e.expose = true;
+      return next(e);
     }
     next();
   });
@@ -77,8 +114,7 @@ function removeFiles(filenames) {
 }
 
 router.get('/news', requireLogin, (req, res) => {
-  const tz = getSetting('timezone');
-  const weekStart = currentWeekStart(tz);
+  const weekStart = submissionWeekStart();
   const rows = db
     .prepare(
       `SELECT n.*, u.name AS author, (SELECT COUNT(*) FROM photos p WHERE p.news_id = n.id) AS photo_count
@@ -98,10 +134,9 @@ router.post('/news', requireLogin, photosUpload, (req, res) => {
     removeFiles((req.files || []).map((f) => f.filename));
     return res.status(400).render('news_form', { item: values, photos: [], errors, sections: allowedSections(req.user) });
   }
-  const tz = getSetting('timezone');
   const info = db
     .prepare('INSERT INTO news (title, body, section, created_by, week_start) VALUES (?, ?, ?, ?, ?)')
-    .run(values.title, values.body, values.section, req.user.id, currentWeekStart(tz));
+    .run(values.title, values.body, values.section, req.user.id, submissionWeekStart());
   savePhotos(info.lastInsertRowid, req.files);
   res.redirect('/news');
 });

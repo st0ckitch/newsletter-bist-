@@ -130,10 +130,14 @@ function allSettings() {
 }
 
 // First run: create the initial admin account so the panel is reachable.
+// Without ADMIN_PASSWORD set, a random password is generated and printed
+// once — there is no well-known default to leave lying around.
 function seedAdmin() {
   const count = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
   if (count > 0) return;
-  const hash = bcrypt.hashSync(config.admin.password, 10);
+  const generated = !config.admin.password;
+  const password = config.admin.password || require('crypto').randomBytes(9).toString('base64url');
+  const hash = bcrypt.hashSync(password, 10);
   db.prepare('INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)').run(
     config.admin.email,
     config.admin.name,
@@ -142,7 +146,7 @@ function seedAdmin() {
   );
   console.log(
     `[db] Created initial admin user ${config.admin.email}` +
-      (process.env.ADMIN_PASSWORD ? '' : " with the DEFAULT password 'change-me' — change it immediately.")
+      (generated ? ` with generated password: ${password}  — log in and change it now.` : '.')
   );
 }
 

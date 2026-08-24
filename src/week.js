@@ -37,12 +37,42 @@ function todayStr(tz, date = new Date()) {
   return tzParts(tz, date).dateStr;
 }
 
+// Extracts {hour, minute} from a simple cron expression ("30 14 * * 5").
+// Falls back when the minute/hour fields are not plain integers.
+function parseCronTime(expr, fallback = { hour: 15, minute: 0 }) {
+  const parts = String(expr || '').trim().split(/\s+/);
+  if (parts.length < 2) return fallback;
+  const minute = Number(parts[0]);
+  const hour = Number(parts[1]);
+  if (!Number.isInteger(minute) || !Number.isInteger(hour) || minute < 0 || minute > 59 || hour < 0 || hour > 23) {
+    return fallback;
+  }
+  return { hour, minute };
+}
+
 // Monday of the working week a submission made "now" belongs to.
-// Mon–Fri → this week's Monday. Sat/Sun → next Monday (the Friday 15:00
-// cutoff has passed, so weekend submissions roll into next week's issue).
-function currentWeekStart(tz, date = new Date()) {
+// Mon–Thu → this week's Monday. After the Friday generation cutoff (and on
+// Sat/Sun) the issue has already been assembled, so submissions roll into
+// next week's issue.
+function currentWeekStart(tz, date = new Date(), cutoff = null) {
   const p = tzParts(tz, date);
   if (p.weekday >= 6) return addDays(p.dateStr, 8 - p.weekday);
+  if (
+    cutoff &&
+    p.weekday === 5 &&
+    (p.hour > cutoff.hour || (p.hour === cutoff.hour && p.minute >= cutoff.minute))
+  ) {
+    return addDays(p.dateStr, 3); // next Monday
+  }
+  return addDays(p.dateStr, 1 - p.weekday);
+}
+
+// Monday of the week whose issue should be (re)generated "now": always the
+// Monday of the current calendar week — on Sat/Sun that is the Monday of the
+// week that just finished. Never rolls forward, so generating on Friday
+// evening or over the weekend rebuilds the finished week, not an empty one.
+function issueWeekStart(tz, date = new Date()) {
+  const p = tzParts(tz, date);
   return addDays(p.dateStr, 1 - p.weekday);
 }
 
@@ -90,7 +120,9 @@ module.exports = {
   tzParts,
   addDays,
   todayStr,
+  parseCronTime,
   currentWeekStart,
+  issueWeekStart,
   weekDeadline,
   formatHuman,
   formatShort,

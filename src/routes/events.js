@@ -1,7 +1,8 @@
 const express = require('express');
 const { db, getSetting } = require('../db');
 const { requireLogin, canEditRecord } = require('../auth');
-const { currentWeekStart, todayStr, isValidDateStr } = require('../week');
+const { todayStr, isValidDateStr } = require('../week');
+const { submissionWeekStart } = require('../appweek');
 
 const router = express.Router();
 
@@ -55,10 +56,9 @@ router.get('/events/new', requireLogin, (req, res) => {
 router.post('/events', requireLogin, (req, res) => {
   const { errors, values } = validate(req.body);
   if (errors.length) return res.status(400).render('event_form', { event: values, errors });
-  const tz = getSetting('timezone');
   db.prepare(
     'INSERT INTO events (title, event_date, end_date, time_note, location, created_by, week_start) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(values.title, values.event_date, values.end_date, values.time_note, values.location, req.user.id, currentWeekStart(tz));
+  ).run(values.title, values.event_date, values.end_date, values.time_note, values.location, req.user.id, submissionWeekStart());
   res.redirect('/events');
 });
 

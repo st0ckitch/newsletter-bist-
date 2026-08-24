@@ -68,6 +68,23 @@ test('multi-day events show a range', () => {
   assert.match(html, /&ndash;4/);
 });
 
+test('a multi-day event across a month boundary spells out the end month', () => {
+  const html = renderNewsletter({
+    ...baseData,
+    events: [{ title: 'Book Fair', event_date: '2026-08-31', end_date: '2026-09-02', time_note: null, location: null }],
+  });
+  assert.ok(!html.includes('&ndash;2'), 'must not render a bare "31–2" range');
+  assert.match(html, /Until 2 September/);
+});
+
+test('photo widths fit inside the 482px article content area', () => {
+  const html = renderNewsletter(baseData);
+  assert.match(html, /width="482"/);
+  assert.match(html, /width="231"/);
+  assert.ok(!/width="536"/.test(html));
+  assert.ok(!/width="258"/.test(html));
+});
+
 test('escapeHtml covers the special characters', () => {
   assert.strictEqual(escapeHtml(`<a href="x">&'`), '&lt;a href=&quot;x&quot;&gt;&amp;&#39;');
 });

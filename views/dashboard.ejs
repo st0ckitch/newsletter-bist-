@@ -8,7 +8,7 @@
     <a class="btn btn-secondary" href="/news/new">+ Add news</a>
     <a class="btn btn-secondary" href="/events/new">+ Add event</a>
     <% if (isManager) { %>
-    <form method="post" action="/newsletter/generate" onsubmit="return confirm('Aggregate this week\'s content and create/update the Mailchimp draft now?');">
+    <form method="post" action="/newsletter/generate" data-confirm="Aggregate this week&#39;s content and create/update the Mailchimp draft now?">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <button type="submit" class="btn btn-primary">Generate draft now</button>
     </form>

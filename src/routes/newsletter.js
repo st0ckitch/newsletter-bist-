@@ -1,7 +1,8 @@
 const express = require('express');
-const { db, getSetting } = require('../db');
+const { db } = require('../db');
 const { requireLogin, requireRole } = require('../auth');
-const { currentWeekStart } = require('../week');
+const { isValidDateStr } = require('../week');
+const { submissionWeekStart } = require('../appweek');
 const { generateIssue, collectWeekData, buildRenderData } = require('../generate');
 const { renderNewsletter } = require('../newsletter');
 const reminders = require('../reminders');
@@ -11,15 +12,13 @@ const router = express.Router();
 // Live preview of the current week's newsletter, exactly as it would be
 // rendered right now (embedded in the dashboard and on the preview page).
 router.get('/newsletter/preview.html', requireLogin, (req, res) => {
-  const tz = getSetting('timezone');
-  const weekStart = req.query.week || currentWeekStart(tz);
+  const weekStart = isValidDateStr(req.query.week) ? req.query.week : submissionWeekStart();
   const html = renderNewsletter(buildRenderData(collectWeekData(weekStart)));
   res.type('html').send(html);
 });
 
 router.get('/newsletter/preview', requireLogin, (req, res) => {
-  const tz = getSetting('timezone');
-  const weekStart = req.query.week || currentWeekStart(tz);
+  const weekStart = isValidDateStr(req.query.week) ? req.query.week : submissionWeekStart();
   res.render('preview', { weekStart });
 });
 

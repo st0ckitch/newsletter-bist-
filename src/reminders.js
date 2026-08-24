@@ -4,7 +4,8 @@ const { db, getSetting } = require('./db');
 const config = require('./config');
 const mailchimp = require('./mailchimp');
 const { renderReminderEmail, escapeHtml } = require('./newsletter');
-const { currentWeekStart, weekDeadline, formatHuman } = require('./week');
+const { weekDeadline, formatHuman } = require('./week');
+const { submissionWeekStart } = require('./appweek');
 
 function teachers() {
   return db.prepare("SELECT * FROM users WHERE role IN ('primary','secondary') ORDER BY name").all();
@@ -55,7 +56,7 @@ async function sendReminder({ type, users, subject, heading, headingColor, bodyH
   });
   const memberNames = Object.fromEntries(users.map((u) => [u.email, u.name]));
   try {
-    await mailchimp.sendToEmails({
+    const result = await mailchimp.sendToEmails({
       listId: config.mailchimp.teachersAudienceId,
       emails,
       subject,
@@ -66,8 +67,11 @@ async function sendReminder({ type, users, subject, heading, headingColor, bodyH
       memberNames,
       tags: ['newsletter-staff'],
     });
-    logReminder(type, weekStart, emails, 'sent', null);
-    return { sent: true, recipients: emails };
+    const detail = result.failed.length
+      ? `Could not reach: ${result.failed.map((f) => `${f.email} (${f.error})`).join('; ')}`
+      : null;
+    logReminder(type, weekStart, result.sentTo, result.failed.length ? 'partial' : 'sent', detail);
+    return { sent: true, recipients: result.sentTo, failed: result.failed };
   } catch (err) {
     logReminder(type, weekStart, emails, 'error', err.message);
     return { sent: false, reason: err.message };
@@ -76,8 +80,7 @@ async function sendReminder({ type, users, subject, heading, headingColor, bodyH
 
 // Monday: friendly nudge to every primary/secondary teacher and the principal.
 async function sendMondayReminder() {
-  const tz = getSetting('timezone');
-  const weekStart = currentWeekStart(tz);
+  const weekStart = submissionWeekStart();
   const deadline = formatHuman(weekDeadline(weekStart));
   const users = [...teachers(), ...principals()];
   const bodyHtml = `
@@ -100,8 +103,7 @@ async function sendMondayReminder() {
 
 // Thursday: strict reminder, only to staff who have not submitted anything yet.
 async function sendThursdayReminder() {
-  const tz = getSetting('timezone');
-  const weekStart = currentWeekStart(tz);
+  const weekStart = submissionWeekStart();
   const pendingTeachers = teachers().filter((u) => !hasSubmitted(u.id, weekStart));
   const pendingPrincipals = principalHasSubmitted(weekStart) ? [] : principals();
   const users = [...pendingTeachers, ...pendingPrincipals];

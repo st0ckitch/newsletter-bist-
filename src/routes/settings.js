@@ -75,23 +75,27 @@ router.post('/settings', requireRole('principal', 'admin'), (req, res) => {
   res.redirect('/settings?saved=1');
 });
 
-router.post('/settings/test-mailchimp', requireRole('principal', 'admin'), async (req, res) => {
-  let testResult;
+router.post('/settings/test-mailchimp', requireRole('principal', 'admin'), async (req, res, next) => {
   try {
-    const pong = await mailchimp.ping();
-    testResult = { ok: true, message: `Mailchimp connection OK: ${pong.health_status || 'healthy'}` };
+    let testResult;
+    try {
+      const pong = await mailchimp.ping();
+      testResult = { ok: true, message: `Mailchimp connection OK: ${(pong && pong.health_status) || 'healthy'}` };
+    } catch (err) {
+      testResult = { ok: false, message: err.message };
+    }
+    res.render('settings', {
+      settings: allSettings(),
+      saved: false,
+      errors: [],
+      mailchimpConfigured: mailchimp.isConfigured(),
+      audienceId: config.mailchimp.audienceId,
+      teachersAudienceId: config.mailchimp.teachersAudienceId,
+      testResult,
+    });
   } catch (err) {
-    testResult = { ok: false, message: err.message };
+    next(err);
   }
-  res.render('settings', {
-    settings: allSettings(),
-    saved: false,
-    errors: [],
-    mailchimpConfigured: mailchimp.isConfigured(),
-    audienceId: config.mailchimp.audienceId,
-    teachersAudienceId: config.mailchimp.teachersAudienceId,
-    testResult,
-  });
 });
 
 module.exports = router;

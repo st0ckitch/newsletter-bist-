@@ -42,7 +42,13 @@ function start() {
 }
 
 function stop() {
-  for (const job of jobs) job.stop();
+  // destroy() (node-cron v4) also removes the task from the global registry;
+  // stop() alone would leak stopped tasks on every settings-triggered restart.
+  for (const job of jobs) {
+    Promise.resolve(job.destroy ? job.destroy() : job.stop()).catch((err) =>
+      console.error('[scheduler] Failed to destroy job:', err)
+    );
+  }
   jobs = [];
 }
 
