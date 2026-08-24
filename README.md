@@ -1,4 +1,4 @@
-# The Roar — Newsletter Admin Tool
+# The Roar - Newsletter Admin Tool
 
 Admin panel for the weekly BIST parents newsletter. Teachers and the principal
 log in, submit events, news, photos and the principal's message during the
@@ -12,8 +12,8 @@ Mailchimp and press send.
 | When | What happens |
 |---|---|
 | **Monday 09:00** | Reminder email to all primary/secondary teachers + principal: "please submit content". |
-| Mon–Thu | Staff log in and add events, news articles, photos; principal adds the weekly message + quote. |
-| **Thursday 09:00** | **Hard-deadline** reminder — sent *only* to staff who have not submitted anything yet. |
+| Mon-Thu | Staff log in and add events, news articles, photos; principal adds the weekly message + quote. |
+| **Thursday 09:00** | **Hard-deadline** reminder - sent *only* to staff who have not submitted anything yet. |
 | **Friday 15:00** | Everything submitted since Monday is aggregated into the newsletter HTML, photos are uploaded to the Mailchimp File Manager, and a **draft campaign** is created (or updated) in Mailchimp. Nothing is sent automatically. |
 
 All times run in the school's timezone (`Asia/Tbilisi` by default) and every
@@ -25,17 +25,20 @@ the weekend rebuilds the week that just finished.
 
 ## Roles
 
-- **primary / secondary** — teachers: submit events, news and photos for their
+- **primary / secondary** - teachers: submit events, news and photos for their
   section (or whole-school); receive the reminder emails; can edit/delete only
   their own items.
-- **principal** — everything teachers can do, plus the weekly principal's
+- **principal** - everything teachers can do, plus the weekly principal's
   message & quote, user management, settings, manual draft generation.
-- **admin** — full access (for IT); receives no reminders.
+- **admin** - full access (for IT); receives no reminders.
 
 Everyone gets their own login. Accounts are created under **Users** (or with
 `npm run create-user`).
 
 ## Setup
+
+To put it live for the whole staff (Railway, Render or your own server), see **[DEPLOY.md](DEPLOY.md)** - the app needs an always-on Node host with a persistent disk, nothing more.
+
 
 ```bash
 npm install
@@ -45,7 +48,7 @@ npm start                 # http://localhost:3000
 
 On first start an admin account is created from `ADMIN_EMAIL` /
 `ADMIN_PASSWORD` in `.env`. If `ADMIN_PASSWORD` is not set, a random
-password is generated and printed once in the server log — log in with it
+password is generated and printed once in the server log - log in with it
 and change it under Users.
 
 ### Mailchimp
@@ -63,12 +66,12 @@ Following the [Mailchimp Marketing API quick start](https://mailchimp.com/develo
 
 How the integration is used:
 
-- **Reminders** — teacher addresses are upserted into the teachers audience
+- **Reminders** - teacher addresses are upserted into the teachers audience
   (tagged `newsletter-staff`), a static segment is built for exactly the
   recipients of that reminder, and a campaign is created and sent to it.
-- **Photos** — uploaded to the Mailchimp **File Manager** at generation time,
+- **Photos** - uploaded to the Mailchimp **File Manager** at generation time,
   so the newsletter references CDN-hosted images.
-- **The draft** — a regular campaign addressed to the parents audience is
+- **The draft** - a regular campaign addressed to the parents audience is
   created with the generated HTML. Re-generating the same week updates the
   same draft. The app never sends the parents campaign.
 
@@ -82,7 +85,7 @@ dashboard shows a warning.
   reminder emails and as a fallback for photo URLs).
 - Set a strong `SESSION_SECRET`.
 - `DATA_DIR` (default `./data`) holds the SQLite database and uploaded
-  photos — back it up.
+  photos - back it up.
 - Run behind HTTPS (any reverse proxy); the app sets `trust proxy`.
 - The process must keep running for the schedules to fire (systemd, pm2,
   Docker, etc.).

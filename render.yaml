@@ -1,0 +1,34 @@
+# Render.com blueprint: creates the web service with a persistent disk for
+# the SQLite database and uploaded photos. In the Render dashboard choose
+# "New > Blueprint" and point it at this repository, then fill in the
+# environment variables marked sync:false (they are secrets - never commit
+# them to the repo).
+services:
+  - type: web
+    name: roar-newsletter
+    runtime: node
+    plan: starter # persistent disks require a paid instance; free instances also sleep, which would skip the Friday/Monday/Thursday jobs
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /login
+    disk:
+      name: roar-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: APP_BASE_URL
+        sync: false # set to the public URL after the first deploy, e.g. https://roar-newsletter.onrender.com
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: MAILCHIMP_API_KEY
+        sync: false
+      - key: MAILCHIMP_SERVER_PREFIX
+        value: us1
+      - key: MAILCHIMP_AUDIENCE_ID
+        sync: false
