@@ -1,0 +1,61 @@
+<%- include('partials/head', { title: 'Settings' }) %>
+<div class="page-head"><h1>Settings</h1></div>
+<% if (saved) { %><div class="alert alert-ok">Settings saved — schedules have been reloaded.</div><% } %>
+<% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Mailchimp</h2>
+    <p>
+      API connection: <strong><%= mailchimpConfigured ? 'configured ✅' : 'NOT configured ❌' %></strong><br>
+      <span class="muted">Parents audience: <code><%= audienceId || 'not set' %></code> · Teachers audience: <code><%= teachersAudienceId || 'not set' %></code></span>
+    </p>
+    <p class="muted">The API key, server prefix and audience IDs are set in <code>.env</code> on the server (they are secrets and are not editable here).</p>
+    <% if (testResult) { %>
+      <div class="alert <%= testResult.ok ? 'alert-ok' : 'alert-error' %>"><%= testResult.message %></div>
+    <% } %>
+    <form method="post" action="/settings/test-mailchimp">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="btn btn-secondary">Test Mailchimp connection</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Schedule</h2>
+    <form method="post" action="/settings">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label>Timezone
+        <input type="text" name="timezone" value="<%= settings.timezone %>">
+      </label>
+      <label>Monday reminder (cron)
+        <input type="text" name="monday_reminder_cron" value="<%= settings.monday_reminder_cron %>">
+      </label>
+      <label>Thursday hard-deadline reminder (cron)
+        <input type="text" name="thursday_reminder_cron" value="<%= settings.thursday_reminder_cron %>">
+      </label>
+      <label>Friday aggregation → Mailchimp draft (cron)
+        <input type="text" name="friday_generate_cron" value="<%= settings.friday_generate_cron %>">
+      </label>
+      <p class="muted">Cron format: <code>minute hour day month weekday</code> — e.g. <code>0 15 * * 5</code> = Friday 15:00.</p>
+
+      <h2>Newsletter identity</h2>
+      <label>Newsletter name
+        <input type="text" name="newsletter_name" value="<%= settings.newsletter_name %>">
+      </label>
+      <label>School name
+        <input type="text" name="school_name" value="<%= settings.school_name %>">
+      </label>
+      <label>“From” name on emails
+        <input type="text" name="from_name" value="<%= settings.from_name %>">
+      </label>
+      <label>Reply-to email
+        <input type="email" name="reply_to" value="<%= settings.reply_to %>">
+      </label>
+      <label>Footer note (optional)
+        <textarea name="footer_note" rows="3"><%= settings.footer_note %></textarea>
+      </label>
+      <button type="submit" class="btn btn-primary">Save settings</button>
+    </form>
+  </div>
+</div>
+<%- include('partials/foot') %>

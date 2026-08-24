@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= typeof title !== 'undefined' && title ? title + ' — ' : '' %>The Roar Admin</title>
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+<% const currentUser = locals.currentUser || null; const csrf = locals.csrf || ''; %>
+<% if (currentUser) { %>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">THE ROAR <span>admin</span></a>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/events">Events</a>
+      <a href="/news">News</a>
+      <% if (['principal','admin'].includes(currentUser.role)) { %>
+        <a href="/principal-message">Principal's message</a>
+      <% } %>
+      <a href="/newsletter/preview">Preview</a>
+      <a href="/newsletter/issues">Issues</a>
+      <% if (['principal','admin'].includes(currentUser.role)) { %>
+        <a href="/users">Users</a>
+        <a href="/settings">Settings</a>
+      <% } %>
+    </nav>
+    <div class="topbar-user">
+      <span><%= currentUser.name %> · <%= currentUser.role %></span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
+      </form>
+    </div>
+  </div>
+</header>
+<% } %>
+<main class="container">

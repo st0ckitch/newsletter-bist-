@@ -1,0 +1,32 @@
+<%- include('partials/head', { title: event && event.id ? 'Edit event' : 'New event' }) %>
+<div class="card card-narrow">
+  <h1><%= event && event.id ? 'Edit event' : 'Add an event' %></h1>
+  <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+  <form method="post" action="<%= event && event.id ? '/events/' + event.id : '/events' %>">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Title *
+      <input type="text" name="title" value="<%= event ? event.title : '' %>" required maxlength="200" placeholder="e.g. Year 6 Primary Graduation">
+    </label>
+    <div class="field-row">
+      <label>Date *
+        <input type="date" name="event_date" value="<%= event ? event.event_date : '' %>" required>
+      </label>
+      <label>End date (multi-day)
+        <input type="date" name="end_date" value="<%= event && event.end_date ? event.end_date : '' %>">
+      </label>
+    </div>
+    <div class="field-row">
+      <label>Time
+        <input type="text" name="time_note" value="<%= event && event.time_note ? event.time_note : '' %>" maxlength="60" placeholder="e.g. 9:30–10:30am">
+      </label>
+      <label>Location
+        <input type="text" name="location" value="<%= event && event.location ? event.location : '' %>" maxlength="120" placeholder="e.g. Theatre">
+      </label>
+    </div>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary"><%= event && event.id ? 'Save changes' : 'Add event' %></button>
+      <a class="btn btn-secondary" href="/events">Cancel</a>
+    </div>
+  </form>
+</div>
+<%- include('partials/foot') %>

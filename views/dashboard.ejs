@@ -1,0 +1,97 @@
+<%- include('partials/head', { title: 'Dashboard' }) %>
+<div class="page-head">
+  <div>
+    <h1>This week's issue</h1>
+    <p class="muted">Week of <%= weekStartHuman %> · newsletter assembled <strong><%= deadlineHuman %> at 15:00</strong> · hard deadline for content: <strong>Thursday</strong></p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="/news/new">+ Add news</a>
+    <a class="btn btn-secondary" href="/events/new">+ Add event</a>
+    <% if (isManager) { %>
+    <form method="post" action="/newsletter/generate" onsubmit="return confirm('Aggregate this week\'s content and create/update the Mailchimp draft now?');">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button type="submit" class="btn btn-primary">Generate draft now</button>
+    </form>
+    <% } %>
+  </div>
+</div>
+
+<% if (!mailchimpConfigured) { %>
+  <div class="alert alert-warn">Mailchimp is not configured — reminders and draft creation are disabled. Set <code>MAILCHIMP_API_KEY</code>, <code>MAILCHIMP_SERVER_PREFIX</code> and <code>MAILCHIMP_AUDIENCE_ID</code> in <code>.env</code>.</div>
+<% } %>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Submission status</h2>
+    <table class="table">
+      <thead><tr><th>Staff member</th><th>Role</th><th>This week</th></tr></thead>
+      <tbody>
+        <% submissions.forEach(function(s) { %>
+          <tr>
+            <td><%= s.name %></td>
+            <td><span class="tag tag-<%= s.role %>"><%= s.role %></span></td>
+            <td><%= s.submitted ? '✅ submitted' : '⏳ nothing yet' %></td>
+          </tr>
+        <% }) %>
+        <% if (!submissions.length) { %><tr><td colspan="3" class="muted">No teacher accounts yet — add them under Users.</td></tr><% } %>
+      </tbody>
+    </table>
+    <% if (isManager) { %>
+    <div class="btn-row">
+      <form method="post" action="/reminders/monday"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm">Send Monday reminder now</button></form>
+      <form method="post" action="/reminders/thursday"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm">Send deadline reminder now</button></form>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>This week so far</h2>
+    <p><strong><%= news.length %></strong> news item(s) · <strong><%= events.length %></strong> upcoming event(s) · principal's message: <strong><%= principalMessage ? 'submitted ✅' : 'missing ⏳' %></strong></p>
+    <h3>Latest news</h3>
+    <ul class="plain-list">
+      <% news.slice(0, 6).forEach(function(n) { %>
+        <li><a href="/news/<%= n.id %>/edit"><%= n.title %></a> <span class="muted">— <%= n.section.replace('_',' ') %>, by <%= n.author || 'unknown' %></span></li>
+      <% }) %>
+      <% if (!news.length) { %><li class="muted">Nothing submitted yet this week.</li><% } %>
+    </ul>
+    <h3>Next events</h3>
+    <ul class="plain-list">
+      <% events.slice(0, 6).forEach(function(e) { %>
+        <li><strong><%= e.event_date %></strong> — <%= e.title %><% if (e.location) { %> <span class="muted">(<%= e.location %>)</span><% } %></li>
+      <% }) %>
+      <% if (!events.length) { %><li class="muted">No upcoming events.</li><% } %>
+    </ul>
+    <% if (issue) { %>
+      <h3>Generated issue</h3>
+      <p class="muted">Last generated <%= issue.generated_at %> UTC — status: <%= issue.status %><% if (issue.campaign_web_url) { %> · <a href="<%= issue.campaign_web_url %>" target="_blank" rel="noopener">open draft in Mailchimp</a><% } %></p>
+      <% if (issueWarnings.length) { %>
+        <div class="alert alert-warn"><ul class="plain-list"><% issueWarnings.forEach(function(w) { %><li><%= w %></li><% }) %></ul></div>
+      <% } %>
+    <% } %>
+  </div>
+</div>
+
+<% if (isManager) { %>
+<div class="card">
+  <div class="card-head-row">
+    <h2>Live newsletter preview</h2>
+    <a class="btn btn-ghost btn-sm" href="/newsletter/preview.html" target="_blank" rel="noopener">Open full size</a>
+  </div>
+  <p class="muted">This is exactly what will be sent to Mailchimp if the issue is generated right now.</p>
+  <iframe class="preview-frame" src="/newsletter/preview.html" title="Newsletter preview"></iframe>
+</div>
+
+<div class="card">
+  <h2>Recent reminder activity</h2>
+  <table class="table">
+    <thead><tr><th>When (UTC)</th><th>Type</th><th>Status</th><th>Detail</th></tr></thead>
+    <tbody>
+      <% reminderLog.forEach(function(r) { %>
+        <tr><td><%= r.sent_at %></td><td><%= r.type %></td><td><%= r.status %></td><td class="muted"><%= r.detail || (JSON.parse(r.recipients).length + ' recipient(s)') %></td></tr>
+      <% }) %>
+      <% if (!reminderLog.length) { %><tr><td colspan="4" class="muted">No reminders sent yet.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+<%- include('partials/foot') %>

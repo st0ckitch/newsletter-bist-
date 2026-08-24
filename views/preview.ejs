@@ -1,0 +1,16 @@
+<%- include('partials/head', { title: 'Preview' }) %>
+<div class="page-head">
+  <h1>Newsletter preview — week of <%= weekStart %></h1>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="/newsletter/preview.html?week=<%= weekStart %>" target="_blank" rel="noopener">Open full size</a>
+    <% if (['principal','admin'].includes(currentUser.role)) { %>
+    <form method="post" action="/newsletter/generate" onsubmit="return confirm('Aggregate this week\'s content and create/update the Mailchimp draft now?');">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button type="submit" class="btn btn-primary">Generate Mailchimp draft</button>
+    </form>
+    <% } %>
+  </div>
+</div>
+<p class="muted">Live preview — refresh after adding content. Photos show from local uploads until the issue is generated, when they are moved to the Mailchimp CDN.</p>
+<iframe class="preview-frame preview-frame-tall" src="/newsletter/preview.html?week=<%= weekStart %>" title="Newsletter preview"></iframe>
+<%- include('partials/foot') %>

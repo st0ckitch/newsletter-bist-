@@ -1,0 +1,47 @@
+<%- include('partials/head', { title: 'Users' }) %>
+<div class="page-head">
+  <h1>Staff accounts</h1>
+  <div class="page-actions"><a class="btn btn-primary" href="/users/new">+ Add user</a></div>
+</div>
+<% if (created) { %><div class="alert alert-ok">User created — share the login details with them.</div><% } %>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Reset password</th><th></th></tr></thead>
+    <tbody>
+      <% users.forEach(function(u) { %>
+        <tr>
+          <td><%= u.name %></td>
+          <td><%= u.email %></td>
+          <td><span class="tag tag-<%= u.role %>"><%= u.role %></span></td>
+          <td>
+            <form method="post" action="/users/<%= u.id %>/password" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="password" name="password" placeholder="new password (8+)" minlength="8" required>
+              <button class="btn btn-ghost btn-sm">Set</button>
+            </form>
+          </td>
+          <td class="row-actions">
+            <% if (u.id !== currentUser.id) { %>
+            <form method="post" action="/users/<%= u.id %>/delete" onsubmit="return confirm('Delete this account?');">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <button class="btn btn-danger btn-sm">Delete</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<div class="card card-narrow">
+  <h2>Change my password</h2>
+  <form method="post" action="/account/password">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field-row">
+      <label>Current password <input type="password" name="current_password" required></label>
+      <label>New password (8+) <input type="password" name="password" minlength="8" required></label>
+    </div>
+    <button class="btn btn-primary">Change password</button>
+  </form>
+</div>
+<%- include('partials/foot') %>

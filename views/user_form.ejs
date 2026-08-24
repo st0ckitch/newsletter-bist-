@@ -1,0 +1,30 @@
+<%- include('partials/head', { title: 'New user' }) %>
+<div class="card card-narrow">
+  <h1>Add a staff account</h1>
+  <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+  <form method="post" action="/users">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Full name *
+      <input type="text" name="name" value="<%= values.name %>" required maxlength="120">
+    </label>
+    <label>Email *
+      <input type="email" name="email" value="<%= values.email %>" required maxlength="200">
+    </label>
+    <label>Role *
+      <select name="role" required>
+        <% roles.forEach(function(r) { %>
+          <option value="<%= r %>" <%= values.role === r ? 'selected' : '' %>><%= r %></option>
+        <% }) %>
+      </select>
+    </label>
+    <p class="muted">primary / secondary — teachers who submit content and receive reminders. principal — submits the weekly message and manages the tool. admin — full access, no reminders.</p>
+    <label>Password * (min 8 characters)
+      <input type="password" name="password" minlength="8" required>
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">Create user</button>
+      <a class="btn btn-secondary" href="/users">Cancel</a>
+    </div>
+  </form>
+</div>
+<%- include('partials/foot') %>

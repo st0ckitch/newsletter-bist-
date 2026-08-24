@@ -1,0 +1,44 @@
+<%- include('partials/head', { title: 'Events' }) %>
+<div class="page-head">
+  <h1>Upcoming events</h1>
+  <div class="page-actions"><a class="btn btn-primary" href="/events/new">+ Add event</a></div>
+</div>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Date</th><th>Title</th><th>Location</th><th>Time</th><th>Added by</th><th></th></tr></thead>
+    <tbody>
+      <% upcoming.forEach(function(e) { %>
+        <tr>
+          <td><strong><%= e.event_date %></strong><% if (e.end_date) { %> → <%= e.end_date %><% } %></td>
+          <td><%= e.title %></td>
+          <td><%= e.location || '—' %></td>
+          <td><%= e.time_note || '—' %></td>
+          <td class="muted"><%= e.author || '—' %></td>
+          <td class="row-actions">
+            <% if (['principal','admin'].includes(currentUser.role) || e.created_by === currentUser.id) { %>
+              <a class="btn btn-ghost btn-sm" href="/events/<%= e.id %>/edit">Edit</a>
+              <form method="post" action="/events/<%= e.id %>/delete" onsubmit="return confirm('Delete this event?');">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <button class="btn btn-danger btn-sm">Delete</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (!upcoming.length) { %><tr><td colspan="6" class="muted">No upcoming events yet.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+<% if (past.length) { %>
+<div class="card">
+  <h2>Recently past</h2>
+  <table class="table">
+    <tbody>
+      <% past.forEach(function(e) { %>
+        <tr><td><%= e.event_date %></td><td><%= e.title %></td><td class="muted"><%= e.location || '' %></td></tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+<%- include('partials/foot') %>

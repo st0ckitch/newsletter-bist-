@@ -1,0 +1,26 @@
+<%- include('partials/head', { title: 'Issues' }) %>
+<div class="page-head">
+  <h1>Generated issues</h1>
+</div>
+<% if (generated) { %><div class="alert alert-ok">Issue generated. If Mailchimp is configured, the draft campaign has been created/updated.</div><% } %>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Week</th><th>Generated (UTC)</th><th>Status</th><th>Mailchimp</th><th></th></tr></thead>
+    <tbody>
+      <% issues.forEach(function(i) { %>
+        <tr>
+          <td><strong><%= i.week_start %></strong></td>
+          <td><%= i.generated_at %></td>
+          <td>
+            <%= i.status === 'draft_created' ? '✅ draft in Mailchimp' : '📄 saved locally only' %>
+            <% if (i.warnings.length) { %><br><span class="muted">⚠ <%= i.warnings.join(' · ') %></span><% } %>
+          </td>
+          <td><% if (i.campaign_web_url) { %><a href="<%= i.campaign_web_url %>" target="_blank" rel="noopener">open draft</a><% } else { %>—<% } %></td>
+          <td><a class="btn btn-ghost btn-sm" href="/newsletter/issues/<%= i.id %>.html" target="_blank" rel="noopener">View HTML</a></td>
+        </tr>
+      <% }) %>
+      <% if (!issues.length) { %><tr><td colspan="5" class="muted">No issues generated yet. The Friday 15:00 job (or “Generate draft now”) will create the first one.</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('partials/foot') %>

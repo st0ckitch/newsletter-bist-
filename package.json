@@ -1,0 +1,28 @@
+{
+  "name": "bist-newsletter-admin",
+  "version": "1.0.0",
+  "description": "Admin tool for collecting weekly school newsletter content (The Roar) and creating the Mailchimp draft automatically",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test",
+    "create-user": "node scripts/create-user.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
+    "cookie-session": "^2.1.0",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "multer": "^2.0.2",
+    "node-cron": "^4.6.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
