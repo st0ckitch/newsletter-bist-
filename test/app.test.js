@@ -594,3 +594,21 @@ test('demo fill adds a masthead background when none is set; clear removes it ag
   assert.ok(!getSetting('masthead_photo'), 'demo masthead removed');
   assert.notStrictEqual(getSetting('masthead_is_demo'), '1');
 });
+
+// Keep this test LAST: recreating the admin row invalidates the shared session.
+test('seedAdmin re-syncs the configured admin account on every start', () => {
+  const bcrypt = require('bcryptjs');
+  // Password drifted (e.g. DB seeded before ADMIN_* variables were set).
+  db.prepare("UPDATE users SET password_hash = 'not-a-real-hash' WHERE email = 'admin@test.local'").run();
+  seedAdmin();
+  let row = db.prepare("SELECT * FROM users WHERE email = 'admin@test.local'").get();
+  assert.ok(bcrypt.compareSync('test-password', row.password_hash), 'password re-aligned with ADMIN_PASSWORD');
+
+  // Account missing entirely while other users exist.
+  db.prepare("DELETE FROM users WHERE email = 'admin@test.local'").run();
+  seedAdmin();
+  row = db.prepare("SELECT * FROM users WHERE email = 'admin@test.local'").get();
+  assert.ok(row, 'admin account recreated from ADMIN_EMAIL / ADMIN_PASSWORD');
+  assert.strictEqual(row.role, 'admin');
+  assert.ok(bcrypt.compareSync('test-password', row.password_hash));
+});

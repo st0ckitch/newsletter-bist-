@@ -153,22 +153,48 @@ function allSettings() {
 // First run: create the initial admin account so the panel is reachable.
 // Without ADMIN_PASSWORD set, a random password is generated and printed
 // once - there is no well-known default to leave lying around.
+//
+// On every later start, when ADMIN_EMAIL and ADMIN_PASSWORD are both set,
+// that account is re-synced: created if missing, password re-aligned if it
+// no longer matches. So the credentials in the host's environment always
+// work - even when the very first boot happened before the variables were
+// set (common on Railway/Render), and changing ADMIN_PASSWORD + restarting
+// is also how a lost admin password is recovered.
 function seedAdmin() {
+  const { email, name, password } = config.admin;
   const count = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
-  if (count > 0) return;
-  const generated = !config.admin.password;
-  const password = config.admin.password || require('crypto').randomBytes(9).toString('base64url');
-  const hash = bcrypt.hashSync(password, 10);
-  db.prepare('INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)').run(
-    config.admin.email,
-    config.admin.name,
-    hash,
-    'admin'
-  );
-  console.log(
-    `[db] Created initial admin user ${config.admin.email}` +
-      (generated ? ` with generated password: ${password}  - log in and change it now.` : '.')
-  );
+  if (count === 0) {
+    const generated = !password;
+    const pw = password || require('crypto').randomBytes(9).toString('base64url');
+    db.prepare('INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)').run(
+      email,
+      name,
+      bcrypt.hashSync(pw, 10),
+      'admin'
+    );
+    console.log(
+      `[db] Created initial admin user ${email}` +
+        (generated ? ` with generated password: ${pw}  - log in and change it now.` : '.')
+    );
+    return;
+  }
+  if (!password) return;
+  const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  if (!existing) {
+    db.prepare('INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)').run(
+      email,
+      name,
+      bcrypt.hashSync(password, 10),
+      'admin'
+    );
+    console.log(`[db] Created admin user ${email} from ADMIN_EMAIL / ADMIN_PASSWORD.`);
+  } else if (!bcrypt.compareSync(password, existing.password_hash)) {
+    db.prepare("UPDATE users SET password_hash = ?, role = 'admin' WHERE id = ?").run(
+      bcrypt.hashSync(password, 10),
+      existing.id
+    );
+    console.log(`[db] Password for ${email} re-synced from ADMIN_PASSWORD.`);
+  }
 }
 
 module.exports = { db, getSetting, setSetting, allSettings, seedAdmin, SETTING_DEFAULTS };

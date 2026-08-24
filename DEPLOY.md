@@ -62,6 +62,21 @@ docker run -d --name roar -p 3000:3000 \
 Put a reverse proxy with HTTPS in front (Caddy makes this two lines) and set
 `APP_BASE_URL` to the public URL.
 
+## Troubleshooting
+
+- **"Incorrect email or password" right after deploying:** make sure the
+  variable changes were actually applied (Railway stages them until you press
+  **Deploy**). The app re-syncs the `ADMIN_EMAIL` / `ADMIN_PASSWORD` account
+  on every start - creating it if missing, fixing the password if it drifted -
+  so once a deploy with the right variables is live, those credentials work.
+  The same mechanism recovers a lost admin password: change `ADMIN_PASSWORD`
+  on the host and redeploy.
+- **Everything resets after a redeploy:** the persistent volume is missing or
+  mounted somewhere other than `DATA_DIR`. Attach a volume and make sure its
+  mount path and the `DATA_DIR` variable are both `/data`.
+- **Login throttling:** 10 failed attempts per email block logins for
+  15 minutes - wait it out rather than retrying.
+
 ## After it is live
 
 - Log in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, create the teacher and
