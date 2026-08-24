@@ -27,9 +27,9 @@ function collectWeekData(weekStart) {
   return { weekStart, issueDate, events, news, photosByNews, principalMessage };
 }
 
-function photoPublicUrl(photo) {
+function photoPublicUrl(photo, baseUrl = config.appBaseUrl) {
   if (photo.mailchimp_url) return photo.mailchimp_url;
-  return `${config.appBaseUrl}/uploads/${photo.filename}`;
+  return `${baseUrl}/uploads/${photo.filename}`;
 }
 
 // Push photos that have not been uploaded yet to the Mailchimp File Manager so
@@ -57,14 +57,18 @@ async function ensurePhotosUploaded(photos, warnings) {
   return counts;
 }
 
-function buildRenderData(data, { placeholders = false, editable = false, csrf = '' } = {}) {
+// baseUrl: absolute (config.appBaseUrl) for the Mailchimp draft - email
+// clients need full URLs - and '' for the in-panel preview, so preview
+// images and fonts resolve relative to the panel itself and work on any
+// host even before APP_BASE_URL is configured.
+function buildRenderData(data, { placeholders = false, editable = false, csrf = '', baseUrl = config.appBaseUrl } = {}) {
   const articles = data.news.map((n) => ({
     id: n.id,
     title: n.title,
     body: n.body,
     slot: n.slot,
     sectionLabel: SECTION_LABELS[n.section] || '',
-    photos: (data.photosByNews[n.id] || []).map((p) => ({ id: p.id, url: photoPublicUrl(p) })),
+    photos: (data.photosByNews[n.id] || []).map((p) => ({ id: p.id, url: photoPublicUrl(p, baseUrl) })),
   }));
 
   const mastheadPhoto = getSetting('masthead_photo');
@@ -72,7 +76,7 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
     newsletterName: getSetting('newsletter_name'),
     schoolName: getSetting('school_name'),
     mastheadUrl: mastheadPhoto
-      ? getSetting('masthead_photo_mailchimp_url') || `${config.appBaseUrl}/uploads/${mastheadPhoto}`
+      ? getSetting('masthead_photo_mailchimp_url') || `${baseUrl}/uploads/${mastheadPhoto}`
       : null,
     issueDate: data.issueDate,
     quote:
@@ -85,14 +89,14 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
           body: data.principalMessage.body,
           weekStart: data.weekStart,
           photoUrl: data.principalMessage.photo
-            ? data.principalMessage.photo_mailchimp_url || `${config.appBaseUrl}/uploads/${data.principalMessage.photo}`
+            ? data.principalMessage.photo_mailchimp_url || `${baseUrl}/uploads/${data.principalMessage.photo}`
             : null,
         }
       : null,
     articles,
     footerNote: getSetting('footer_note'),
     calendarUrl: getSetting('calendar_url'),
-    fontBase: config.appBaseUrl,
+    fontBase: baseUrl,
     placeholders,
     editable,
     csrf,
@@ -135,6 +139,17 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
     Boolean(config.mailchimp.audienceId),
     'Parents audience ID',
     config.mailchimp.audienceId || 'MAILCHIMP_AUDIENCE_ID missing in .env - run: npm run mailchimp:setup'
+  );
+  // Email clients need absolute URLs for the webfonts and for any photo that
+  // is not on the Mailchimp CDN - a localhost base means those break in the
+  // sent email.
+  const basePublic = !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(config.appBaseUrl);
+  step(
+    basePublic,
+    'Public app URL (APP_BASE_URL)',
+    basePublic
+      ? config.appBaseUrl
+      : `${config.appBaseUrl} - not reachable from the internet. Set APP_BASE_URL to your public URL (e.g. https://your-app.up.railway.app) so fonts and photos load in the email.`
   );
   if (mailchimp.isConfigured()) {
     try {

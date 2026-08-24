@@ -20,7 +20,9 @@ router.get('/newsletter/preview.html', requireLogin, (req, res) => {
   // draft contains neither placeholders nor editor markup.
   const editable = req.query.edit === '1' && ['principal', 'admin'].includes(req.user.role);
   const html = renderNewsletter(
-    buildRenderData(collectWeekData(weekStart), { placeholders: true, editable, csrf: req.session.csrf })
+    // baseUrl '' keeps preview images and fonts relative to this panel, so
+    // they load on any host regardless of the APP_BASE_URL setting.
+    buildRenderData(collectWeekData(weekStart), { placeholders: true, editable, csrf: req.session.csrf, baseUrl: '' })
   );
   res.type('html').send(html);
 });

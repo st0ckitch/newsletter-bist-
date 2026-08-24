@@ -595,6 +595,25 @@ test('demo fill adds a masthead background when none is set; clear removes it ag
   assert.notStrictEqual(getSetting('masthead_is_demo'), '1');
 });
 
+test('preview uses relative /uploads and /fonts URLs so images load on any host', async () => {
+  await post('/demo-data/fill', {});
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /src="\/uploads\//, 'photos are relative in the preview');
+  assert.match(preview, /url\('\/fonts\/FiraGO-/, 'fonts are relative in the preview');
+  assert.ok(!preview.includes('http://localhost:3000/uploads/'), 'no absolute localhost image links in the preview');
+  await post('/demo-data/clear', {});
+});
+
+test('generation report flags a non-public APP_BASE_URL', async () => {
+  const result = await generateIssue({ trigger: 'test' });
+  const baseStep = result.steps.find((s) => s.label.includes('APP_BASE_URL'));
+  assert.ok(baseStep, 'report includes the public-URL step');
+  assert.strictEqual(baseStep.ok, false, 'localhost base is flagged');
+  assert.match(baseStep.detail, /Set APP_BASE_URL/);
+  // The draft itself still uses absolute URLs (email clients need them).
+  assert.match(result.html, /url\('http:\/\/localhost:3000\/fonts\/FiraGO-/);
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');
