@@ -208,3 +208,21 @@ test('mobile: reminder email carries the fluid sheet rules too', () => {
   assert.match(html, /@media only screen and \(max-width: 640px\)/);
   assert.match(html, /class="sheet"/);
 });
+
+test('masthead background image renders email-safe with the navy fallback', () => {
+  const withBg = renderNewsletter({ ...baseData, mastheadUrl: 'http://x/mast.png' });
+  assert.match(withBg, /class="mast-pad" background="http:\/\/x\/mast\.png"/);
+  assert.match(withBg, /background-image:url\('http:\/\/x\/mast\.png'\)/);
+  assert.match(withBg, /background-size:cover/);
+  assert.match(withBg, /background-color:#101E3C/);
+
+  const plain = renderNewsletter(baseData);
+  assert.ok(!plain.includes('background-image:url'), 'no background image when none is set');
+  assert.ok(!plain.includes('data-masthead'), 'no editor annotation outside edit mode');
+
+  const editable = renderNewsletter({ ...baseData, mastheadUrl: 'http://x/mast.png', editable: true });
+  assert.match(editable, /data-masthead="1"/);
+  assert.ok(!editable.includes('data-no-bg'), 'has a background, so no empty-state flag');
+  const editableEmpty = renderNewsletter({ ...baseData, editable: true });
+  assert.match(editableEmpty, /data-masthead="1" data-no-bg="1"/);
+});

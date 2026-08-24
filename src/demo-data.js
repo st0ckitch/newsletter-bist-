@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { db } = require('./db');
+const { db, getSetting, setSetting } = require('./db');
 const config = require('./config');
 const { submissionWeekStart } = require('./appweek');
 const { addDays, weekDeadline } = require('./week');
@@ -30,7 +30,8 @@ function hasDemoData() {
   return (
     db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 1').get().c > 0 ||
     db.prepare('SELECT COUNT(*) AS c FROM events WHERE is_demo = 1').get().c > 0 ||
-    db.prepare('SELECT COUNT(*) AS c FROM principal_messages WHERE is_demo = 1').get().c > 0
+    db.prepare('SELECT COUNT(*) AS c FROM principal_messages WHERE is_demo = 1').get().c > 0 ||
+    getSetting('masthead_is_demo') === '1'
   );
 }
 
@@ -47,6 +48,14 @@ function clearDemoData() {
     removeUpload(pm.photo);
   }
   db.prepare('DELETE FROM principal_messages WHERE is_demo = 1').run();
+  // Masthead background, but only when the demo fill added it - one a manager
+  // uploaded themselves stays.
+  if (getSetting('masthead_is_demo') === '1') {
+    removeUpload(getSetting('masthead_photo'));
+    setSetting('masthead_photo', '');
+    setSetting('masthead_photo_mailchimp_url', '');
+    setSetting('masthead_is_demo', '');
+  }
 }
 
 const DEMO_ARTICLES = [
@@ -131,6 +140,14 @@ function fillDemoData(userId) {
     for (const asset of article.photos) {
       insertPhoto.run(newsId, copyAsset(asset), asset);
     }
+  }
+
+  // Masthead background behind "THE ROAR" - only when none is set, so a
+  // manager's own upload is never replaced.
+  if (!getSetting('masthead_photo')) {
+    setSetting('masthead_photo', copyAsset('masthead.png'));
+    setSetting('masthead_photo_mailchimp_url', '');
+    setSetting('masthead_is_demo', '1');
   }
 
   // The week's principal message is unique - only fill it when the slot is

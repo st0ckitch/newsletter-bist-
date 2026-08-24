@@ -4,7 +4,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
-const { db } = require('../db');
+const { db, getSetting, setSetting } = require('../db');
 const { requireRole, csrfOk } = require('../auth');
 const { upload, isRealImage, removeFiles } = require('../uploads');
 const { MAX_ARTICLE_WORDS, wordCount } = require('../slots');
@@ -152,6 +152,26 @@ router.post('/api/edit/principal-photo', manager, photoUpload, (req, res) => {
   }
   if (pm.photo) removeFiles([pm.photo]);
   db.prepare('UPDATE principal_messages SET photo = ?, photo_mailchimp_url = NULL WHERE id = ?').run(req.file.filename, pm.id);
+  res.json({ ok: true });
+});
+
+// Masthead background image (behind "THE ROAR"), stored as a setting.
+router.post('/api/edit/masthead-photo', manager, photoUpload, (req, res) => {
+  const old = getSetting('masthead_photo');
+  if (old) removeFiles([old]);
+  setSetting('masthead_photo', req.file.filename);
+  setSetting('masthead_photo_mailchimp_url', '');
+  setSetting('masthead_is_demo', '');
+  res.json({ ok: true });
+});
+
+router.post('/api/edit/masthead-photo/delete', manager, (req, res) => {
+  const old = getSetting('masthead_photo');
+  if (!old) return bad(res, 'There is no background image to remove.', 404);
+  removeFiles([old]);
+  setSetting('masthead_photo', '');
+  setSetting('masthead_photo_mailchimp_url', '');
+  setSetting('masthead_is_demo', '');
   res.json({ ok: true });
 });
 

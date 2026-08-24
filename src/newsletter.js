@@ -445,6 +445,17 @@ function renderNewsletter(data) {
   const editable = Boolean(data.editable);
   const fontBase = data.fontBase || '';
 
+  // Optional masthead background photo behind "THE ROAR". The navy stays as
+  // background-color so the white text is readable while the image loads (or
+  // in clients that strip background images, e.g. Outlook desktop).
+  const mastheadUrl = data.mastheadUrl || '';
+  const mastheadBg = mastheadUrl
+    ? ` background="${escapeHtml(mastheadUrl)}" style="background-color:${NAVY_DEEP}; background-image:url('${escapeHtml(
+        mastheadUrl
+      )}'); background-size:cover; background-position:center; background-repeat:no-repeat; padding:26px 30px 24px 30px;"`
+    : ` style="background:${NAVY_DEEP}; background-color:${NAVY_DEEP}; padding:26px 30px 24px 30px;"`;
+  const mastheadEdit = editable ? ` data-masthead="1"${mastheadUrl ? '' : ' data-no-bg="1"'}` : '';
+
   let barIndex = 0;
   const articleHtml = (a, letter) =>
     renderArticle(a, BAR_COLORS[barIndex++ % BAR_COLORS.length], placeholders ? letter : null, editable);
@@ -511,7 +522,7 @@ ${fontFaceCss(fontBase)}
     <!-- A: masthead -->
     <tr><td height="6" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
     <tr>
-      <td class="mast-pad" style="background:${NAVY_DEEP}; background-color:${NAVY_DEEP}; padding:26px 30px 24px 30px;">
+      <td class="mast-pad"${mastheadBg}${mastheadEdit}>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td class="mast-cell" valign="bottom">

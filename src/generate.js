@@ -2,7 +2,7 @@
 // newsletter HTML and creates/updates the draft campaign in Mailchimp.
 const fs = require('fs');
 const path = require('path');
-const { db, getSetting } = require('./db');
+const { db, getSetting, setSetting } = require('./db');
 const config = require('./config');
 const mailchimp = require('./mailchimp');
 const { renderNewsletter } = require('./newsletter');
@@ -67,9 +67,13 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
     photos: (data.photosByNews[n.id] || []).map((p) => ({ id: p.id, url: photoPublicUrl(p) })),
   }));
 
+  const mastheadPhoto = getSetting('masthead_photo');
   return {
     newsletterName: getSetting('newsletter_name'),
     schoolName: getSetting('school_name'),
+    mastheadUrl: mastheadPhoto
+      ? getSetting('masthead_photo_mailchimp_url') || `${config.appBaseUrl}/uploads/${mastheadPhoto}`
+      : null,
     issueDate: data.issueDate,
     quote:
       data.principalMessage && data.principalMessage.quote
@@ -165,6 +169,18 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
       warnings.push(`The principal's photo could not be uploaded to Mailchimp: ${err.message}`);
     }
   }
+  // The masthead background image is CDN-hosted the same way.
+  const mastheadPhoto = getSetting('masthead_photo');
+  if (mailchimp.isConfigured() && mastheadPhoto && !getSetting('masthead_photo_mailchimp_url')) {
+    try {
+      const buffer = fs.readFileSync(path.join(config.uploadDir, mastheadPhoto));
+      const url = await mailchimp.uploadFile(mastheadPhoto, buffer);
+      setSetting('masthead_photo_mailchimp_url', url);
+    } catch (err) {
+      warnings.push(`The masthead background image could not be uploaded to Mailchimp: ${err.message}`);
+    }
+  }
+
   const localPhotos = allPhotos.filter((p) => !p.mailchimp_url);
   if (localPhotos.length && mailchimp.isConfigured()) {
     warnings.push(

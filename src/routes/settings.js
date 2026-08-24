@@ -1,12 +1,27 @@
 const express = require('express');
 const cron = require('node-cron');
-const { allSettings, setSetting } = require('../db');
-const { requireRole } = require('../auth');
+const { allSettings, getSetting, setSetting } = require('../db');
+const { requireRole, csrfOk } = require('../auth');
+const { upload, isRealImage, removeFiles } = require('../uploads');
 const mailchimp = require('../mailchimp');
 const scheduler = require('../scheduler');
 const config = require('../config');
 
 const router = express.Router();
+
+function settingsLocals(overrides = {}) {
+  return {
+    settings: allSettings(),
+    saved: false,
+    errors: [],
+    mailchimpConfigured: mailchimp.isConfigured(),
+    audienceId: config.mailchimp.audienceId,
+    teachersAudienceId: config.mailchimp.teachersAudienceId,
+    testResult: null,
+    mastheadPhoto: getSetting('masthead_photo') || null,
+    ...overrides,
+  };
+}
 
 const EDITABLE = [
   'timezone',
@@ -31,15 +46,49 @@ function isValidTimezone(tz) {
 }
 
 router.get('/settings', requireRole('principal', 'admin'), (req, res) => {
-  res.render('settings', {
-    settings: allSettings(),
-    saved: req.query.saved === '1',
-    errors: [],
-    mailchimpConfigured: mailchimp.isConfigured(),
-    audienceId: config.mailchimp.audienceId,
-    teachersAudienceId: config.mailchimp.teachersAudienceId,
-    testResult: null,
+  res.render('settings', settingsLocals({ saved: req.query.saved === '1' }));
+});
+
+// Masthead background image (behind "THE ROAR" in the header). Stored as a
+// setting; the CDN copy is re-uploaded on the next generation.
+router.post('/settings/masthead-photo', requireRole('principal', 'admin'), (req, res, next) => {
+  upload.single('masthead')(req, res, (err) => {
+    const cleanup = () => removeFiles(req.file ? [req.file.filename] : []);
+    if (err) {
+      cleanup();
+      err.status = 400;
+      err.expose = true;
+      return next(err);
+    }
+    if (!csrfOk(req)) {
+      cleanup();
+      return res.status(403).send('Invalid CSRF token. Go back, reload the page and try again.');
+    }
+    if (!req.file) {
+      return res.status(400).render('settings', { ...settingsLocals(), errors: ['Choose an image file to upload.'] });
+    }
+    if (!isRealImage(req.file)) {
+      cleanup();
+      return res
+        .status(400)
+        .render('settings', { ...settingsLocals(), errors: [`"${req.file.originalname}" is not a valid image file.`] });
+    }
+    const old = getSetting('masthead_photo');
+    if (old) removeFiles([old]);
+    setSetting('masthead_photo', req.file.filename);
+    setSetting('masthead_photo_mailchimp_url', '');
+    setSetting('masthead_is_demo', '');
+    res.redirect('/settings?saved=1');
   });
+});
+
+router.post('/settings/masthead-photo/delete', requireRole('principal', 'admin'), (req, res) => {
+  const old = getSetting('masthead_photo');
+  if (old) removeFiles([old]);
+  setSetting('masthead_photo', '');
+  setSetting('masthead_photo_mailchimp_url', '');
+  setSetting('masthead_is_demo', '');
+  res.redirect('/settings?saved=1');
 });
 
 router.post('/settings', requireRole('principal', 'admin'), (req, res) => {
@@ -61,15 +110,7 @@ router.post('/settings', requireRole('principal', 'admin'), (req, res) => {
     errors.push('Newsletter name is required.');
   }
   if (errors.length) {
-    return res.status(400).render('settings', {
-      settings: { ...allSettings(), ...updates },
-      saved: false,
-      errors,
-      mailchimpConfigured: mailchimp.isConfigured(),
-      audienceId: config.mailchimp.audienceId,
-      teachersAudienceId: config.mailchimp.teachersAudienceId,
-      testResult: null,
-    });
+    return res.status(400).render('settings', settingsLocals({ settings: { ...allSettings(), ...updates }, errors }));
   }
   for (const [key, value] of Object.entries(updates)) setSetting(key, value);
   scheduler.restart();
@@ -85,15 +126,7 @@ router.post('/settings/test-mailchimp', requireRole('principal', 'admin'), async
     } catch (err) {
       testResult = { ok: false, message: err.message };
     }
-    res.render('settings', {
-      settings: allSettings(),
-      saved: false,
-      errors: [],
-      mailchimpConfigured: mailchimp.isConfigured(),
-      audienceId: config.mailchimp.audienceId,
-      teachersAudienceId: config.mailchimp.teachersAudienceId,
-      testResult,
-    });
+    res.render('settings', settingsLocals({ testResult }));
   } catch (err) {
     next(err);
   }

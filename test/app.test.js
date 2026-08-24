@@ -537,3 +537,60 @@ test('demo clear removes only demo rows and their files', async () => {
     assert.ok(!fs.existsSync(path.join(process.env.DATA_DIR, 'uploads', f)), `demo photo file ${f} deleted`);
   }
 });
+
+test('masthead background: settings upload renders in the preview; a real one survives demo fill/clear', async () => {
+  const { getSetting } = require('../src/db');
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const form = new FormData();
+  form.append('_csrf', csrf);
+  form.append('masthead', new Blob([png], { type: 'image/png' }), 'banner.png');
+  const res = await fetch(base + '/settings/masthead-photo', {
+    method: 'POST',
+    headers: { cookie: cookies },
+    body: form,
+    redirect: 'manual',
+  });
+  assert.strictEqual(res.status, 302);
+
+  const settingsPage = await (await get('/settings')).text();
+  assert.match(settingsPage, /Remove background image/);
+
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /class="mast-pad" background="/);
+  assert.match(preview, /background-image:url\('[^']*\/uploads\/[^']+'\)/);
+
+  const editPreview = await (await get('/newsletter/preview.html?edit=1')).text();
+  assert.match(editPreview, /data-masthead="1"/);
+  assert.ok(!editPreview.includes('data-no-bg'), 'edit mode knows a background is set');
+
+  // Demo fill must not replace the manager's own masthead, and demo clear
+  // must not delete it.
+  await post('/demo-data/fill', {});
+  assert.notStrictEqual(getSetting('masthead_is_demo'), '1');
+  await post('/demo-data/clear', {});
+  assert.ok(getSetting('masthead_photo'), 'real masthead survives demo clear');
+
+  // Removing it through the live-editor API returns the header to plain navy.
+  const del = await fetch(base + '/api/edit/masthead-photo/delete', {
+    method: 'POST',
+    headers: { cookie: cookies, 'content-type': 'application/json', 'x-csrf-token': csrf },
+    body: '{}',
+  });
+  assert.strictEqual((await del.json()).ok, true);
+  const preview2 = await (await get('/newsletter/preview.html')).text();
+  assert.ok(!preview2.includes('background-image:url'));
+});
+
+test('demo fill adds a masthead background when none is set; clear removes it again', async () => {
+  const { getSetting } = require('../src/db');
+  await post('/demo-data/fill', {});
+  assert.strictEqual(getSetting('masthead_is_demo'), '1');
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /background-image:url/);
+  await post('/demo-data/clear', {});
+  assert.ok(!getSetting('masthead_photo'), 'demo masthead removed');
+  assert.notStrictEqual(getSetting('masthead_is_demo'), '1');
+});

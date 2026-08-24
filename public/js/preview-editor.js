@@ -94,6 +94,17 @@
       }
       return api('/api/edit/photo/delete', { photo_id: ref });
     },
+    setMasthead: function (file) {
+      if (demo)
+        return fileToDataUri(file).then(function (uri) {
+          return demo.setMastheadPhoto(uri);
+        });
+      return apiUpload('/api/edit/masthead-photo', {}, file);
+    },
+    deleteMasthead: function () {
+      if (demo) return Promise.resolve(demo.deleteMastheadPhoto());
+      return api('/api/edit/masthead-photo/delete', {});
+    },
     refresh: function () {
       if (demo) return demo.refresh();
       window.location.reload();
@@ -122,7 +133,11 @@
     '.re-status{margin-left:auto; font-size:12px; color:#9fb0d0;}' +
     '.re-status.re-ok{color:#7ddba3;}' +
     '.re-toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:70; background:#B23A32; color:#fff; font-family:FiraGO,Arial,sans-serif; font-size:13px; padding:10px 18px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.3); opacity:0; transition:opacity .2s;}' +
-    '.re-toast.re-show{opacity:1;}';
+    '.re-toast.re-show{opacity:1;}' +
+    '[data-masthead]{position:relative;}' +
+    '.re-mast-tools{position:absolute; top:8px; left:8px; display:none; gap:4px; z-index:5;}' +
+    '[data-masthead]:hover .re-mast-tools{display:flex;}' +
+    '[data-masthead]:hover{outline:2px solid rgba(217,164,65,.9); outline-offset:-2px;}';
   document.head.appendChild(style);
 
   var bar = document.createElement('div');
@@ -300,6 +315,33 @@
       });
     };
     card.appendChild(btn);
+  });
+
+  document.querySelectorAll('[data-masthead]').forEach(function (mast) {
+    var hasBg = !mast.hasAttribute('data-no-bg');
+    var tools = document.createElement('span');
+    tools.className = 're-mast-tools';
+    var set = document.createElement('button');
+    set.className = 're-btn';
+    set.textContent = hasBg ? 'Replace background' : '+ Add background image';
+    set.onclick = function (e) {
+      e.stopPropagation();
+      pickFile(function (file) {
+        handle(T.setMasthead(file), 'Uploading…');
+      });
+    };
+    tools.appendChild(set);
+    if (hasBg) {
+      var clear = document.createElement('button');
+      clear.className = 're-btn re-danger';
+      clear.textContent = 'Remove background';
+      clear.onclick = function (e) {
+        e.stopPropagation();
+        handle(T.deleteMasthead(), 'Removing…');
+      };
+      tools.appendChild(clear);
+    }
+    mast.appendChild(tools);
   });
 
   document.querySelectorAll('[data-principal-week][data-no-portrait]').forEach(function (card) {

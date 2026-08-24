@@ -34,8 +34,10 @@ const MULTIPART_PATHS = [
   /^\/news$/,
   /^\/news\/\d+$/,
   /^\/principal-message$/,
+  /^\/settings\/masthead-photo$/,
   /^\/api\/edit\/photo\/(add|replace)$/,
   /^\/api\/edit\/principal-photo$/,
+  /^\/api\/edit\/masthead-photo$/,
 ];
 
 function csrfProtection(req, res, next) {

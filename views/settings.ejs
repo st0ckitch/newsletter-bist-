@@ -18,6 +18,27 @@
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <button class="btn btn-secondary">Test Mailchimp connection</button>
     </form>
+
+    <h2 style="margin-top:22px;">Masthead background image</h2>
+    <p class="muted">Shown behind &quot;<%= settings.newsletter_name.toUpperCase() %>&quot; in the newsletter header. <strong>Recommended:</strong> a wide banner around <strong>1360 × 400 px</strong>, JPEG/PNG, under <strong>1 MB</strong>, <strong>dark</strong> (navy works best) so the white title stays readable. Email clients that block background images fall back to the plain navy header.</p>
+    <% if (mastheadPhoto) { %>
+      <div class="photo-grid"><div class="photo-tile">
+        <img src="/uploads/<%= mastheadPhoto %>" alt="Masthead background">
+      </div></div>
+      <div class="btn-row">
+        <form method="post" action="/settings/masthead-photo/delete" data-confirm="Remove the masthead background image? The header goes back to plain navy.">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn btn-danger btn-sm">Remove background image</button>
+        </form>
+      </div>
+    <% } %>
+    <form method="post" action="/settings/masthead-photo" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label><%= mastheadPhoto ? 'Replace it' : 'Upload one' %>
+        <input type="file" name="masthead" accept="image/jpeg,image/png,image/webp" required>
+      </label>
+      <button class="btn btn-secondary btn-sm" type="submit">Upload masthead image</button>
+    </form>
   </div>
 
   <div class="card">
