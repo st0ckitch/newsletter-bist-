@@ -9,11 +9,7 @@ const { renderNewsletter } = require('./newsletter');
 const { weekDeadline } = require('./week');
 const { generationWeekStart } = require('./appweek');
 
-const SECTION_ORDER = [
-  { key: 'whole_school', label: 'Whole School' },
-  { key: 'primary', label: 'Primary' },
-  { key: 'secondary', label: 'Secondary' },
-];
+const SECTION_LABELS = { whole_school: 'Whole School', primary: 'Primary', secondary: 'Secondary' };
 
 function collectWeekData(weekStart) {
   const issueDate = weekDeadline(weekStart); // the Friday of that week
@@ -21,7 +17,8 @@ function collectWeekData(weekStart) {
   const events = db
     .prepare('SELECT * FROM events WHERE event_date >= ? OR (end_date IS NOT NULL AND end_date >= ?) ORDER BY event_date, created_at')
     .all(issueDate, issueDate);
-  const news = db.prepare('SELECT * FROM news WHERE week_start = ? ORDER BY created_at').all(weekStart);
+  // Only articles the admin kept included make the issue.
+  const news = db.prepare('SELECT * FROM news WHERE week_start = ? AND included = 1 ORDER BY created_at').all(weekStart);
   const photosByNews = {};
   for (const n of news) {
     photosByNews[n.id] = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id').all(n.id);
@@ -53,18 +50,14 @@ async function ensurePhotosUploaded(photos, warnings) {
   }
 }
 
-function buildRenderData(data) {
-  const sections = SECTION_ORDER.map((s) => ({
-    key: s.key,
-    label: s.label,
-    items: data.news
-      .filter((n) => n.section === s.key)
-      .map((n) => ({
-        title: n.title,
-        body: n.body,
-        photos: (data.photosByNews[n.id] || []).map(photoPublicUrl),
-      })),
-  })).filter((s) => s.items.length > 0);
+function buildRenderData(data, { placeholders = false } = {}) {
+  const articles = data.news.map((n) => ({
+    title: n.title,
+    body: n.body,
+    slot: n.slot,
+    sectionLabel: SECTION_LABELS[n.section] || '',
+    photos: (data.photosByNews[n.id] || []).map(photoPublicUrl),
+  }));
 
   return {
     newsletterName: getSetting('newsletter_name'),
@@ -76,8 +69,10 @@ function buildRenderData(data) {
         : null,
     events: data.events,
     principalMessage: data.principalMessage,
-    sections,
+    articles,
     footerNote: getSetting('footer_note'),
+    calendarUrl: getSetting('calendar_url'),
+    placeholders,
   };
 }
 
@@ -168,4 +163,4 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   return { weekStart, issueDate: data.issueDate, html, status, campaignId, campaignWebUrl, warnings };
 }
 
-module.exports = { generateIssue, collectWeekData, buildRenderData, SECTION_ORDER };
+module.exports = { generateIssue, collectWeekData, buildRenderData, SECTION_LABELS };

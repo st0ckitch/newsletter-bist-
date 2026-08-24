@@ -134,6 +134,44 @@ test('admin can create a news article without photos', async () => {
   assert.match(await list.text(), /Big Tennis Win/);
 });
 
+test('article text over 200 words is rejected', async () => {
+  const longBody = Array.from({ length: 201 }, (_, i) => `word${i}`).join(' ');
+  const res = await post('/news', { title: 'Too Long', body: longBody, section: 'primary' });
+  assert.strictEqual(res.status, 400);
+  const list = await get('/news');
+  assert.ok(!(await list.text()).includes('Too Long'));
+});
+
+test('admin can exclude an article from the issue and re-include it', async () => {
+  const list = await get('/news');
+  const html = await list.text();
+  const id = html.match(/\/news\/(\d+)\/include/)[1];
+  await post(`/news/${id}/include`, { included: '0' });
+  let preview = await (await get('/newsletter/preview.html')).text();
+  assert.ok(!preview.includes('Big Tennis Win'), 'excluded article must leave the issue');
+  await post(`/news/${id}/include`, { included: '1' });
+  preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /Big Tennis Win/);
+});
+
+test('admin can move an article to another template section', async () => {
+  const list = await get('/news');
+  const id = (await list.text()).match(/\/news\/(\d+)\/slot/)[1];
+  const res = await post(`/news/${id}/slot`, { slot: 'E' });
+  assert.strictEqual(res.status, 302);
+  const bad = await post(`/news/${id}/slot`, { slot: 'Z' });
+  assert.strictEqual(bad.status, 400);
+  await post(`/news/${id}/slot`, { slot: 'D' });
+});
+
+test('preview shows placeholders for empty template sections; drafts do not', async () => {
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /SECTION F/);
+  const { generateIssue } = require('../src/generate');
+  const result = await generateIssue({ trigger: 'test-placeholders' });
+  assert.ok(!/SECTION [A-I]/.test(result.html), 'generated issue must not contain placeholder boxes');
+});
+
 test('newsletter preview renders submitted content', async () => {
   const res = await get('/newsletter/preview.html');
   assert.strictEqual(res.status, 200);

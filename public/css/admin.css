@@ -122,3 +122,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); bord
 .login-card { width: 380px; max-width: 92vw; padding: 34px 32px; border-top: 5px solid var(--gold); }
 .login-brand { font-family: Georgia, serif; letter-spacing: 5px; text-align: center; margin: 0; color: var(--navy); }
 .login-sub { text-align: center; color: var(--muted); margin: 6px 0 22px 0; }
+
+.row-excluded td { opacity: 0.55; }
+.tag-slot { background: #f6ecd9; color: #8a6210; font-family: Georgia, serif; }
+.slot-select { max-width: 210px; padding: 5px 8px; font-size: 12.5px; margin: 0; display: inline-block; width: auto; }

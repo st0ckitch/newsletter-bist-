@@ -51,8 +51,11 @@
       <label>Reply-to email
         <input type="email" name="reply_to" value="<%= settings.reply_to %>">
       </label>
-      <label>Footer note (optional)
-        <textarea name="footer_note" rows="3"><%= settings.footer_note %></textarea>
+      <label>School calendar link (shown next to Upcoming Events)
+        <input type="url" name="calendar_url" value="<%= settings.calendar_url %>" placeholder="https://bist.ge/calendar">
+      </label>
+      <label>Footer staff directory (one per line: Name — Title)
+        <textarea name="footer_note" rows="5" placeholder="Robert Snowden — Principal&#10;Simon Rooney — Head of Primary"><%= settings.footer_note %></textarea>
       </label>
       <button type="submit" class="btn btn-primary">Save settings</button>
     </form>

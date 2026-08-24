@@ -13,7 +13,9 @@ const router = express.Router();
 // rendered right now (embedded in the dashboard and on the preview page).
 router.get('/newsletter/preview.html', requireLogin, (req, res) => {
   const weekStart = isValidDateStr(req.query.week) ? req.query.week : submissionWeekStart();
-  const html = renderNewsletter(buildRenderData(collectWeekData(weekStart)));
+  // The preview always shows the template's structure: empty sections render
+  // as labelled placeholders. The generated Mailchimp draft omits them.
+  const html = renderNewsletter(buildRenderData(collectWeekData(weekStart), { placeholders: true }));
   res.type('html').send(html);
 });
 

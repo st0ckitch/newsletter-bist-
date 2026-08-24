@@ -14,9 +14,22 @@
         <% }) %>
       </select>
     </label>
-    <label>Article text *
-      <textarea name="body" rows="10" required placeholder="Write the article. Leave an empty line between paragraphs."><%= item ? item.body : '' %></textarea>
+    <label>Article text * (max <%= maxWords %> words)
+      <textarea name="body" rows="10" required data-word-limit="<%= maxWords %>" placeholder="Write the article. Leave an empty line between paragraphs."><%= item ? item.body : '' %></textarea>
     </label>
+    <p class="muted"><span data-word-count></span></p>
+    <% if (isManager) { %>
+    <label>Template section
+      <select name="slot">
+        <% contentSlots.forEach(function(s) { %>
+          <option value="<%= s %>" <%= item && item.slot === s ? 'selected' : '' %>><%= slotLabels[s] %></option>
+        <% }) %>
+      </select>
+    </label>
+    <p class="muted">Sections A–C are fixed (header &amp; quote, upcoming events, principal's message). D/F/H fill the left column, E/G/I the right.</p>
+    <% } else if (item && item.slot) { %>
+      <p class="muted">Template section: <strong><%= slotLabels[item.slot] || item.slot %></strong> — placement is set by the admin.</p>
+    <% } %>
     <label>Photos (JPEG/PNG/WebP/GIF, up to 12, max 10&nbsp;MB each)
       <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
     </label>

@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS news (
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   section TEXT NOT NULL CHECK (section IN ('primary','secondary','whole_school')),
+  included INTEGER NOT NULL DEFAULT 1,
+  slot TEXT NOT NULL DEFAULT 'D',
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   week_start TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -91,10 +93,19 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_week ON events(week_start);
+CREATE INDEX IF NOT EXISTS idx_news_week2 ON news(week_start, included);
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
 CREATE INDEX IF NOT EXISTS idx_news_week ON news(week_start);
 CREATE INDEX IF NOT EXISTS idx_issues_week ON issues(week_start);
 `);
+
+// Databases created before a column existed get it added in place.
+function ensureColumn(table, column, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+ensureColumn('news', 'included', "included INTEGER NOT NULL DEFAULT 1");
+ensureColumn('news', 'slot', "slot TEXT NOT NULL DEFAULT 'D'");
 
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi',
@@ -108,6 +119,7 @@ const SETTING_DEFAULTS = {
   school_name: 'British International School of Tbilisi',
   from_name: 'British International School of Tbilisi',
   reply_to: '',
+  calendar_url: '',
   footer_note: '',
 };
 

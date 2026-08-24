@@ -3,14 +3,43 @@
   <h1>News articles</h1>
   <div class="page-actions"><a class="btn btn-primary" href="/news/new">+ Add news</a></div>
 </div>
+<% if (isManager) { %>
+  <p class="muted">You decide what goes to parents: toggle <strong>Included</strong> to pick the articles for this week's issue, and set the <strong>template section</strong> (D/F/H = left column, E/G/I = right column, top to bottom). Sections A–C are fixed: header &amp; quote, upcoming events, principal's message.</p>
+<% } %>
 <div class="card">
   <table class="table">
-    <thead><tr><th>Title</th><th>Section</th><th>Photos</th><th>Week</th><th>By</th><th></th></tr></thead>
+    <thead><tr><th>Title</th><th>Audience</th><th>Template section</th><th>Included</th><th>Photos</th><th>Week</th><th>By</th><th></th></tr></thead>
     <tbody>
       <% rows.forEach(function(n) { %>
-        <tr class="<%= n.week_start === weekStart ? 'row-current' : '' %>">
+        <tr class="<%= n.week_start === weekStart ? 'row-current' : '' %> <%= n.included ? '' : 'row-excluded' %>">
           <td><%= n.title %></td>
           <td><span class="tag tag-<%= n.section %>"><%= n.section.replace('_',' ') %></span></td>
+          <td>
+            <% if (isManager) { %>
+              <form method="post" action="/news/<%= n.id %>/slot" class="inline-form">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <select name="slot" class="slot-select">
+                  <% contentSlots.forEach(function(s) { %>
+                    <option value="<%= s %>" <%= n.slot === s ? 'selected' : '' %>><%= slotLabels[s] %></option>
+                  <% }) %>
+                </select>
+                <button class="btn btn-ghost btn-sm">Set</button>
+              </form>
+            <% } else { %>
+              <span class="tag tag-slot"><%= n.slot %></span>
+            <% } %>
+          </td>
+          <td>
+            <% if (isManager) { %>
+              <form method="post" action="/news/<%= n.id %>/include">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <input type="hidden" name="included" value="<%= n.included ? '0' : '1' %>">
+                <button class="btn btn-sm <%= n.included ? 'btn-ghost' : 'btn-danger' %>"><%= n.included ? '✅ in — exclude' : '🚫 out — include' %></button>
+              </form>
+            <% } else { %>
+              <%= n.included ? '✅' : '🚫 excluded' %>
+            <% } %>
+          </td>
           <td><%= n.photo_count %> 📷</td>
           <td><%= n.week_start %><%= n.week_start === weekStart ? ' (this week)' : '' %></td>
           <td class="muted"><%= n.author || '—' %></td>
@@ -25,7 +54,7 @@
           </td>
         </tr>
       <% }) %>
-      <% if (!rows.length) { %><tr><td colspan="6" class="muted">No news yet — add the first article!</td></tr><% } %>
+      <% if (!rows.length) { %><tr><td colspan="8" class="muted">No news yet — add the first article!</td></tr><% } %>
     </tbody>
   </table>
 </div>

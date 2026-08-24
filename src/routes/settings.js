@@ -17,6 +17,7 @@ const EDITABLE = [
   'school_name',
   'from_name',
   'reply_to',
+  'calendar_url',
   'footer_note',
 ];
 
