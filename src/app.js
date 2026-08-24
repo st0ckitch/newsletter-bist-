@@ -28,6 +28,7 @@ function createApp() {
   );
 
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+  app.use(express.json({ limit: '1mb' }));
   app.use(
     cookieSession({
       name: 'roar.sid',
@@ -60,6 +61,7 @@ function createApp() {
   app.use(require('./routes/news'));
   app.use(require('./routes/principal'));
   app.use(require('./routes/newsletter'));
+  app.use(require('./routes/editor'));
   app.use(require('./routes/users'));
   app.use(require('./routes/settings'));
 

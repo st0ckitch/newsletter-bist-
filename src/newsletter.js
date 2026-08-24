@@ -137,21 +137,22 @@ function placeholderBox(letter, title, hint) {
 
 /* ---------- Section B: Upcoming Events ---------- */
 
-function renderEventRow(ev) {
+function renderEventRow(ev, editable) {
   const day = dayParts(ev.event_date);
+  const ed = (field) => (editable && ev.id ? ` data-edit="event:${ev.id}:${field}"` : '');
   let range = '';
-  const metaBits = [];
+  const metaHtml = [];
   if (ev.end_date && ev.end_date !== ev.event_date) {
     const end = dayParts(ev.end_date);
     if (ev.end_date.slice(0, 7) === ev.event_date.slice(0, 7)) {
       range = `<span style="font-size:10px; color:#f7ecd8;">&ndash;${end.num}</span>`;
     } else {
       // Range crosses a month boundary — "31–2" would mislead, spell it out.
-      metaBits.push(`Until ${end.num} ${monthLabel(ev.end_date)}`);
+      metaHtml.push(escapeHtml(`Until ${end.num} ${monthLabel(ev.end_date)}`));
     }
   }
-  metaBits.push(...[ev.location, ev.time_note].filter(Boolean));
-  const metaHtml = metaBits.map(escapeHtml);
+  if (ev.location) metaHtml.push(`<span${ed('location')}>${escapeHtml(ev.location)}</span>`);
+  if (ev.time_note) metaHtml.push(`<span${ed('time_note')}>${escapeHtml(ev.time_note)}</span>`);
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; background:#ffffff; border:1px solid ${CARD_BORDER}; border-radius:10px;">
     <tr>
@@ -160,9 +161,9 @@ function renderEventRow(ev) {
         <p style="margin:1px 0 0 0; font-family:${SERIF}; font-size:20px; font-weight:800; line-height:1; color:#ffffff;">${day.num}${range}</p>
       </td>
       <td valign="middle" style="padding:8px 12px;">
-        <p style="margin:0; font-family:${SANS}; font-size:13px; font-weight:600; color:${NAVY}; line-height:1.35;">${escapeHtml(
-    ev.title
-  )}</p>
+        <p style="margin:0; font-family:${SANS}; font-size:13px; font-weight:600; color:${NAVY}; line-height:1.35;"><span${ed(
+    'title'
+  )}>${escapeHtml(ev.title)}</span></p>
         ${
           metaHtml.length
             ? `<p style="margin:3px 0 0 0; font-family:${SANS}; font-size:11px; color:${MUTED};">${metaHtml.join(
@@ -175,7 +176,7 @@ function renderEventRow(ev) {
   </table>`;
 }
 
-function renderEventsBlock(events, calendarUrl) {
+function renderEventsBlock(events, calendarUrl, editable) {
   if (!events.length) return '';
   const calendarChip = calendarUrl
     ? `<a href="${escapeHtml(
@@ -196,7 +197,7 @@ function renderEventsBlock(events, calendarUrl) {
       )}</td>
       </tr></table>`;
     }
-    rows += `<div style="padding:0 0 7px 0;">${renderEventRow(ev)}</div>`;
+    rows += `<div style="padding:0 0 7px 0;">${renderEventRow(ev, editable)}</div>`;
   }
   return `
   <div style="padding:0 0 18px 0;">
@@ -207,8 +208,10 @@ function renderEventsBlock(events, calendarUrl) {
 
 /* ---------- Section C: Principal's Message ---------- */
 
-function renderPrincipalBlock(principalMessage) {
+function renderPrincipalBlock(principalMessage, editable) {
   if (!principalMessage) return '';
+  const week = principalMessage.weekStart || '';
+  const canEdit = editable && week;
   return `
   <div style="padding:0 0 18px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
@@ -219,15 +222,17 @@ function renderPrincipalBlock(principalMessage) {
       </tr>
       <tr><td height="3" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
       <tr>
-        <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:16px 14px 6px 14px;">
+        <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:16px 14px 6px 14px;"${
+    canEdit ? ` data-principal-week="${week}"${principalMessage.photoUrl ? '' : ' data-no-portrait="1"'}` : ''
+  }>
           ${
             principalMessage.photoUrl
-              ? `<img src="${escapeHtml(
-                  principalMessage.photoUrl
-                )}" alt="Principal" width="96" align="right" style="width:96px; height:auto; border-radius:8px; margin:0 0 8px 12px;">`
+              ? `<img src="${escapeHtml(principalMessage.photoUrl)}"${
+                  canEdit ? ` data-photo="principal:${week}"` : ''
+                } alt="Principal" width="96" align="right" style="width:96px; height:auto; border-radius:8px; margin:0 0 8px 12px;">`
               : ''
           }
-          ${textToHtml(principalMessage.body, INK, 13.5)}
+          <div${canEdit ? ` data-edit="principal:${week}:body"` : ''}>${textToHtml(principalMessage.body, INK, 13.5)}</div>
         </td>
       </tr>
     </table>
@@ -236,16 +241,20 @@ function renderPrincipalBlock(principalMessage) {
 
 /* ---------- Article slots D–I ---------- */
 
-function renderPhotos(photos) {
+const photoUrl = (p) => (typeof p === 'string' ? p : p.url);
+const photoAttr = (p, editable) => (editable && typeof p !== 'string' && p.id ? ` data-photo="${p.id}"` : '');
+
+function renderPhotos(photos, editable) {
   if (!photos || !photos.length) return '';
   // First photo runs the full card width as a hero; the rest pair up.
   const [hero, ...rest] = photos;
   let html = `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:10px;">
       <tr><td style="padding:0;">
-        <img src="${escapeHtml(
-          hero
-        )}" alt="Newsletter photo" width="${CARD_TEXT_W}" style="width:100%; max-width:${CARD_TEXT_W}px; height:auto; display:block; border-radius:9px;">
+        <img src="${escapeHtml(photoUrl(hero))}"${photoAttr(
+    hero,
+    editable
+  )} alt="Newsletter photo" width="${CARD_TEXT_W}" style="width:100%; max-width:${CARD_TEXT_W}px; height:auto; display:block; border-radius:9px;">
       </td></tr>
     </table>`;
   for (let i = 0; i < rest.length; i += 2) {
@@ -255,11 +264,12 @@ function renderPhotos(photos) {
       <tr>
         ${pair
           .map(
-            (url) => `
+            (p) => `
         <td width="50%" valign="top" style="padding:0 4px;">
-          <img src="${escapeHtml(
-            url
-          )}" alt="Newsletter photo" width="${PAIR_W}" style="width:100%; max-width:${PAIR_W}px; height:auto; display:block; border-radius:8px;">
+          <img src="${escapeHtml(photoUrl(p))}"${photoAttr(
+              p,
+              editable
+            )} alt="Newsletter photo" width="${PAIR_W}" style="width:100%; max-width:${PAIR_W}px; height:auto; display:block; border-radius:8px;">
         </td>`
           )
           .join('')}
@@ -270,7 +280,8 @@ function renderPhotos(photos) {
   return html;
 }
 
-function renderArticle(article, barColor, slotLetter) {
+function renderArticle(article, barColor, slotLetter, editable) {
+  const ed = (field) => (editable && article.id ? ` data-edit="news:${article.id}:${field}"` : '');
   const slotChip = slotLetter
     ? `<span style="display:inline-block; background:rgba(255,255,255,0.28); border-radius:4px; padding:1px 7px; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:1px; margin-right:8px;">${escapeHtml(
         slotLetter
@@ -282,9 +293,9 @@ function renderArticle(article, barColor, slotLetter) {
       <tr>
         <td style="background:${barColor}; border-radius:10px 10px 0 0; padding:11px 14px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="font-family:${SANS}; font-size:14px; font-weight:600; color:#ffffff; line-height:1.35;">${slotChip}${escapeHtml(
-    article.title
-  )}</td>
+            <td style="font-family:${SANS}; font-size:14px; font-weight:600; color:#ffffff; line-height:1.35;">${slotChip}<span${ed(
+    'title'
+  )}>${escapeHtml(article.title)}</span></td>
             ${
               article.sectionLabel
                 ? `<td align="right" valign="top" style="font-family:${SANS}; font-size:8px; font-weight:600; letter-spacing:2px; color:#ffffff; opacity:0.75; padding-left:8px; white-space:nowrap;">${escapeHtml(
@@ -296,9 +307,11 @@ function renderArticle(article, barColor, slotLetter) {
         </td>
       </tr>
       <tr>
-        <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:14px 14px 8px 14px;">
-          ${textToHtml(article.body, INK, 13.5)}
-          ${renderPhotos(article.photos)}
+        <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:14px 14px 8px 14px;"${
+    editable && article.id ? ` data-add-photo="${article.id}"` : ''
+  }>
+          <div${ed('body')}>${textToHtml(article.body, INK, 13.5)}</div>
+          ${renderPhotos(article.photos, editable)}
         </td>
       </tr>
     </table>
@@ -408,19 +421,20 @@ function renderNewsletter(data) {
 
   const issueDateLabel = formatIssueDate(issueDate);
   const placeholders = Boolean(data.placeholders);
+  const editable = Boolean(data.editable);
   const fontBase = data.fontBase || '';
 
   let barIndex = 0;
   const articleHtml = (a, letter) =>
-    renderArticle(a, BAR_COLORS[barIndex++ % BAR_COLORS.length], placeholders ? letter : null);
+    renderArticle(a, BAR_COLORS[barIndex++ % BAR_COLORS.length], placeholders ? letter : null, editable);
 
   const eventsHtml = events.length
-    ? renderEventsBlock(events, calendarUrl)
+    ? renderEventsBlock(events, calendarUrl, editable)
     : placeholders
       ? placeholderBox('B', 'Upcoming Events', 'Add events on the Events page.')
       : '';
   const principalHtml = principalMessage
-    ? renderPrincipalBlock(principalMessage)
+    ? renderPrincipalBlock(principalMessage, editable)
     : placeholders
       ? placeholderBox('C', "Principal's Message", "Written on the Principal's message page.")
       : '';
@@ -434,15 +448,15 @@ function renderNewsletter(data) {
     <tr>
       <td style="background:${NAVY_DEEP}; background-color:${NAVY_DEEP}; padding:30px 36px 28px 36px; text-align:center;">
         <p style="margin:0; font-family:${SERIF}; font-size:46px; font-weight:800; line-height:0.6; color:${GOLD};">&ldquo;</p>
-        <p style="margin:8px 0 0 0; font-family:${SERIF}; font-style:italic; font-size:18px; font-weight:300; color:#ffffff; line-height:1.6;">${escapeHtml(
-          quote.text
-        )}</p>
+        <p style="margin:8px 0 0 0; font-family:${SERIF}; font-style:italic; font-size:18px; font-weight:300; color:#ffffff; line-height:1.6;"${
+          editable && quote.weekStart ? ` data-edit="quote:${quote.weekStart}:text"` : ''
+        }>${escapeHtml(quote.text)}</p>
         ${
           quote.author
             ? `<div style="margin-top:14px;">${goldDivider(36, 'center')}</div>
-        <p style="margin:10px 0 0 0; font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:3px; color:${GOLD};">${escapeHtml(
-                quote.author.toUpperCase()
-              )}</p>`
+        <p style="margin:10px 0 0 0; font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:${GOLD};"${
+                editable && quote.weekStart ? ` data-edit="quote:${quote.weekStart}:author"` : ''
+              }>${escapeHtml(editable ? quote.author : quote.author.toUpperCase())}</p>`
             : ''
         }
       </td>
@@ -517,6 +531,11 @@ ${fontFaceCss(fontBase)}
     ${renderFooter(footerNote, newsletterName, schoolName, issueDateLabel)}
   </table>
   </center>
+  ${
+    editable
+      ? `<script>window.CSRF=${JSON.stringify(data.csrf || '')};</script><script src="/js/preview-editor.js"></script>`
+      : ''
+  }
 </body>
 </html>`;
 }

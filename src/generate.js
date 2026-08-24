@@ -50,13 +50,14 @@ async function ensurePhotosUploaded(photos, warnings) {
   }
 }
 
-function buildRenderData(data, { placeholders = false } = {}) {
+function buildRenderData(data, { placeholders = false, editable = false, csrf = '' } = {}) {
   const articles = data.news.map((n) => ({
+    id: n.id,
     title: n.title,
     body: n.body,
     slot: n.slot,
     sectionLabel: SECTION_LABELS[n.section] || '',
-    photos: (data.photosByNews[n.id] || []).map(photoPublicUrl),
+    photos: (data.photosByNews[n.id] || []).map((p) => ({ id: p.id, url: photoPublicUrl(p) })),
   }));
 
   return {
@@ -65,12 +66,13 @@ function buildRenderData(data, { placeholders = false } = {}) {
     issueDate: data.issueDate,
     quote:
       data.principalMessage && data.principalMessage.quote
-        ? { text: data.principalMessage.quote, author: data.principalMessage.quote_author }
+        ? { text: data.principalMessage.quote, author: data.principalMessage.quote_author, weekStart: data.weekStart }
         : null,
     events: data.events,
     principalMessage: data.principalMessage
       ? {
           body: data.principalMessage.body,
+          weekStart: data.weekStart,
           photoUrl: data.principalMessage.photo
             ? data.principalMessage.photo_mailchimp_url || `${config.appBaseUrl}/uploads/${data.principalMessage.photo}`
             : null,
@@ -81,6 +83,8 @@ function buildRenderData(data, { placeholders = false } = {}) {
     calendarUrl: getSetting('calendar_url'),
     fontBase: config.appBaseUrl,
     placeholders,
+    editable,
+    csrf,
   };
 }
 

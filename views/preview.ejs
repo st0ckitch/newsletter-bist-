@@ -1,9 +1,10 @@
 <%- include('partials/head', { title: 'Preview' }) %>
+<% const canEdit = ['principal','admin'].includes(currentUser.role); %>
 <div class="page-head">
-  <h1>Newsletter preview — week of <%= weekStart %></h1>
+  <h1><%= canEdit ? 'Live editor' : 'Newsletter preview' %> — week of <%= weekStart %></h1>
   <div class="page-actions">
-    <a class="btn btn-secondary" href="/newsletter/preview.html?week=<%= weekStart %>" target="_blank" rel="noopener">Open full size</a>
-    <% if (['principal','admin'].includes(currentUser.role)) { %>
+    <a class="btn btn-secondary" href="/newsletter/preview.html?week=<%= weekStart %><%= canEdit ? '&edit=1' : '' %>" target="_blank" rel="noopener">Open full size</a>
+    <% if (canEdit) { %>
     <form method="post" action="/newsletter/generate" data-confirm="Aggregate this week&#39;s content and create/update the Mailchimp draft now?">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <button type="submit" class="btn btn-primary">Generate Mailchimp draft</button>
@@ -11,6 +12,10 @@
     <% } %>
   </div>
 </div>
-<p class="muted">Live preview — refresh after adding content. Photos show from local uploads until the issue is generated, when they are moved to the Mailchimp CDN.</p>
-<iframe class="preview-frame preview-frame-tall" src="/newsletter/preview.html?week=<%= weekStart %>" title="Newsletter preview"></iframe>
+<% if (canEdit) { %>
+  <p class="muted">Edit directly in the preview: <strong>click any text</strong> to change it (Esc undoes, clicking away saves), <strong>hover a photo</strong> to replace or remove it, and use <strong>+ Add photo</strong> inside an article. The 200-word article limit still applies. Photos move to the Mailchimp CDN when the draft is generated.</p>
+<% } else { %>
+  <p class="muted">Live preview — refresh after adding content. Photos show from local uploads until the issue is generated, when they are moved to the Mailchimp CDN.</p>
+<% } %>
+<iframe class="preview-frame preview-frame-tall" src="/newsletter/preview.html?week=<%= weekStart %><%= canEdit ? '&edit=1' : '' %>" title="Newsletter preview"></iframe>
 <%- include('partials/foot') %>

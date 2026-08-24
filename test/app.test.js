@@ -8,8 +8,11 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'roar-test-'));
 process.env.SESSION_SECRET = 'test-secret';
 process.env.ADMIN_EMAIL = 'admin@test.local';
 process.env.ADMIN_PASSWORD = 'test-password';
-delete process.env.MAILCHIMP_API_KEY;
-delete process.env.MAILCHIMP_SERVER_PREFIX;
+// Empty strings (not delete) so dotenv cannot re-populate them from .env.
+process.env.MAILCHIMP_API_KEY = '';
+process.env.MAILCHIMP_SERVER_PREFIX = '';
+process.env.MAILCHIMP_AUDIENCE_ID = '';
+process.env.MAILCHIMP_TEACHERS_AUDIENCE_ID = '';
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -170,6 +173,95 @@ test('preview shows placeholders for empty template sections; drafts do not', as
   const { generateIssue } = require('../src/generate');
   const result = await generateIssue({ trigger: 'test-placeholders' });
   assert.ok(!/SECTION [A-I]/.test(result.html), 'generated issue must not contain placeholder boxes');
+});
+
+test('live editor: edit mode annotates the preview; drafts and plain previews stay clean', async () => {
+  const edit = await (await get('/newsletter/preview.html?edit=1')).text();
+  assert.match(edit, /data-edit="news:\d+:title"/);
+  assert.match(edit, /preview-editor\.js/);
+  const plain = await (await get('/newsletter/preview.html')).text();
+  assert.ok(!plain.includes('data-edit='), 'plain preview must not carry editor markup');
+  const result = await generateIssue({ trigger: 'test-editor-clean' });
+  assert.ok(!result.html.includes('data-edit='), 'draft must not carry editor markup');
+  assert.ok(!result.html.includes('preview-editor.js'), 'draft must not carry the editor script');
+});
+
+async function apiJson(url, payload) {
+  const res = await fetch(base + url, {
+    method: 'POST',
+    headers: { cookie: cookies, 'content-type': 'application/json', 'x-csrf-token': csrf },
+    body: JSON.stringify(payload),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+test('live editor API: inline text edits persist and are validated', async () => {
+  const edit = await (await get('/newsletter/preview.html?edit=1')).text();
+  const newsId = edit.match(/data-edit="news:(\d+):title"/)[1];
+
+  const ok = await apiJson('/api/edit/text', { target: `news:${newsId}:title`, value: 'Edited Inline Title' });
+  assert.strictEqual(ok.status, 200);
+  assert.match(await (await get('/newsletter/preview.html')).text(), /Edited Inline Title/);
+
+  const empty = await apiJson('/api/edit/text', { target: `news:${newsId}:title`, value: '   ' });
+  assert.strictEqual(empty.status, 400);
+
+  const long = await apiJson('/api/edit/text', {
+    target: `news:${newsId}:body`,
+    value: Array.from({ length: 201 }, (_, i) => `w${i}`).join(' '),
+  });
+  assert.strictEqual(long.status, 400);
+  assert.match(long.body.error, /200 words/);
+
+  const unknown = await apiJson('/api/edit/text', { target: 'news:999999:title', value: 'x' });
+  assert.strictEqual(unknown.status, 404);
+  const badTarget = await apiJson('/api/edit/text', { target: 'users:1:email', value: 'x' });
+  assert.strictEqual(badTarget.status, 400);
+
+  await apiJson('/api/edit/text', { target: `news:${newsId}:title`, value: 'Big Tennis Win' });
+});
+
+test('live editor API: photo add, replace and delete', async () => {
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const edit = await (await get('/newsletter/preview.html?edit=1')).text();
+  const newsId = edit.match(/data-edit="news:(\d+):title"/)[1];
+
+  const upload = async (url, fields) => {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+    form.append('photo', new Blob([png], { type: 'image/png' }), 'inline.png');
+    const res = await fetch(base + url, {
+      method: 'POST',
+      headers: { cookie: cookies, 'x-csrf-token': csrf },
+      body: form,
+    });
+    return { status: res.status, body: await res.json() };
+  };
+
+  const added = await upload('/api/edit/photo/add', { news_id: newsId });
+  assert.strictEqual(added.status, 200);
+  let preview = await (await get('/newsletter/preview.html?edit=1')).text();
+  const photoId = preview.match(/data-photo="(\d+)"/)[1];
+
+  const replaced = await upload('/api/edit/photo/replace', { photo_id: photoId });
+  assert.strictEqual(replaced.status, 200);
+
+  const deleted = await apiJson('/api/edit/photo/delete', { photo_id: photoId });
+  assert.strictEqual(deleted.status, 200);
+  preview = await (await get('/newsletter/preview.html?edit=1')).text();
+  assert.ok(!preview.includes(`data-photo="${photoId}"`));
+});
+
+test('live editor API rejects teachers and bad CSRF', async () => {
+  const noCsrf = await fetch(base + '/api/edit/text', {
+    method: 'POST',
+    headers: { cookie: cookies, 'content-type': 'application/json' },
+    body: JSON.stringify({ target: 'news:1:title', value: 'x' }),
+  });
+  assert.strictEqual(noCsrf.status, 403);
 });
 
 test('newsletter preview renders submitted content', async () => {
