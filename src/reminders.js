@@ -53,6 +53,7 @@ async function sendReminder({ type, users, subject, heading, headingColor, bodyH
     buttonUrl: config.appBaseUrl,
     buttonLabel: 'Open the newsletter admin panel',
     schoolName: getSetting('school_name'),
+    fontBase: config.appBaseUrl,
   });
   const memberNames = Object.fromEntries(users.map((u) => [u.email, u.name]));
   try {

@@ -1,3 +1,8 @@
+@font-face { font-family: 'FiraGO'; font-style: normal; font-weight: 300; font-display: swap; src: url('/fonts/FiraGO-Light.woff2') format('woff2'); }
+@font-face { font-family: 'FiraGO'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/FiraGO-Regular.woff2') format('woff2'); }
+@font-face { font-family: 'FiraGO'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/FiraGO-SemiBold.woff2') format('woff2'); }
+@font-face { font-family: 'FiraGO'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/FiraGO-Heavy.woff2') format('woff2'); }
+
 :root {
   --navy: #1b2f5b;
   --navy-deep: #101e3c;
@@ -14,7 +19,8 @@
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'FiraGO', 'Fira Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-weight: 300;
   background: var(--ivory);
   color: var(--ink);
 }
@@ -25,7 +31,7 @@ body {
   display: flex; align-items: center; gap: 24px; min-height: 58px; flex-wrap: wrap;
 }
 .brand {
-  font-family: Georgia, serif; letter-spacing: 3px; font-size: 19px;
+  font-family: inherit; font-weight: 800; letter-spacing: 3px; font-size: 19px;
   color: #fff; text-decoration: none; white-space: nowrap;
 }
 .brand span { color: var(--gold); font-size: 12px; letter-spacing: 1px; }
@@ -39,11 +45,12 @@ body {
 .container { max-width: 1180px; margin: 26px auto 60px auto; padding: 0 20px; }
 
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-.page-head h1 { margin: 0; font-family: Georgia, serif; color: var(--navy); font-size: 28px; }
+.page-head h1 { margin: 0; color: var(--navy); font-size: 28px; }
 .page-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .page-actions form { margin: 0; }
 
-h1, h2, h3 { color: var(--navy); font-family: Georgia, serif; }
+h1, h2, h3 { color: var(--navy); font-family: inherit; font-weight: 800; }
+b, strong { font-weight: 600; }
 .card h2 { font-size: 19px; margin-top: 0; }
 .card h3 { font-size: 15px; margin-bottom: 6px; }
 
@@ -120,9 +127,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); bord
 
 .login-wrap { min-height: 80vh; display: flex; align-items: center; justify-content: center; }
 .login-card { width: 380px; max-width: 92vw; padding: 34px 32px; border-top: 5px solid var(--gold); }
-.login-brand { font-family: Georgia, serif; letter-spacing: 5px; text-align: center; margin: 0; color: var(--navy); }
+.login-brand { font-weight: 800; letter-spacing: 5px; text-align: center; margin: 0; color: var(--navy); }
 .login-sub { text-align: center; color: var(--muted); margin: 6px 0 22px 0; }
 
 .row-excluded td { opacity: 0.55; }
-.tag-slot { background: #f6ecd9; color: #8a6210; font-family: Georgia, serif; }
+.tag-slot { background: #f6ecd9; color: #8a6210; font-weight: 800; }
 .slot-select { max-width: 210px; padding: 5px 8px; font-size: 12.5px; margin: 0; display: inline-block; width: auto; }

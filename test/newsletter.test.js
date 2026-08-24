@@ -29,6 +29,9 @@ const baseData = {
 test('renderNewsletter includes all template sections', () => {
   const html = renderNewsletter(baseData);
   assert.match(html, /THE ROAR/);
+  assert.match(html, /FiraGO/);
+  assert.match(html, /font-weight:800/);
+  assert.match(html, /font-weight:300/);
   assert.match(html, /NEWSLETTER BY/);
   assert.match(html, /Dream big/);
   assert.match(html, /Upcoming Events/);

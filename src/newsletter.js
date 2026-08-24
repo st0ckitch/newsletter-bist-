@@ -21,8 +21,29 @@ const MUTED = '#75809A';
 const CARD_BORDER = '#E9E2D2';
 const BAR_COLORS = ['#B23A32', '#2F6DA3', '#B9862B', '#1B2F5B'];
 
-const SERIF = "Georgia, 'Times New Roman', serif";
-const SANS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+// FiraGO (OFL) — Fira with full Georgian support. Heavy carries titles,
+// Light carries running text; email clients without webfont support fall
+// back to the system sans stack.
+const FIRAGO = "'FiraGO', 'Fira Sans', 'Segoe UI', Helvetica, Arial, sans-serif";
+const SERIF = FIRAGO; // display/title role — used with font-weight:800
+const SANS = FIRAGO; // text role — used with font-weight:300
+
+const FONT_WEIGHTS = [
+  ['Light', 300],
+  ['Regular', 400],
+  ['SemiBold', 600],
+  ['Heavy', 800],
+];
+
+// @font-face block for the newsletter/reminder <head>. The URLs must be
+// publicly reachable for the fonts to load in email clients that support
+// webfonts (Apple Mail etc.); everything else falls back gracefully.
+function fontFaceCss(base) {
+  return FONT_WEIGHTS.map(
+    ([name, weight]) =>
+      `@font-face{font-family:'FiraGO';font-style:normal;font-weight:${weight};font-display:swap;src:url('${base}/fonts/FiraGO-${name}.woff2') format('woff2');}`
+  ).join('\n');
+}
 
 // Column geometry: 680px sheet, 14px outer padding, 16px gutter.
 const COL_W = 318;
@@ -45,7 +66,7 @@ function textToHtml(text, color = INK, size = 15) {
     .filter((p) => p.trim() !== '')
     .map(
       (p) =>
-        `<p style="margin:0 0 12px 0; line-height:1.65; font-size:${size}px; font-family:${SANS}; color:${color};">${p.replace(
+        `<p style="margin:0 0 12px 0; line-height:1.65; font-size:${size}px; font-weight:300; font-family:${SANS}; color:${color};">${p.replace(
           /\r?\n/g,
           '<br>'
         )}</p>`
@@ -78,10 +99,10 @@ function columnHeading(kicker, title, rightHtml = '') {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tr>
       <td valign="bottom">
-        <p style="margin:0 0 4px 0; font-family:${SANS}; font-size:10px; font-weight:bold; letter-spacing:3px; color:${GOLD_DEEP};">${escapeHtml(
+        <p style="margin:0 0 4px 0; font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:3px; color:${GOLD_DEEP};">${escapeHtml(
     kicker.toUpperCase()
   )}</p>
-        <h2 style="margin:0 0 8px 0; font-family:${SERIF}; font-size:22px; line-height:1.2; color:${NAVY};">${escapeHtml(
+        <h2 style="margin:0 0 8px 0; font-family:${SERIF}; font-size:22px; font-weight:800; line-height:1.2; color:${NAVY};">${escapeHtml(
     title
   )}</h2>
         ${goldDivider()}
@@ -101,10 +122,10 @@ function placeholderBox(letter, title, hint) {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; border:2px dashed #D9CFBA; border-radius:10px; background:#FDFBF3;">
       <tr>
         <td align="center" style="padding:22px 14px;">
-          <p style="margin:0; font-family:${SERIF}; font-size:20px; letter-spacing:3px; color:#C4B896;">SECTION ${escapeHtml(
+          <p style="margin:0; font-family:${SERIF}; font-size:20px; font-weight:800; letter-spacing:3px; color:#C4B896;">SECTION ${escapeHtml(
     letter
   )}</p>
-          <p style="margin:6px 0 0 0; font-family:${SANS}; font-size:12px; font-weight:bold; color:${MUTED};">${escapeHtml(
+          <p style="margin:6px 0 0 0; font-family:${SANS}; font-size:12px; font-weight:600; color:${MUTED};">${escapeHtml(
     title
   )}</p>
           <p style="margin:4px 0 0 0; font-family:${SANS}; font-size:11px; color:#A8AFC2;">${escapeHtml(hint)}</p>
@@ -135,11 +156,11 @@ function renderEventRow(ev) {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; background:#ffffff; border:1px solid ${CARD_BORDER}; border-radius:10px;">
     <tr>
       <td width="54" align="center" valign="middle" style="background:${NAVY}; border-radius:10px 0 0 10px; padding:10px 4px;">
-        <p style="margin:0; font-family:${SANS}; font-size:9px; font-weight:bold; letter-spacing:2px; color:${GOLD};">${day.weekday}</p>
-        <p style="margin:1px 0 0 0; font-family:${SERIF}; font-size:20px; line-height:1; color:#ffffff;">${day.num}${range}</p>
+        <p style="margin:0; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:2px; color:${GOLD};">${day.weekday}</p>
+        <p style="margin:1px 0 0 0; font-family:${SERIF}; font-size:20px; font-weight:800; line-height:1; color:#ffffff;">${day.num}${range}</p>
       </td>
       <td valign="middle" style="padding:8px 12px;">
-        <p style="margin:0; font-family:${SANS}; font-size:13px; font-weight:bold; color:${NAVY}; line-height:1.35;">${escapeHtml(
+        <p style="margin:0; font-family:${SANS}; font-size:13px; font-weight:600; color:${NAVY}; line-height:1.35;">${escapeHtml(
     ev.title
   )}</p>
         ${
@@ -159,7 +180,7 @@ function renderEventsBlock(events, calendarUrl) {
   const calendarChip = calendarUrl
     ? `<a href="${escapeHtml(
         calendarUrl
-      )}" style="display:inline-block; border:1px solid ${GOLD}; border-radius:14px; padding:4px 12px; font-family:${SANS}; font-size:10px; font-weight:bold; letter-spacing:2px; color:${GOLD_DEEP}; text-decoration:none;">CALENDAR</a>`
+      )}" style="display:inline-block; border:1px solid ${GOLD}; border-radius:14px; padding:4px 12px; font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:2px; color:${GOLD_DEEP}; text-decoration:none;">CALENDAR</a>`
     : '';
   let rows = '';
   let lastMonth = '';
@@ -170,7 +191,7 @@ function renderEventsBlock(events, calendarUrl) {
       rows += `
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:10px 0 8px 0;"><tr>
         <td width="7" height="7" style="background:${GOLD}; border-radius:7px; font-size:0; line-height:0;">&nbsp;</td>
-        <td style="font-family:${SANS}; font-size:10px; font-weight:bold; letter-spacing:3px; color:${NAVY}; padding:0 0 0 8px;">${escapeHtml(
+        <td style="font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:3px; color:${NAVY}; padding:0 0 0 8px;">${escapeHtml(
         m.toUpperCase()
       )}</td>
       </tr></table>`;
@@ -193,7 +214,7 @@ function renderPrincipalBlock(principalMessage) {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
       <tr>
         <td style="background:${NAVY}; border-radius:10px 10px 0 0; padding:11px 14px;">
-          <p style="margin:0; font-family:${SANS}; font-size:13px; font-weight:bold; letter-spacing:2px; color:#ffffff;">PRINCIPAL&#39;S MESSAGE</p>
+          <p style="margin:0; font-family:${SANS}; font-size:13px; font-weight:600; letter-spacing:2px; color:#ffffff;">PRINCIPAL&#39;S MESSAGE</p>
         </td>
       </tr>
       <tr><td height="3" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
@@ -251,7 +272,7 @@ function renderPhotos(photos) {
 
 function renderArticle(article, barColor, slotLetter) {
   const slotChip = slotLetter
-    ? `<span style="display:inline-block; background:rgba(255,255,255,0.28); border-radius:4px; padding:1px 7px; font-family:${SANS}; font-size:9px; font-weight:bold; letter-spacing:1px; margin-right:8px;">${escapeHtml(
+    ? `<span style="display:inline-block; background:rgba(255,255,255,0.28); border-radius:4px; padding:1px 7px; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:1px; margin-right:8px;">${escapeHtml(
         slotLetter
       )}</span>`
     : '';
@@ -261,12 +282,12 @@ function renderArticle(article, barColor, slotLetter) {
       <tr>
         <td style="background:${barColor}; border-radius:10px 10px 0 0; padding:11px 14px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="font-family:${SANS}; font-size:14px; font-weight:bold; color:#ffffff; line-height:1.35;">${slotChip}${escapeHtml(
+            <td style="font-family:${SANS}; font-size:14px; font-weight:600; color:#ffffff; line-height:1.35;">${slotChip}${escapeHtml(
     article.title
   )}</td>
             ${
               article.sectionLabel
-                ? `<td align="right" valign="top" style="font-family:${SANS}; font-size:8px; font-weight:bold; letter-spacing:2px; color:#ffffff; opacity:0.75; padding-left:8px; white-space:nowrap;">${escapeHtml(
+                ? `<td align="right" valign="top" style="font-family:${SANS}; font-size:8px; font-weight:600; letter-spacing:2px; color:#ffffff; opacity:0.75; padding-left:8px; white-space:nowrap;">${escapeHtml(
                     article.sectionLabel.toUpperCase()
                   )}</td>`
                 : ''
@@ -332,7 +353,7 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
         .map(
           (e) => `
         <td width="33%" valign="top" style="padding:7px 10px;">
-          <p style="margin:0; font-family:${SANS}; font-size:12px; font-weight:bold; color:#ffffff;">${escapeHtml(
+          <p style="margin:0; font-family:${SANS}; font-size:12px; font-weight:600; color:#ffffff;">${escapeHtml(
             e.name
           )}</p>
           ${
@@ -357,7 +378,7 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
     <tr>
       <td align="center" style="background:${NAVY_DEEP}; padding:26px 24px 24px 24px;">
         ${directoryHtml}
-        <p style="margin:0; font-family:${SERIF}; font-size:19px; letter-spacing:3px; color:#ffffff;">${escapeHtml(
+        <p style="margin:0; font-family:${SERIF}; font-size:19px; font-weight:800; letter-spacing:3px; color:#ffffff;">${escapeHtml(
     newsletterName.toUpperCase()
   )}</p>
         <p style="margin:7px 0 0 0; font-family:${SANS}; font-size:10px; letter-spacing:2px; color:${GOLD};">NEWSLETTER BY ${escapeHtml(
@@ -387,6 +408,7 @@ function renderNewsletter(data) {
 
   const issueDateLabel = formatIssueDate(issueDate);
   const placeholders = Boolean(data.placeholders);
+  const fontBase = data.fontBase || '';
 
   let barIndex = 0;
   const articleHtml = (a, letter) =>
@@ -411,14 +433,14 @@ function renderNewsletter(data) {
       ? `
     <tr>
       <td style="background:${NAVY_DEEP}; background-color:${NAVY_DEEP}; padding:30px 36px 28px 36px; text-align:center;">
-        <p style="margin:0; font-family:${SERIF}; font-size:46px; line-height:0.6; color:${GOLD};">&ldquo;</p>
-        <p style="margin:8px 0 0 0; font-family:${SERIF}; font-style:italic; font-size:18px; color:#ffffff; line-height:1.6;">${escapeHtml(
+        <p style="margin:0; font-family:${SERIF}; font-size:46px; font-weight:800; line-height:0.6; color:${GOLD};">&ldquo;</p>
+        <p style="margin:8px 0 0 0; font-family:${SERIF}; font-style:italic; font-size:18px; font-weight:300; color:#ffffff; line-height:1.6;">${escapeHtml(
           quote.text
         )}</p>
         ${
           quote.author
             ? `<div style="margin-top:14px;">${goldDivider(36, 'center')}</div>
-        <p style="margin:10px 0 0 0; font-family:${SANS}; font-size:10px; font-weight:bold; letter-spacing:3px; color:${GOLD};">${escapeHtml(
+        <p style="margin:10px 0 0 0; font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:3px; color:${GOLD};">${escapeHtml(
                 quote.author.toUpperCase()
               )}</p>`
             : ''
@@ -440,6 +462,9 @@ function renderNewsletter(data) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(newsletterName)} — ${escapeHtml(issueDateLabel)}</title>
 <style>
+${fontFaceCss(fontBase)}
+</style>
+<style>
   @media only screen and (max-width: 640px) {
     .col { display: block !important; width: 100% !important; }
     .gutter { display: none !important; }
@@ -457,13 +482,13 @@ function renderNewsletter(data) {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td valign="bottom">
-              <h1 style="margin:0; font-family:${SERIF}; font-size:52px; letter-spacing:5px; line-height:1; color:#ffffff;">${escapeHtml(
+              <h1 style="margin:0; font-family:${SERIF}; font-size:52px; font-weight:800; letter-spacing:5px; line-height:1; color:#ffffff;">${escapeHtml(
     newsletterName.toUpperCase()
   )}</h1>
             </td>
             <td align="right" valign="bottom" style="padding-left:12px;">
-              <p style="margin:0 0 3px 0; font-family:${SANS}; font-size:9px; font-weight:bold; letter-spacing:3px; color:${GOLD};">NEWSLETTER BY</p>
-              <p style="margin:0; font-family:${SANS}; font-size:12px; font-weight:bold; color:#ffffff;">${escapeHtml(
+              <p style="margin:0 0 3px 0; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:3px; color:${GOLD};">NEWSLETTER BY</p>
+              <p style="margin:0; font-family:${SANS}; font-size:12px; font-weight:600; color:#ffffff;">${escapeHtml(
     schoolName
   )}</p>
               <p style="margin:5px 0 0 0; font-family:${SANS}; font-size:9px; letter-spacing:2px; color:${GOLD_SOFT};">WEEKLY &bull; ${escapeHtml(
@@ -498,23 +523,25 @@ function renderNewsletter(data) {
 
 // Branded template for reminder emails to staff (navy + gold, red for the
 // hard-deadline variant via headingColor).
-function renderReminderEmail({ heading, headingColor, bodyHtml, buttonUrl, buttonLabel, schoolName }) {
+function renderReminderEmail({ heading, headingColor, bodyHtml, buttonUrl, buttonLabel, schoolName, fontBase }) {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>${escapeHtml(heading)}</title></head>
+<head><meta charset="utf-8"><title>${escapeHtml(heading)}</title><style>
+${fontFaceCss(fontBase || '')}
+</style></head>
 <body style="margin:0; padding:0; background:#EDEAE2;">
   <center>
   <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:560px; max-width:100%; background:#ffffff; margin:24px 0;">
     <tr><td height="5" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
-    <tr><td style="background:${NAVY_DEEP}; padding:18px 26px; font-family:${SERIF}; font-size:24px; letter-spacing:3px; color:#ffffff;">THE ROAR</td></tr>
-    <tr><td style="background:${escapeHtml(headingColor)}; padding:14px 26px; font-family:${SANS}; font-size:17px; font-weight:bold; color:#ffffff;">${escapeHtml(
+    <tr><td style="background:${NAVY_DEEP}; padding:18px 26px; font-family:${SERIF}; font-size:24px; font-weight:800; letter-spacing:3px; color:#ffffff;">THE ROAR</td></tr>
+    <tr><td style="background:${escapeHtml(headingColor)}; padding:14px 26px; font-family:${SANS}; font-size:17px; font-weight:600; color:#ffffff;">${escapeHtml(
     heading
   )}</td></tr>
     <tr><td style="padding:22px 26px 8px 26px; font-family:${SANS};">${bodyHtml}</td></tr>
     ${
       buttonUrl
         ? `<tr><td style="padding:8px 26px 26px 26px;">
-      <a href="${escapeHtml(buttonUrl)}" style="display:inline-block; background:${NAVY}; color:#ffffff; font-family:${SANS}; font-size:15px; font-weight:bold; text-decoration:none; padding:13px 26px; border-radius:8px; border-bottom:3px solid ${GOLD_DEEP};">${escapeHtml(
+      <a href="${escapeHtml(buttonUrl)}" style="display:inline-block; background:${NAVY}; color:#ffffff; font-family:${SANS}; font-size:15px; font-weight:600; text-decoration:none; padding:13px 26px; border-radius:8px; border-bottom:3px solid ${GOLD_DEEP};">${escapeHtml(
             buttonLabel || 'Open the admin panel'
           )}</a></td></tr>`
         : ''

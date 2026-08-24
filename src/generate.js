@@ -79,6 +79,7 @@ function buildRenderData(data, { placeholders = false } = {}) {
     articles,
     footerNote: getSetting('footer_note'),
     calendarUrl: getSetting('calendar_url'),
+    fontBase: config.appBaseUrl,
     placeholders,
   };
 }
