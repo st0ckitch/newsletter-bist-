@@ -167,3 +167,44 @@ test('renderReminderEmail renders heading, button and school name', () => {
   assert.match(html, /Open panel/);
   assert.match(html, /BIST/);
 });
+
+test('mobile: media query stacks the columns and stretches photos full-width', () => {
+  const html = renderNewsletter(baseData);
+  // The stylesheet rules phones get (<=640px)...
+  assert.match(html, /@media only screen and \(max-width: 640px\)/);
+  assert.match(html, /\.col \{ display: block !important; width: 100% !important; \}/);
+  assert.match(html, /\.gutter \{ display: none !important; \}/);
+  assert.match(html, /\.ph-hero, \.ph-pair \{ width: 100% !important; max-width: 100% !important; \}/);
+  assert.match(html, /\.atext p \{ font-size: 16px !important;/);
+  assert.match(html, /\.mast-title \{ font-size: 34px !important;/);
+  // ...and the class hooks those rules target.
+  assert.match(html, /class="sheet"/);
+  assert.match(html, /class="ph-hero"/);
+  assert.match(html, /class="ph-pair"/);
+  assert.match(html, /class="atext"/);
+  assert.match(html, /class="mast-title"/);
+  assert.match(html, /class="dir-cell"/);
+  // Email-client mobile hardening.
+  assert.match(html, /x-apple-disable-message-reformatting/);
+  assert.match(html, /-webkit-text-size-adjust:100%/);
+});
+
+test('mobile: desktop/tablet keeps the fixed two-column geometry', () => {
+  const html = renderNewsletter(baseData);
+  assert.match(html, /class="col" width="318"/);
+  assert.match(html, /class="gutter" width="16"/);
+  assert.match(html, /width="680"/);
+});
+
+test('mobile: reminder email carries the fluid sheet rules too', () => {
+  const html = renderReminderEmail({
+    heading: 'Reminder',
+    headingColor: '#3E7CB1',
+    bodyHtml: '<p>Hi</p>',
+    buttonUrl: 'https://example.com',
+    buttonLabel: 'Open',
+    schoolName: 'BIST',
+  });
+  assert.match(html, /@media only screen and \(max-width: 640px\)/);
+  assert.match(html, /class="sheet"/);
+});

@@ -110,6 +110,11 @@ ensureColumn('news', 'included', "included INTEGER NOT NULL DEFAULT 1");
 ensureColumn('news', 'slot', "slot TEXT NOT NULL DEFAULT 'D'");
 ensureColumn('principal_messages', 'photo', 'photo TEXT');
 ensureColumn('principal_messages', 'photo_mailchimp_url', 'photo_mailchimp_url TEXT');
+// Showcase content inserted by the "Fill with demo content" button is marked
+// so it can be removed again without touching anything staff wrote.
+ensureColumn('events', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
+ensureColumn('news', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
+ensureColumn('principal_messages', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
 
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi',

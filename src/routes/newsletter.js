@@ -5,6 +5,7 @@ const { isValidDateStr } = require('../week');
 const { submissionWeekStart } = require('../appweek');
 const { generateIssue, collectWeekData, buildRenderData } = require('../generate');
 const { renderNewsletter } = require('../newsletter');
+const { fillDemoData, clearDemoData, hasDemoData } = require('../demo-data');
 const reminders = require('../reminders');
 
 const router = express.Router();
@@ -26,7 +27,25 @@ router.get('/newsletter/preview.html', requireLogin, (req, res) => {
 
 router.get('/newsletter/preview', requireLogin, (req, res) => {
   const weekStart = isValidDateStr(req.query.week) ? req.query.week : submissionWeekStart();
-  res.render('preview', { weekStart });
+  res.render('preview', {
+    weekStart,
+    hasDemo: hasDemoData(),
+    demo: ['filled', 'cleared'].includes(req.query.demo) ? req.query.demo : null,
+  });
+});
+
+// Showcase mode: one click fills every template section (quote, events, all
+// six article slots with photos, principal's message with portrait) with
+// sample content; the second button removes exactly that again. Content staff
+// wrote themselves is never modified by either.
+router.post('/demo-data/fill', requireRole('principal', 'admin'), (req, res) => {
+  fillDemoData(req.user.id);
+  res.redirect('/newsletter/preview?demo=filled');
+});
+
+router.post('/demo-data/clear', requireRole('principal', 'admin'), (req, res) => {
+  clearDemoData();
+  res.redirect('/newsletter/preview?demo=cleared');
 });
 
 router.get('/newsletter/issues', requireLogin, (req, res) => {

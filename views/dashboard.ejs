@@ -8,6 +8,10 @@
     <a class="btn btn-secondary" href="/news/new">+ Add news</a>
     <a class="btn btn-secondary" href="/events/new">+ Add event</a>
     <% if (isManager) { %>
+    <form method="post" action="/demo-data/fill" data-confirm="Fill every template section with sample events, articles, photos and a principal&#39;s message? Content your staff wrote is kept - demo items are marked and can be removed again with one click.">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button type="submit" class="btn btn-secondary">Fill with demo content</button>
+    </form>
     <form method="post" action="/newsletter/generate" data-confirm="Aggregate this week&#39;s content and create/update the Mailchimp draft now?">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <button type="submit" class="btn btn-primary">Generate draft now</button>

@@ -477,3 +477,63 @@ test('issues page lists the generated issue', async () => {
   const html = await res.text();
   assert.match(html, /saved locally only/);
 });
+
+test('demo fill populates every template section and is admin-only', async () => {
+  // A teacher must not be able to trigger it.
+  const teacherRes = await fetch(base + '/demo-data/fill', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ _csrf: 'x' }).toString(),
+    redirect: 'manual',
+  });
+  assert.ok([302, 403].includes(teacherRes.status), 'unauthenticated fill is refused');
+
+  const res = await post('/demo-data/fill', {});
+  assert.strictEqual(res.status, 302);
+  assert.strictEqual(res.headers.get('location'), '/newsletter/preview?demo=filled');
+
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /Inter-School Friendly Tennis Tournament Success/);
+  assert.match(preview, /Duke of Edinburgh Expedition/);
+  assert.match(preview, /PCA Meeting/);
+  assert.ok(!/SECTION [D-I]/.test(preview), 'all article slots are filled - no placeholders left');
+
+  // Demo photo files really exist and are served.
+  const photo = db
+    .prepare("SELECT p.filename FROM photos p JOIN news n ON n.id = p.news_id WHERE n.is_demo = 1 LIMIT 1")
+    .get();
+  assert.ok(photo, 'demo photos inserted');
+  const img = await get(`/uploads/${photo.filename}`);
+  assert.strictEqual(img.status, 200);
+
+  const demoNews = db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 1').get().c;
+  assert.strictEqual(demoNews, 6, 'one demo article per slot D-I');
+});
+
+test('demo fill is idempotent and never touches real content', async () => {
+  const realNews = db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 0').get().c;
+  await post('/demo-data/fill', {});
+  await post('/demo-data/fill', {});
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 1').get().c, 6, 'refilling replaces, not duplicates');
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM events WHERE is_demo = 1').get().c, 6);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 0').get().c, realNews, 'real articles untouched');
+});
+
+test('demo clear removes only demo rows and their files', async () => {
+  const files = db
+    .prepare('SELECT p.filename FROM photos p JOIN news n ON n.id = p.news_id WHERE n.is_demo = 1')
+    .all()
+    .map((r) => r.filename);
+  assert.ok(files.length > 0);
+  const realNews = db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 0').get().c;
+
+  const res = await post('/demo-data/clear', {});
+  assert.strictEqual(res.status, 302);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 1').get().c, 0);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM events WHERE is_demo = 1').get().c, 0);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM principal_messages WHERE is_demo = 1').get().c, 0);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 0').get().c, realNews, 'real articles survive the clear');
+  for (const f of files) {
+    assert.ok(!fs.existsSync(path.join(process.env.DATA_DIR, 'uploads', f)), `demo photo file ${f} deleted`);
+  }
+});

@@ -50,6 +50,27 @@ const COL_W = 318;
 const CARD_TEXT_W = COL_W - 2 - 28; // 1px borders + 14px card padding => 288
 const PAIR_W = Math.floor((CARD_TEXT_W - 10) / 2); // two-up photo => 139
 
+// Responsive rules for phones (<=640px): the two columns stack into one,
+// photos stretch to the full screen width, running text steps up a size and
+// the masthead/footer reflow. Desktop and tablet keep the fixed two-column
+// sheet; Outlook ignores media queries and always gets the desktop layout.
+const MOBILE_CSS = `
+  @media only screen and (max-width: 640px) {
+    .sheet { width: 100% !important; }
+    .col { display: block !important; width: 100% !important; }
+    .gutter { display: none !important; }
+    .mast-pad { padding: 20px 18px 18px 18px !important; }
+    .mast-cell { display: block !important; width: 100% !important; }
+    .mast-title { font-size: 34px !important; letter-spacing: 3px !important; }
+    .mast-side { display: block !important; width: 100% !important; text-align: left !important; padding: 12px 0 0 0 !important; }
+    .quote-pad { padding: 24px 18px 22px 18px !important; }
+    .wrap-pad { padding: 14px 10px 2px 10px !important; }
+    .atext p { font-size: 16px !important; line-height: 1.7 !important; }
+    .ph-hero, .ph-pair { width: 100% !important; max-width: 100% !important; }
+    .dir-cell { display: block !important; width: 100% !important; text-align: center !important; padding: 5px 0 !important; }
+    .foot-pad { padding: 22px 16px 20px 16px !important; }
+  }`;
+
 function escapeHtml(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -232,7 +253,7 @@ function renderPrincipalBlock(principalMessage, editable) {
                 } alt="Principal" width="96" align="right" style="width:96px; height:auto; border-radius:8px; margin:0 0 8px 12px;">`
               : ''
           }
-          <div${canEdit ? ` data-edit="principal:${week}:body"` : ''}>${textToHtml(principalMessage.body, INK, 13.5)}</div>
+          <div class="atext"${canEdit ? ` data-edit="principal:${week}:body"` : ''}>${textToHtml(principalMessage.body, INK, 13.5)}</div>
         </td>
       </tr>
     </table>
@@ -254,7 +275,7 @@ function renderPhotos(photos, editable) {
         <img src="${escapeHtml(photoUrl(hero))}"${photoAttr(
     hero,
     editable
-  )} alt="Newsletter photo" width="${CARD_TEXT_W}" style="width:100%; max-width:${CARD_TEXT_W}px; height:auto; display:block; border-radius:9px;">
+  )} alt="Newsletter photo" class="ph-hero" width="${CARD_TEXT_W}" style="width:100%; max-width:${CARD_TEXT_W}px; height:auto; display:block; border-radius:9px;">
       </td></tr>
     </table>`;
   for (let i = 0; i < rest.length; i += 2) {
@@ -269,7 +290,7 @@ function renderPhotos(photos, editable) {
           <img src="${escapeHtml(photoUrl(p))}"${photoAttr(
               p,
               editable
-            )} alt="Newsletter photo" width="${PAIR_W}" style="width:100%; max-width:${PAIR_W}px; height:auto; display:block; border-radius:8px;">
+            )} alt="Newsletter photo" class="ph-pair" width="${PAIR_W}" style="width:100%; max-width:${PAIR_W}px; height:auto; display:block; border-radius:8px;">
         </td>`
           )
           .join('')}
@@ -310,7 +331,7 @@ function renderArticle(article, barColor, slotLetter, editable) {
         <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:14px 14px 8px 14px;"${
     editable && article.id ? ` data-add-photo="${article.id}"` : ''
   }>
-          <div${ed('body')}>${textToHtml(article.body, INK, 13.5)}</div>
+          <div class="atext"${ed('body')}>${textToHtml(article.body, INK, 13.5)}</div>
           ${renderPhotos(article.photos, editable)}
         </td>
       </tr>
@@ -365,7 +386,7 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
       rows += `<tr>${triple
         .map(
           (e) => `
-        <td width="33%" valign="top" style="padding:7px 10px;">
+        <td class="dir-cell" width="33%" valign="top" style="padding:7px 10px;">
           <p style="margin:0; font-family:${SANS}; font-size:12px; font-weight:600; color:#ffffff;">${escapeHtml(
             e.name
           )}</p>
@@ -389,7 +410,7 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
   return `
     <tr><td height="5" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
     <tr>
-      <td align="center" style="background:${NAVY_DEEP}; padding:26px 24px 24px 24px;">
+      <td class="foot-pad" align="center" style="background:${NAVY_DEEP}; padding:26px 24px 24px 24px;">
         ${directoryHtml}
         <p style="margin:0; font-family:${SERIF}; font-size:19px; font-weight:800; letter-spacing:3px; color:#ffffff;">${escapeHtml(
     newsletterName.toUpperCase()
@@ -446,7 +467,7 @@ function renderNewsletter(data) {
     quote && quote.text
       ? `
     <tr>
-      <td style="background:${NAVY_DEEP}; background-color:${NAVY_DEEP}; padding:30px 36px 28px 36px; text-align:center;">
+      <td class="quote-pad" style="background:${NAVY_DEEP}; background-color:${NAVY_DEEP}; padding:30px 36px 28px 36px; text-align:center;">
         <p style="margin:0; font-family:${SERIF}; font-size:46px; font-weight:800; line-height:0.6; color:${GOLD};">&ldquo;</p>
         <p style="margin:8px 0 0 0; font-family:${SERIF}; font-style:italic; font-size:18px; font-weight:300; color:#ffffff; line-height:1.6;"${
           editable && quote.weekStart ? ` data-edit="quote:${quote.weekStart}:text"` : ''
@@ -475,32 +496,30 @@ function renderNewsletter(data) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(newsletterName)} - ${escapeHtml(issueDateLabel)}</title>
+<meta name="x-apple-disable-message-reformatting">
 <style>
 ${fontFaceCss(fontBase)}
 </style>
 <style>
-  @media only screen and (max-width: 640px) {
-    .col { display: block !important; width: 100% !important; }
-    .gutter { display: none !important; }
-  }
+  ${MOBILE_CSS}
 </style>
 </head>
-<body style="margin:0; padding:0; background:#EDEAE2;">
+<body style="margin:0; padding:0; background:#EDEAE2; -webkit-text-size-adjust:100%;">
   <center>
-  <table role="presentation" width="680" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:680px; max-width:100%; background:${IVORY};">
+  <table role="presentation" class="sheet" width="680" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:680px; max-width:100%; background:${IVORY};">
 
     <!-- A: masthead -->
     <tr><td height="6" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
     <tr>
-      <td style="background:${NAVY_DEEP}; background-color:${NAVY_DEEP}; padding:26px 30px 24px 30px;">
+      <td class="mast-pad" style="background:${NAVY_DEEP}; background-color:${NAVY_DEEP}; padding:26px 30px 24px 30px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td valign="bottom">
-              <h1 style="margin:0; font-family:${SERIF}; font-size:52px; font-weight:800; letter-spacing:5px; line-height:1; color:#ffffff;">${escapeHtml(
+            <td class="mast-cell" valign="bottom">
+              <h1 class="mast-title" style="margin:0; font-family:${SERIF}; font-size:52px; font-weight:800; letter-spacing:5px; line-height:1; color:#ffffff;">${escapeHtml(
     newsletterName.toUpperCase()
   )}</h1>
             </td>
-            <td align="right" valign="bottom" style="padding-left:12px;">
+            <td class="mast-side" align="right" valign="bottom" style="padding-left:12px;">
               <p style="margin:0 0 3px 0; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:3px; color:${GOLD};">NEWSLETTER BY</p>
               <p style="margin:0; font-family:${SANS}; font-size:12px; font-weight:600; color:#ffffff;">${escapeHtml(
     schoolName
@@ -517,7 +536,7 @@ ${fontFaceCss(fontBase)}
 
     <!-- B/C + article slots: two columns, as in the print layout -->
     <tr>
-      <td style="padding:20px 14px 6px 14px;">
+      <td class="wrap-pad" style="padding:20px 14px 6px 14px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
             <td class="col" width="${COL_W}" valign="top">${leftColumn || '&nbsp;'}</td>
@@ -545,12 +564,13 @@ ${fontFaceCss(fontBase)}
 function renderReminderEmail({ heading, headingColor, bodyHtml, buttonUrl, buttonLabel, schoolName, fontBase }) {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>${escapeHtml(heading)}</title><style>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${escapeHtml(heading)}</title><style>
 ${fontFaceCss(fontBase || '')}
+@media only screen and (max-width: 640px) { .sheet { width: 100% !important; margin: 0 !important; } }
 </style></head>
-<body style="margin:0; padding:0; background:#EDEAE2;">
+<body style="margin:0; padding:0; background:#EDEAE2; -webkit-text-size-adjust:100%;">
   <center>
-  <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:560px; max-width:100%; background:#ffffff; margin:24px 0;">
+  <table role="presentation" class="sheet" width="560" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:560px; max-width:100%; background:#ffffff; margin:24px 0;">
     <tr><td height="5" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
     <tr><td style="background:${NAVY_DEEP}; padding:18px 26px; font-family:${SERIF}; font-size:24px; font-weight:800; letter-spacing:3px; color:#ffffff;">THE ROAR</td></tr>
     <tr><td style="background:${escapeHtml(headingColor)}; padding:14px 26px; font-family:${SANS}; font-size:17px; font-weight:600; color:#ffffff;">${escapeHtml(
