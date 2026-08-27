@@ -128,6 +128,25 @@ async function uploadFile(name, buffer) {
   return file.full_size_url;
 }
 
+// Round-trip check that image hosting works: upload a 1x1 PNG to the File
+// Manager, then delete it again. Returns the CDN URL it briefly had.
+const TEST_PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64'
+);
+async function testFileManager() {
+  const file = await request('POST', '/file-manager/files', {
+    name: `roar-connection-test-${Date.now()}.png`,
+    file_data: TEST_PIXEL.toString('base64'),
+  });
+  try {
+    await request('DELETE', `/file-manager/files/${file.id}`);
+  } catch {
+    /* the test file is 68 bytes; leaving it behind is harmless */
+  }
+  return file.full_size_url;
+}
+
 // Send one-off email to a specific set of addresses: upsert them into the
 // teachers audience, build a static segment, create a campaign for that
 // segment and send it. One problematic address must not block the others,
@@ -171,6 +190,7 @@ module.exports = {
   sendCampaign,
   getCampaign,
   uploadFile,
+  testFileManager,
   sendToEmails,
   campaignEditUrl,
   MailchimpError,

@@ -10,10 +10,19 @@ const mailchimp = require('../src/mailchimp');
   }
   try {
     const pong = await mailchimp.ping();
-    console.log(`✅ Mailchimp connection OK (${config.mailchimp.serverPrefix}): ${pong.health_status || 'healthy'}\n`);
+    console.log(`✅ Mailchimp connection OK (${config.mailchimp.serverPrefix}): ${pong.health_status || 'healthy'}`);
   } catch (err) {
     console.error(`❌ Mailchimp ping failed: ${err.message}`);
     process.exit(1);
+  }
+  // Newsletter photos are uploaded to the File Manager at generation time so
+  // receivers load them from the Mailchimp CDN - prove that this works too.
+  try {
+    const url = await mailchimp.testFileManager();
+    console.log(`✅ File Manager upload OK - photos will be hosted on the Mailchimp CDN (${new URL(url).hostname})\n`);
+  } catch (err) {
+    console.error(`❌ File Manager upload failed: ${err.message}`);
+    console.error('   Images would break in sent emails - fix this before generating drafts.\n');
   }
   const res = await fetch(`https://${config.mailchimp.serverPrefix}.api.mailchimp.com/3.0/lists?count=50`, {
     headers: { Authorization: `Basic ${Buffer.from(`anystring:${config.mailchimp.apiKey}`).toString('base64')}` },

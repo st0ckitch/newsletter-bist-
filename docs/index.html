@@ -1141,7 +1141,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'remind-monday') showReminder('monday');
   else if (act === 'remind-thursday') showReminder('thursday');
   else if (act === 'test-mailchimp') {
-    modalHtml = modal('Test Mailchimp connection', `<p>\u274c Mailchimp is not configured in this demo.</p><p class="muted">In production this button calls <code>GET /3.0/ping</code> with the server's API key and reports the live health status. The server also verifies the audience IDs before sending reminders or creating drafts.</p>`);
+    modalHtml = modal('Test Mailchimp connection', `<p>\u274c Mailchimp is not configured in this demo.</p><p class="muted">In production this button calls <code>GET /3.0/ping</code> with the server's API key and also uploads (and deletes) a tiny test image in the Mailchimp File Manager - proving that newsletter photos will be hosted on the Mailchimp CDN, so they display for every email receiver. The server also verifies the audience IDs before sending reminders or creating drafts.</p>`);
     render();
   }
   else if (act === 'event-delete') {

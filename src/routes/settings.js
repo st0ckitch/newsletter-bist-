@@ -122,7 +122,19 @@ router.post('/settings/test-mailchimp', requireRole('principal', 'admin'), async
     let testResult;
     try {
       const pong = await mailchimp.ping();
-      testResult = { ok: true, message: `Mailchimp connection OK: ${(pong && pong.health_status) || 'healthy'}` };
+      // Also prove that image hosting works: newsletter photos are uploaded
+      // to the File Manager so receivers load them from the Mailchimp CDN.
+      let fileNote;
+      try {
+        const url = await mailchimp.testFileManager();
+        fileNote = `File Manager upload OK - photos will be hosted on the Mailchimp CDN (${new URL(url).hostname}).`;
+      } catch (err) {
+        fileNote = `BUT the File Manager upload failed: ${err.message} - images would break in sent emails.`;
+      }
+      testResult = {
+        ok: !fileNote.startsWith('BUT'),
+        message: `Mailchimp connection OK (${(pong && pong.health_status) || 'healthy'}). ${fileNote}`,
+      };
     } catch (err) {
       testResult = { ok: false, message: err.message };
     }

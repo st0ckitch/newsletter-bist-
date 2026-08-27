@@ -689,6 +689,17 @@ test('editable preview is CSP-safe: no inline scripts, CSRF via body attribute',
   assert.ok(!plain.includes('data-csrf'), 'plain preview carries no token');
 });
 
+
+test('settings connection test reports the File Manager check', async () => {
+  // Mailchimp is unconfigured in tests: the test button must render the
+  // failure clearly rather than crash.
+  const res = await post('/settings/test-mailchimp', {});
+  assert.strictEqual(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /alert-error/);
+  assert.match(html, /Mailchimp is not configured/);
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');
