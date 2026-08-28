@@ -1,8 +1,8 @@
 const express = require('express');
 const { db } = require('../db');
 const { requireRole, csrfOk } = require('../auth');
-const { weekDeadline, formatHuman } = require('../week');
-const { submissionWeekStart } = require('../appweek');
+const { formatHuman } = require('../week');
+const { submissionWeekStart, generationDay, generationTimeLabel } = require('../appweek');
 const { upload, isRealImage, removeFiles } = require('../uploads');
 
 const router = express.Router();
@@ -42,7 +42,7 @@ router.get('/principal-message', requireRole('principal', 'admin'), (req, res) =
   res.render('principal', {
     message: currentMessage(weekStart),
     weekStart,
-    deadlineHuman: formatHuman(weekDeadline(weekStart)),
+    deadlineHuman: `${formatHuman(generationDay(weekStart))} at ${generationTimeLabel()}`,
     saved: req.query.saved === '1',
     errors: [],
   });
@@ -58,7 +58,7 @@ router.post('/principal-message', requireRole('principal', 'admin'), photoUpload
     return res.status(400).render('principal', {
       message: { ...(currentMessage(weekStart) || {}), body, quote, quote_author },
       weekStart,
-      deadlineHuman: formatHuman(weekDeadline(weekStart)),
+      deadlineHuman: `${formatHuman(generationDay(weekStart))} at ${generationTimeLabel()}`,
       saved: false,
       errors: ['The message text is required.'],
     });

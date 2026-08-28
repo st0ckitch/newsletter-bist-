@@ -195,24 +195,31 @@ function addDays(dateStr, days) {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 function todayStr(tz) { return tzParts(tz).dateStr; }
-function parseCronTime(expr, fallback = { hour: 15, minute: 0 }) {
+function parseCronTime(expr, fallback = { hour: 18, minute: 0, dow: 4 }) {
   const parts = String(expr || '').trim().split(/\s+/);
   if (parts.length < 2) return fallback;
   const minute = Number(parts[0]); const hour = Number(parts[1]);
   if (!Number.isInteger(minute) || !Number.isInteger(hour) || minute < 0 || minute > 59 || hour < 0 || hour > 23) return fallback;
-  return { hour, minute };
+  let dow = Number(parts[4]);
+  if (!Number.isInteger(dow) || dow < 0 || dow > 7) dow = fallback.dow ?? 4;
+  else if (dow === 0) dow = 7;
+  return { hour, minute, dow };
 }
 function currentWeekStart(tz, date = new Date(), cutoff = null) {
   const p = tzParts(tz, date);
-  if (p.weekday >= 6) return addDays(p.dateStr, 8 - p.weekday);
-  if (cutoff && p.weekday === 5 && (p.hour > cutoff.hour || (p.hour === cutoff.hour && p.minute >= cutoff.minute))) return addDays(p.dateStr, 3);
+  const cutoffDow = (cutoff && cutoff.dow) || 5;
+  if (p.weekday > cutoffDow) return addDays(p.dateStr, 8 - p.weekday);
+  if (cutoff && p.weekday === cutoffDow && (p.hour > cutoff.hour || (p.hour === cutoff.hour && p.minute >= cutoff.minute))) return addDays(p.dateStr, 8 - p.weekday);
   return addDays(p.dateStr, 1 - p.weekday);
 }
 function issueWeekStart(tz, date = new Date()) {
   const p = tzParts(tz, date);
   return addDays(p.dateStr, 1 - p.weekday);
 }
-function weekDeadline(weekStart) { return addDays(weekStart, 4); }
+function weekDeadline(weekStart, dow = 5) { return addDays(weekStart, dow - 1); }
+function genCron() { return parseCronTime(S.settings.friday_generate_cron); }
+function genDay(weekStart) { return weekDeadline(weekStart, genCron().dow); }
+function genTimeLabel() { const c = genCron(); return `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`; }
 function formatHuman(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -543,10 +550,10 @@ function renderReminderEmail({ heading, headingColor, bodyHtml, buttonUrl, butto
 }
 
 /* ================= state ================= */
-const STORAGE_KEY = 'roar-demo-v4';
+const STORAGE_KEY = 'roar-demo-v5';
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi', monday_reminder_cron: '0 9 * * 1', thursday_reminder_cron: '0 9 * * 4',
-  friday_generate_cron: '0 15 * * 5', newsletter_name: 'The Roar',
+  friday_generate_cron: '0 18 * * 4', auto_reminders: '0', editor_email: '', newsletter_name: 'The Roar',
   school_name: 'British International School of Tbilisi',
   from_name: 'British International School of Tbilisi', reply_to: '',
   calendar_url: 'https://bist.ge/',
@@ -631,7 +638,7 @@ function hasSubmitted(userId, week) {
 function principalHasSubmitted(week) { return Boolean(S.principalMessages[week]); }
 
 function buildIssueData(week, placeholders = false, editable = false) {
-  const issueDate = weekDeadline(week);
+  const issueDate = genDay(week);
   const events = S.events
     .filter((e) => e.event_date >= issueDate || (e.end_date && e.end_date >= issueDate))
     .sort((a, b) => (a.event_date < b.event_date ? -1 : a.event_date > b.event_date ? 1 : a.id - b.id));
@@ -706,7 +713,7 @@ function vLogin() {
 
 function vDashboard() {
   const week = subWeekStart();
-  const deadline = weekDeadline(week);
+  const deadline = genDay(week);
   const today = todayStr(S.settings.timezone);
   const cutoff = parseCronTime(S.settings.friday_generate_cron);
   const events = S.events.filter((e) => e.event_date >= today || (e.end_date && e.end_date >= today)).sort((a, b) => (a.event_date < b.event_date ? -1 : 1));
@@ -718,7 +725,7 @@ function vDashboard() {
   return `${nav()}<main class="container">
   <div class="page-head"><div>
     <h1>This week's issue</h1>
-    <p class="muted">Week of ${formatHuman(week)} \u00b7 newsletter assembled <strong>${formatHuman(deadline)} at ${cutoffLabel}</strong> \u00b7 hard deadline for content: <strong>Thursday</strong></p>
+    <p class="muted">Week of ${formatHuman(week)} \u00b7 newsletter assembled <strong>${formatHuman(deadline)} at ${cutoffLabel}</strong></p>
   </div><div class="page-actions">
     <button class="btn btn-secondary" data-nav="news-new">+ Add news</button>
     <button class="btn btn-secondary" data-nav="event-new">+ Add event</button>
@@ -889,7 +896,7 @@ function vPrincipal() {
   const m = S.principalMessages[week] || {};
   return `${nav()}<main class="container"><div class="card card-narrow">
   <h1>Principal's message - week of ${week}</h1>
-  <p class="muted">Appears in this week's issue, assembled ${formatHuman(weekDeadline(week))}.</p>
+  <p class="muted">Appears in this week's issue, assembled ${formatHuman(genDay(week))} at ${genTimeLabel()}.</p>
   ${S.viewParam === 'saved' ? '<div class="alert alert-ok">Saved. It will be included in this week\'s newsletter.</div>' : ''}
   <form id="principal-form">
     <label>Message to parents * <textarea name="body" rows="12" required placeholder="Dear Parents, \u2026">${esc(m.body || '')}</textarea></label>
@@ -969,9 +976,18 @@ function vSettings() {
       <form id="settings-form">
         <label>Timezone <input type="text" name="timezone" value="${esc(s.timezone)}"></label>
         <label>Monday reminder (cron) <input type="text" name="monday_reminder_cron" value="${esc(s.monday_reminder_cron)}"></label>
-        <label>Thursday hard-deadline reminder (cron) <input type="text" name="thursday_reminder_cron" value="${esc(s.thursday_reminder_cron)}"></label>
-        <label>Friday aggregation \u2192 Mailchimp draft (cron) <input type="text" name="friday_generate_cron" value="${esc(s.friday_generate_cron)}"></label>
-        <p class="muted">Format: <code>minute hour day month weekday</code> - e.g. <code>0 15 * * 5</code> = Friday 15:00. The Friday time also sets the submission cutoff: anything added after it rolls into next week's issue.</p>
+        <label>Hard-deadline reminder (cron) <input type="text" name="thursday_reminder_cron" value="${esc(s.thursday_reminder_cron)}"></label>
+        <label>Newsletter generation \u2192 Mailchimp draft (cron) <input type="text" name="friday_generate_cron" value="${esc(s.friday_generate_cron)}"></label>
+        <p class="muted">Format: <code>minute hour day month weekday</code> (weekday 1 = Monday) - e.g. <code>0 18 * * 4</code> = Thursday 18:00. The generation time is also the submission cutoff: anything added after it rolls into next week's issue.</p>
+        <h2>Reminders &amp; review</h2>
+        <label>Automatic reminder emails to teachers
+          <select name="auto_reminders">
+            <option value="0" ${s.auto_reminders === '1' ? '' : 'selected'}>Off - do not send scheduled reminders</option>
+            <option value="1" ${s.auto_reminders === '1' ? 'selected' : ''}>On - send on the Monday/deadline schedule</option>
+          </select></label>
+        <p class="muted">Keep this <strong>off</strong> while teacher accounts use group addresses - group emails cannot join a Mailchimp audience, so reminders would never arrive. The manual "Send ... now" buttons always work.</p>
+        <label>Newsletter editor email(s) - draft review notification <input type="text" name="editor_email" value="${esc(s.editor_email || '')}" placeholder="editor@bist.ge"></label>
+        <p class="muted">When the scheduled generation creates the draft, this person gets a "draft is ready - review it" email with a direct Mailchimp link. Leave blank to disable.</p>
         <h2>Newsletter identity</h2>
         <label>Newsletter name <input type="text" name="newsletter_name" value="${esc(s.newsletter_name)}"></label>
         <label>School name <input type="text" name="school_name" value="${esc(s.school_name)}"></label>
@@ -1003,7 +1019,7 @@ function showReminder(type) {
     subject = `\ud83d\udcdd ${S.settings.newsletter_name}: please submit this week's newsletter content`;
     bodyHtml = `<p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">Good morning!</p>
       <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">A new newsletter week has started. Please add your <strong>upcoming events, news and photos</strong> for this week's issue of <strong>${esc(S.settings.newsletter_name)}</strong> in the admin panel.</p>
-      <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;"><strong>Hard deadline: Thursday.</strong> The newsletter is assembled automatically on ${esc(formatHuman(weekDeadline(week)))}, so late submissions will not make it in.</p>`;
+      <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">The newsletter is assembled automatically on <strong>${esc(formatHuman(genDay(week)))} at ${esc(genTimeLabel())}</strong> - late submissions will not make it in.</p>`;
   } else {
     const pendingTeachers = teachers.filter((u) => !hasSubmitted(u.id, week));
     const pendingPrincipals = principalHasSubmitted(week) ? [] : principals;
@@ -1011,7 +1027,7 @@ function showReminder(type) {
     heading = 'Hard deadline: today'; headingColor = '#D64541';
     subject = `\ud83d\udea8 HARD DEADLINE TODAY - ${S.settings.newsletter_name} newsletter content missing`;
     bodyHtml = `<p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;"><strong>Today is the hard deadline</strong> for this week's issue of <strong>${esc(S.settings.newsletter_name)}</strong> - and we have not received your content yet.</p>
-      <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">Please submit your events, news and photos in the admin panel <strong>today</strong>. The newsletter is assembled automatically tomorrow; anything missing by then will not be included.</p>`;
+      <p style="margin:0 0 12px 0; font-size:15px; line-height:1.5;">Please submit your events, news and photos in the admin panel <strong>today</strong>. The newsletter is assembled automatically on ${esc(formatHuman(genDay(week)))} at ${esc(genTimeLabel())}; anything missing by then will not be included.</p>`;
     if (!recipients.length) {
       S.reminderLog.unshift({ sent_at: new Date().toISOString().slice(0, 16).replace('T', ' '), type, status: 'skipped', detail: 'Everyone has already submitted - no reminder needed.' });
       save();
@@ -1050,6 +1066,9 @@ function generateIssue() {
     { ok: false, label: 'Mailchimp API key', detail: 'not configured in this browser demo - in production it comes from .env on the server' },
     { ok: false, label: 'Draft campaign in Mailchimp', detail: 'simulated here - the real server creates the draft via the Mailchimp API and links straight to it' },
   ];
+  if (S.settings.editor_email) {
+    steps.push({ ok: true, label: 'Review email to the newsletter editor', detail: `simulated send to ${S.settings.editor_email} - in production they get a "draft ready - review it" email with the warnings and a direct link to the Mailchimp draft` });
+  }
   modalHtml = modal('Generation report', `<p class="muted">In production every step runs against the real Mailchimp API and any failure shows the exact error message.</p>
     <table class="table"><tbody>${steps.map((st) => `<tr><td width="30" style="font-size:17px;">${st.ok ? '\u2705' : '\u274c'}</td><td><strong>${st.label}</strong><br><span class="muted">${st.detail}</span></td></tr>`).join('')}</tbody></table>`);
   go('issues', 'generated');
@@ -1262,7 +1281,7 @@ document.addEventListener('submit', (e) => {
     try { new Intl.DateTimeFormat('en-GB', { timeZone: val('timezone') }); } catch { notify('Check the form', `"${escapeHtml(val('timezone'))}" is not a valid timezone.`); return; }
     readPhotos(form.querySelector('input[type=file]'), (photos) => {
       if (photos.length) S.settings.masthead_photo = photos[0].src;
-      for (const k of ['timezone', 'monday_reminder_cron', 'thursday_reminder_cron', 'friday_generate_cron', 'newsletter_name', 'school_name', 'from_name', 'calendar_url', 'footer_note']) {
+      for (const k of ['timezone', 'monday_reminder_cron', 'thursday_reminder_cron', 'friday_generate_cron', 'auto_reminders', 'editor_email', 'newsletter_name', 'school_name', 'from_name', 'calendar_url', 'footer_note']) {
         S.settings[k] = val(k);
       }
       save(); go('settings', 'saved');

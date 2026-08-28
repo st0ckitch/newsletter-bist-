@@ -78,7 +78,7 @@ router.post('/newsletter/generate', requireRole('principal', 'admin'), async (re
 // Manual reminder triggers for testing / chasing people outside the schedule.
 router.post('/reminders/monday', requireRole('principal', 'admin'), async (req, res, next) => {
   try {
-    const result = await reminders.sendMondayReminder();
+    const result = await reminders.sendMondayReminder({ manual: true });
     res.render('message', {
       title: 'Monday reminder',
       message: result.sent ? `Reminder sent to: ${result.recipients.join(', ')}` : `Not sent: ${result.reason}`,
@@ -90,7 +90,7 @@ router.post('/reminders/monday', requireRole('principal', 'admin'), async (req, 
 
 router.post('/reminders/thursday', requireRole('principal', 'admin'), async (req, res, next) => {
   try {
-    const result = await reminders.sendThursdayReminder();
+    const result = await reminders.sendThursdayReminder({ manual: true });
     res.render('message', {
       title: 'Thursday deadline reminder',
       message: result.sent ? `Reminder sent to: ${result.recipients.join(', ')}` : `Not sent: ${result.reason}`,

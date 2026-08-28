@@ -6,13 +6,12 @@ const { db, getSetting, setSetting } = require('./db');
 const config = require('./config');
 const mailchimp = require('./mailchimp');
 const { renderNewsletter } = require('./newsletter');
-const { weekDeadline } = require('./week');
-const { generationWeekStart } = require('./appweek');
+const { generationWeekStart, generationDay } = require('./appweek');
 
 const SECTION_LABELS = { whole_school: 'Whole School', primary: 'Primary', secondary: 'Secondary' };
 
 function collectWeekData(weekStart) {
-  const issueDate = weekDeadline(weekStart); // the Friday of that week
+  const issueDate = generationDay(weekStart); // the day this week's issue is assembled/sent
   // Upcoming events, including multi-day events that are already running.
   const events = db
     .prepare('SELECT * FROM events WHERE event_date >= ? OR (end_date IS NOT NULL AND end_date >= ?) ORDER BY event_date, created_at')

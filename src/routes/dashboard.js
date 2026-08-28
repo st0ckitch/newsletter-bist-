@@ -1,8 +1,8 @@
 const express = require('express');
 const { db, getSetting } = require('../db');
 const { requireLogin, canManage } = require('../auth');
-const { weekDeadline, formatHuman, todayStr } = require('../week');
-const { submissionWeekStart } = require('../appweek');
+const { formatHuman, todayStr } = require('../week');
+const { submissionWeekStart, generationDay, generationTimeLabel } = require('../appweek');
 const { submissionStatus } = require('../reminders');
 const mailchimp = require('../mailchimp');
 
@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/', requireLogin, (req, res) => {
   const tz = getSetting('timezone');
   const weekStart = submissionWeekStart();
-  const deadline = weekDeadline(weekStart);
+  const deadline = generationDay(weekStart);
   const today = todayStr(tz);
 
   const events = db
@@ -28,6 +28,7 @@ router.get('/', requireLogin, (req, res) => {
     weekStart,
     deadline,
     deadlineHuman: formatHuman(deadline),
+    generateTime: generationTimeLabel(),
     weekStartHuman: formatHuman(weekStart),
     events,
     news,

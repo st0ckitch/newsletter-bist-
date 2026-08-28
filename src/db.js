@@ -116,14 +116,27 @@ ensureColumn('events', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
 ensureColumn('news', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
 ensureColumn('principal_messages', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
 
+// The generation schedule moved from Friday 15:00 to Thursday 18:00 -
+// databases still carrying the old default follow along; a custom schedule
+// someone chose deliberately is left alone.
+db.prepare("UPDATE settings SET value = '0 18 * * 4' WHERE key = 'friday_generate_cron' AND value = '0 15 * * 5'").run();
+
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi',
   // Reminder to fill in content - every Monday morning
   monday_reminder_cron: '0 9 * * 1',
   // Hard-deadline reminder - Thursday morning, only to those who have not submitted
   thursday_reminder_cron: '0 9 * * 4',
-  // Aggregation + Mailchimp draft creation - Friday 15:00
-  friday_generate_cron: '0 15 * * 5',
+  // Aggregation + Mailchimp draft creation - Thursday 18:00
+  friday_generate_cron: '0 18 * * 4',
+  // Automatic Monday/Thursday reminders to teachers. Off until individual
+  // staff addresses are configured - group addresses cannot be subscribed to
+  // a Mailchimp audience, so reminders would never arrive. The manual
+  // "Send ... now" buttons keep working either way.
+  auto_reminders: '0',
+  // Who gets the "draft is ready - please review" email after the scheduled
+  // generation (comma-separated addresses; blank = nobody).
+  editor_email: '',
   newsletter_name: 'The Roar',
   school_name: 'British International School of Tbilisi',
   from_name: 'British International School of Tbilisi',

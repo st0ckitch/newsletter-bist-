@@ -2,8 +2,8 @@
 
 Admin panel for the weekly BIST parents newsletter. Teachers and the principal
 log in, submit events, news, photos and the principal's message during the
-week; the app reminds them by email (via Mailchimp) and every **Friday at
-15:00** it aggregates everything into a branded email template and creates the
+week; the app reminds them by email (via Mailchimp) and every **Thursday at
+18:00** (configurable) it aggregates everything into a branded email template and creates the
 **draft campaign in Mailchimp** automatically. Staff review the draft in
 Mailchimp and press send.
 
@@ -14,14 +14,17 @@ Mailchimp and press send.
 | **Monday 09:00** | Reminder email to all primary/secondary teachers + principal: "please submit content". |
 | Mon-Thu | Staff log in and add events, news articles, photos; principal adds the weekly message + quote. |
 | **Thursday 09:00** | **Hard-deadline** reminder - sent *only* to staff who have not submitted anything yet. |
-| **Friday 15:00** | Everything submitted since Monday is aggregated into the newsletter HTML, photos are uploaded to the Mailchimp File Manager, and a **draft campaign** is created (or updated) in Mailchimp. Nothing is sent automatically. |
+| **Thursday 18:00** | Everything submitted since Monday is aggregated into the newsletter HTML, photos are uploaded to the Mailchimp File Manager, and a **draft campaign** is created (or updated) in Mailchimp. Nothing is sent automatically. |
 
 All times run in the school's timezone (`Asia/Tbilisi` by default) and every
 schedule is editable in **Settings** (cron syntax) without a restart.
-Content submitted after the Friday generation time (or over the weekend)
+Content submitted after the generation time (or over the weekend)
 automatically counts toward the *next* issue, so nothing can silently land
-in an already-generated newsletter. Regenerating on Friday evening or during
-the weekend rebuilds the week that just finished.
+in an already-generated newsletter. Regenerating after the cutoff or during
+the weekend rebuilds the week that just finished. Scheduled Monday/deadline
+reminders only go out when "Automatic reminder emails" is turned on in
+Settings, and a configured newsletter editor gets a review email whenever
+the scheduled generation finishes.
 
 ## Roles
 
@@ -110,7 +113,7 @@ src/week.js          timezone-aware week/date helpers
 src/auth.js          sessions, roles, CSRF
 src/mailchimp.js     Mailchimp Marketing API v3 client
 src/newsletter.js    email-safe HTML templates (newsletter + reminders)
-src/generate.js      Friday aggregation -> Mailchimp draft
+src/generate.js      Scheduled aggregation -> Mailchimp draft
 src/reminders.js     Monday/Thursday reminder logic
 src/scheduler.js     node-cron jobs (timezone-aware, hot-reloaded)
 src/routes/*         admin panel routes

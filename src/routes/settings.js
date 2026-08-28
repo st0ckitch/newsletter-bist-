@@ -28,6 +28,8 @@ const EDITABLE = [
   'monday_reminder_cron',
   'thursday_reminder_cron',
   'friday_generate_cron',
+  'auto_reminders',
+  'editor_email',
   'newsletter_name',
   'school_name',
   'from_name',
@@ -108,6 +110,13 @@ router.post('/settings', requireRole('principal', 'admin'), (req, res) => {
   }
   if (updates.newsletter_name !== undefined && !updates.newsletter_name) {
     errors.push('Newsletter name is required.');
+  }
+  if (updates.auto_reminders !== undefined && !['0', '1'].includes(updates.auto_reminders)) {
+    errors.push('Automatic reminders must be on or off.');
+  }
+  if (updates.editor_email !== undefined && updates.editor_email) {
+    const bad = updates.editor_email.split(/[\s,;]+/).filter(Boolean).find((e) => !e.includes('@'));
+    if (bad) errors.push(`"${bad}" does not look like an email address (separate several with commas).`);
   }
   if (errors.length) {
     return res.status(400).render('settings', settingsLocals({ settings: { ...allSettings(), ...updates }, errors }));

@@ -700,6 +700,75 @@ test('settings connection test reports the File Manager check', async () => {
   assert.match(html, /Mailchimp is not configured/);
 });
 
+
+test('automatic reminders are off by default; manual send buttons still work', async () => {
+  const reminders = require('../src/reminders');
+  const { getSetting } = require('../src/db');
+  assert.strictEqual(getSetting('auto_reminders'), '0', 'off until individual staff emails exist');
+  // Scheduled path (what the cron job calls) is skipped with a clear reason.
+  const scheduled = await reminders.sendMondayReminder();
+  assert.strictEqual(scheduled.sent, false);
+  assert.match(scheduled.reason, /disabled in Settings/);
+  const scheduledThu = await reminders.sendThursdayReminder();
+  assert.match(scheduledThu.reason, /disabled in Settings/);
+  // The manual dashboard button bypasses the toggle (fails later only
+  // because Mailchimp is unconfigured in tests - not because of the toggle).
+  const manual = await reminders.sendMondayReminder({ manual: true });
+  assert.strictEqual(manual.sent, false);
+  assert.match(manual.reason, /Mailchimp is not configured/);
+  const row = db.prepare("SELECT * FROM reminder_log WHERE detail LIKE '%disabled in Settings%' ORDER BY id DESC").get();
+  assert.ok(row, 'skip is visible in the reminder log');
+});
+
+test('editor review notification: needs an editor email, then Mailchimp', async () => {
+  const reminders = require('../src/reminders');
+  const { setSetting } = require('../src/db');
+  const none = await reminders.sendEditorNotification({ weekStart: '2026-08-24', status: 'draft_created', warnings: [] });
+  assert.strictEqual(none.sent, false);
+  assert.match(none.reason, /No editor email configured/);
+  setSetting('editor_email', 'editor@test.local');
+  const noMc = await reminders.sendEditorNotification({
+    weekStart: '2026-08-24',
+    status: 'draft_created',
+    warnings: ['One photo failed'],
+    campaignWebUrl: 'https://us1.admin.mailchimp.com/campaigns/edit?id=1',
+  });
+  assert.strictEqual(noMc.sent, false);
+  assert.match(noMc.reason, /Mailchimp is not configured/);
+  setSetting('editor_email', '');
+});
+
+test('settings save the reminder toggle, editor email and the new generation schedule', async () => {
+  const { getSetting } = require('../src/db');
+  assert.strictEqual(getSetting('friday_generate_cron'), '0 18 * * 4', 'generation defaults to Thursday 18:00');
+  const res = await post('/settings', {
+    timezone: 'Asia/Tbilisi',
+    monday_reminder_cron: '0 9 * * 1',
+    thursday_reminder_cron: '0 9 * * 4',
+    friday_generate_cron: '0 18 * * 4',
+    auto_reminders: '1',
+    editor_email: 'editor@test.local, second@test.local',
+    newsletter_name: 'The Roar',
+    school_name: 'BIST',
+    from_name: 'BIST',
+    reply_to: '',
+    calendar_url: '',
+    footer_note: '',
+  });
+  assert.strictEqual(res.status, 302);
+  assert.strictEqual(getSetting('auto_reminders'), '1');
+  assert.strictEqual(getSetting('editor_email'), 'editor@test.local, second@test.local');
+  // invalid editor email rejected
+  const bad = await post('/settings', { editor_email: 'not-an-email' });
+  assert.strictEqual(bad.status, 400);
+  // restore
+  await post('/settings', { auto_reminders: '0', editor_email: '' });
+  assert.strictEqual(getSetting('auto_reminders'), '0');
+  // Saving settings restarts the cron scheduler; stop it so the test
+  // process can exit (live cron tasks keep the event loop alive).
+  require('../src/scheduler').stop();
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

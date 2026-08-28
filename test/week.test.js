@@ -67,12 +67,30 @@ test('issueWeekStart never rolls forward', () => {
   assert.strictEqual(issueWeekStart(TZ, new Date('2026-08-26T08:00:00Z')), '2026-08-24');
 });
 
-test('parseCronTime extracts hour/minute and falls back on complex fields', () => {
-  assert.deepStrictEqual(parseCronTime('0 15 * * 5'), { hour: 15, minute: 0 });
-  assert.deepStrictEqual(parseCronTime('30 13 * * 5'), { hour: 13, minute: 30 });
-  assert.deepStrictEqual(parseCronTime('*/5 * * * *'), { hour: 15, minute: 0 });
-  assert.deepStrictEqual(parseCronTime(''), { hour: 15, minute: 0 });
+test('parseCronTime extracts hour/minute/day-of-week and falls back on complex fields', () => {
+  assert.deepStrictEqual(parseCronTime('0 15 * * 5'), { hour: 15, minute: 0, dow: 5 });
+  assert.deepStrictEqual(parseCronTime('30 13 * * 5'), { hour: 13, minute: 30, dow: 5 });
+  assert.deepStrictEqual(parseCronTime('0 18 * * 4'), { hour: 18, minute: 0, dow: 4 });
+  assert.deepStrictEqual(parseCronTime('0 18 * * 0'), { hour: 18, minute: 0, dow: 7 }, 'cron Sunday 0 becomes ISO 7');
+  assert.deepStrictEqual(parseCronTime('0 18 * * *'), { hour: 18, minute: 0, dow: 4 }, 'wildcard weekday uses the fallback dow');
+  assert.deepStrictEqual(parseCronTime('*/5 * * * *'), { hour: 18, minute: 0, dow: 4 });
+  assert.deepStrictEqual(parseCronTime(''), { hour: 18, minute: 0, dow: 4 });
   assert.deepStrictEqual(parseCronTime(null, { hour: 9, minute: 0 }), { hour: 9, minute: 0 });
+});
+
+test('currentWeekStart honors the generation day-of-week from the cron', () => {
+  const cutoff = { hour: 18, minute: 0, dow: 4 }; // Thursday 18:00
+  // 2026-08-27 is a Thursday
+  const at = (h, m) => new Date(Date.UTC(2026, 7, 27, h, m)); // UTC used with UTC tz below
+  assert.strictEqual(currentWeekStart('UTC', at(17, 59), cutoff), '2026-08-24', 'before the Thursday cutoff stays in this week');
+  assert.strictEqual(currentWeekStart('UTC', at(18, 0), cutoff), '2026-08-31', 'at the cutoff rolls to next week');
+  const friday = new Date(Date.UTC(2026, 7, 28, 9, 0));
+  assert.strictEqual(currentWeekStart('UTC', friday, cutoff), '2026-08-31', 'the whole Friday after a Thursday cutoff rolls');
+});
+
+test('weekDeadline maps a week to the generation day', () => {
+  assert.strictEqual(weekDeadline('2026-08-24'), '2026-08-28', 'default stays Friday');
+  assert.strictEqual(weekDeadline('2026-08-24', 4), '2026-08-27', 'Thursday when the cron says so');
 });
 
 test('addDays crosses month boundaries', () => {

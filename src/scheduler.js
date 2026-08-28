@@ -1,7 +1,8 @@
 // Cron scheduling for the three automated jobs, in the school's timezone:
-//  - Monday reminder to fill in content
-//  - Thursday hard-deadline reminder to those who have not submitted
-//  - Friday 15:00 aggregation + Mailchimp draft creation
+//  - Monday reminder to fill in content (only when auto reminders are on)
+//  - Hard-deadline reminder to those who have not submitted (same toggle)
+//  - Generation (default Thursday 18:00): aggregation + Mailchimp draft,
+//    then a review email to the configured newsletter editor(s)
 const cron = require('node-cron');
 const { getSetting } = require('./db');
 const reminders = require('./reminders');
@@ -38,7 +39,14 @@ function start() {
   schedule(getSetting('thursday_reminder_cron'), tz, 'thursday-deadline-reminder', () =>
     reminders.sendThursdayReminder()
   );
-  schedule(getSetting('friday_generate_cron'), tz, 'friday-generate-draft', () => generateIssue({ trigger: 'cron' }));
+  schedule(getSetting('friday_generate_cron'), tz, 'generate-draft', async () => {
+    const result = await generateIssue({ trigger: 'cron' });
+    // The editor reviews the assembled draft (curate articles, then send
+    // from Mailchimp) - tell them it is ready.
+    const notify = await reminders.sendEditorNotification(result);
+    if (!notify.sent) console.log(`[scheduler] Editor review email not sent: ${notify.reason}`);
+    return result;
+  });
 }
 
 function stop() {

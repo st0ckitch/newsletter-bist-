@@ -51,13 +51,26 @@
       <label>Monday reminder (cron)
         <input type="text" name="monday_reminder_cron" value="<%= settings.monday_reminder_cron %>">
       </label>
-      <label>Thursday hard-deadline reminder (cron)
+      <label>Hard-deadline reminder (cron)
         <input type="text" name="thursday_reminder_cron" value="<%= settings.thursday_reminder_cron %>">
       </label>
-      <label>Friday aggregation → Mailchimp draft (cron)
+      <label>Newsletter generation → Mailchimp draft (cron)
         <input type="text" name="friday_generate_cron" value="<%= settings.friday_generate_cron %>">
       </label>
-      <p class="muted">Cron format: <code>minute hour day month weekday</code> - e.g. <code>0 15 * * 5</code> = Friday 15:00.</p>
+      <p class="muted">Cron format: <code>minute hour day month weekday</code> (weekday 1 = Monday) - e.g. <code>0 18 * * 4</code> = Thursday 18:00. The generation time is also the submission cutoff: anything added after it rolls into the next issue.</p>
+
+      <h2>Reminders &amp; review</h2>
+      <label>Automatic reminder emails to teachers
+        <select name="auto_reminders">
+          <option value="0" <%= settings.auto_reminders === '1' ? '' : 'selected' %>>Off - do not send scheduled reminders</option>
+          <option value="1" <%= settings.auto_reminders === '1' ? 'selected' : '' %>>On - send on the Monday/deadline schedule</option>
+        </select>
+      </label>
+      <p class="muted">Keep this <strong>off</strong> while teacher accounts use group addresses - group emails cannot join a Mailchimp audience, so reminders would never arrive. Turn it on once individual staff emails are set under Users. The manual &quot;Send ... now&quot; buttons on the dashboard always work.</p>
+      <label>Newsletter editor email(s) - draft review notification
+        <input type="text" name="editor_email" value="<%= settings.editor_email %>" placeholder="editor@bist.ge, marketing@bist.ge">
+      </label>
+      <p class="muted">When the scheduled generation creates the draft, this person gets an email: &quot;the draft is ready - review it&quot;, with the warnings and a direct link to the Mailchimp draft. They curate the articles (include/exclude, live editor), regenerate if needed, and press Send in Mailchimp. Leave blank to disable.</p>
 
       <h2>Newsletter identity</h2>
       <label>Newsletter name

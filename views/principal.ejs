@@ -1,7 +1,7 @@
 <%- include('partials/head', { title: "Principal's message" }) %>
 <div class="card card-narrow">
   <h1>Principal's message - week of <%= weekStart %></h1>
-  <p class="muted">Appears in this week's issue, assembled <%= deadlineHuman %> at 15:00.</p>
+  <p class="muted">Appears in this week's issue, assembled <%= deadlineHuman %>.</p>
   <% if (saved) { %><div class="alert alert-ok">Saved. It will be included in this week's newsletter.</div><% } %>
   <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
   <form method="post" action="/principal-message" enctype="multipart/form-data">

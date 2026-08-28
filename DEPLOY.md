@@ -3,7 +3,7 @@
 ## What this app needs from a host
 
 - An **always-running Node.js server** (Node 22.13+). The Monday/Thursday
-  reminders and the Friday 15:00 generation are cron jobs inside the app -
+  reminders and the scheduled generation (default Thursday 18:00) are cron jobs inside the app -
   a host that sleeps or runs "serverless functions" will miss them.
 - A **persistent disk**. The database is a SQLite file and uploaded photos
   are files on disk (both under `DATA_DIR`). Without a persistent volume
@@ -44,7 +44,7 @@ Cost on any option below: roughly **$5-7/month**.
 1. Sign up at https://render.com with GitHub.
 2. **New → Blueprint** → pick this repo. `render.yaml` creates the service
    with a 1 GB persistent disk at `/data` (Starter plan - the free tier has
-   no disk and sleeps, which would skip the Friday job).
+   no disk and sleeps, which would skip the generation job).
 3. Fill in the prompted secrets (same table as above).
 4. After the first deploy, set `APP_BASE_URL` to the service URL
    (e.g. `https://roar-newsletter.onrender.com`).

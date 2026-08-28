@@ -37,9 +37,11 @@ function todayStr(tz, date = new Date()) {
   return tzParts(tz, date).dateStr;
 }
 
-// Extracts {hour, minute} from a simple cron expression ("30 14 * * 5").
-// Falls back when the minute/hour fields are not plain integers.
-function parseCronTime(expr, fallback = { hour: 15, minute: 0 }) {
+// Extracts {hour, minute, dow} from a simple cron expression ("0 18 * * 4").
+// dow is ISO-style 1-7 (Mon-Sun; cron's 0 means Sunday and becomes 7).
+// Falls back when the minute/hour fields are not plain integers; a non-plain
+// day-of-week field falls back to the fallback's dow.
+function parseCronTime(expr, fallback = { hour: 18, minute: 0, dow: 4 }) {
   const parts = String(expr || '').trim().split(/\s+/);
   if (parts.length < 2) return fallback;
   const minute = Number(parts[0]);
@@ -47,22 +49,27 @@ function parseCronTime(expr, fallback = { hour: 15, minute: 0 }) {
   if (!Number.isInteger(minute) || !Number.isInteger(hour) || minute < 0 || minute > 59 || hour < 0 || hour > 23) {
     return fallback;
   }
-  return { hour, minute };
+  let dow = Number(parts[4]);
+  if (!Number.isInteger(dow) || dow < 0 || dow > 7) dow = fallback.dow ?? 4;
+  else if (dow === 0) dow = 7;
+  return { hour, minute, dow };
 }
 
 // Monday of the working week a submission made "now" belongs to.
-// Mon-Thu → this week's Monday. After the Friday generation cutoff (and on
-// Sat/Sun) the issue has already been assembled, so submissions roll into
-// next week's issue.
+// Before the generation cutoff (day-of-week + time from the generation cron,
+// e.g. Thursday 18:00) → this week's Monday. From the cutoff moment until
+// Sunday the issue has already been assembled, so submissions roll into next
+// week's issue.
 function currentWeekStart(tz, date = new Date(), cutoff = null) {
   const p = tzParts(tz, date);
-  if (p.weekday >= 6) return addDays(p.dateStr, 8 - p.weekday);
+  const cutoffDow = (cutoff && cutoff.dow) || 5;
+  if (p.weekday > cutoffDow) return addDays(p.dateStr, 8 - p.weekday);
   if (
     cutoff &&
-    p.weekday === 5 &&
+    p.weekday === cutoffDow &&
     (p.hour > cutoff.hour || (p.hour === cutoff.hour && p.minute >= cutoff.minute))
   ) {
-    return addDays(p.dateStr, 3); // next Monday
+    return addDays(p.dateStr, 8 - p.weekday); // next Monday
   }
   return addDays(p.dateStr, 1 - p.weekday);
 }
@@ -76,9 +83,10 @@ function issueWeekStart(tz, date = new Date()) {
   return addDays(p.dateStr, 1 - p.weekday);
 }
 
-// Friday of the week that starts on the given Monday.
-function weekDeadline(weekStart) {
-  return addDays(weekStart, 4);
+// Generation day of the week that starts on the given Monday (dow ISO 1-7;
+// default Friday for backward compatibility - callers pass the cron's dow).
+function weekDeadline(weekStart, dow = 5) {
+  return addDays(weekStart, dow - 1);
 }
 
 function formatHuman(dateStr) {
