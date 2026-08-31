@@ -216,7 +216,7 @@ test('masthead background image renders email-safe with the navy fallback', () =
   assert.match(withBg, /class="mast-pad" background="http:\/\/x\/mast\.png"/);
   assert.match(withBg, /background-image:url\('http:\/\/x\/mast\.png'\)/);
   assert.match(withBg, /background-size:cover/);
-  assert.match(withBg, /background-color:#101E3C/);
+  assert.match(withBg, /background-color:#0d1b3e/);
 
   const plain = renderNewsletter(baseData);
   assert.ok(!plain.includes('background-image:url'), 'no background image when none is set');

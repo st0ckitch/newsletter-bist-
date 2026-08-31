@@ -10,16 +10,20 @@
 const { formatIssueDate } = require('./week');
 const { LEFT_SLOTS, RIGHT_SLOTS, DEFAULT_SLOT } = require('./slots');
 
-const NAVY = '#1B2F5B';
-const NAVY_DEEP = '#101E3C';
-const GOLD = '#D9A441';
-const GOLD_DEEP = '#B9862B';
-const GOLD_SOFT = '#F6ECD9';
-const IVORY = '#FAF7F1';
-const INK = '#2E3A4E';
-const MUTED = '#75809A';
-const CARD_BORDER = '#E9E2D2';
-const BAR_COLORS = ['#B23A32', '#2F6DA3', '#B9862B', '#1B2F5B'];
+// Palette matched to the school's letter template: deep navy #0d1b3e with a
+// royal-navy companion, bright gold #f5b921 accents (#b08409 for gold text on
+// light backgrounds), white sheet on a cool grey page, slate body text.
+const NAVY = '#1d3061';
+const NAVY_DEEP = '#0d1b3e';
+const GOLD = '#f5b921';
+const GOLD_DEEP = '#b08409';
+const GOLD_SOFT = '#dfe4ee'; // light text on navy
+const IVORY = '#ffffff'; // the sheet
+const PAGE_BG = '#eceef2'; // behind the sheet
+const INK = '#3a4258';
+const MUTED = '#6b7280';
+const CARD_BORDER = '#d8dce4';
+const BAR_COLORS = ['#0d1b3e', '#1d3061', '#b08409', '#3a4258'];
 
 // FiraGO (OFL) - Fira with full Georgian support. Heavy carries titles,
 // Light carries running text; email clients without webfont support fall
@@ -164,16 +168,16 @@ function placeholderBox(letter, title, hint) {
   // drag-and-drop; placeholders never reach the generated draft.
   return `
   <div data-slot-block="${escapeHtml(letter)}" data-empty="1" style="padding:0 0 18px 0;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; border:2px dashed #D9CFBA; border-radius:10px; background:#FDFBF3;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; border:2px dashed #d8dce4; border-radius:10px; background:#f7f8fb;">
       <tr>
         <td align="center" style="padding:22px 14px;">
-          <p style="margin:0; font-family:${SERIF}; font-size:20px; font-weight:800; letter-spacing:3px; color:#C4B896;">SECTION ${escapeHtml(
+          <p style="margin:0; font-family:${SERIF}; font-size:20px; font-weight:800; letter-spacing:3px; color:#b8c0d2;">SECTION ${escapeHtml(
     letter
   )}</p>
           <p style="margin:6px 0 0 0; font-family:${SANS}; font-size:12px; font-weight:600; color:${MUTED};">${escapeHtml(
     title
   )}</p>
-          <p style="margin:4px 0 0 0; font-family:${SANS}; font-size:11px; color:#A8AFC2;">${escapeHtml(hint)}</p>
+          <p style="margin:4px 0 0 0; font-family:${SANS}; font-size:11px; color:#9aa1b0;">${escapeHtml(hint)}</p>
         </td>
       </tr>
     </table>
@@ -190,7 +194,7 @@ function renderEventRow(ev, editable) {
   if (ev.end_date && ev.end_date !== ev.event_date) {
     const end = dayParts(ev.end_date);
     if (ev.end_date.slice(0, 7) === ev.event_date.slice(0, 7)) {
-      range = `<span style="font-size:10px; color:#f7ecd8;">-${end.num}</span>`;
+      range = `<span style="font-size:10px; color:#dfe4ee;">-${end.num}</span>`;
     } else {
       // Range crosses a month boundary - "31-2" would mislead, spell it out.
       metaHtml.push(escapeHtml(`Until ${end.num} ${monthLabel(ev.end_date)}`));
@@ -433,7 +437,7 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-bottom:16px;">${rows}</table>
       <div style="margin:0 auto 16px auto;">${goldDivider(42, 'center')}</div>`;
   } else if (footerNote) {
-    directoryHtml = `<div style="margin-bottom:12px;">${textToHtml(footerNote, '#AEB8D0', 12)}</div>`;
+    directoryHtml = `<div style="margin-bottom:12px;">${textToHtml(footerNote, '#8b97b8', 12)}</div>`;
   }
   return `
     <tr><td height="5" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
@@ -446,7 +450,7 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
         <p style="margin:7px 0 0 0; font-family:${SANS}; font-size:10px; letter-spacing:2px; color:${GOLD};">NEWSLETTER BY ${escapeHtml(
     schoolName.toUpperCase()
   )}</p>
-        <p style="margin:12px 0 0 0; font-family:${SANS}; font-size:11px; color:#8D99B8;">${escapeHtml(
+        <p style="margin:12px 0 0 0; font-family:${SANS}; font-size:11px; color:#8b97b8;">${escapeHtml(
     issueDateLabel
   )}</p>
       </td>
@@ -553,7 +557,7 @@ ${fontFaceCss(fontBase)}
   ${MOBILE_CSS}
 </style>
 </head>
-<body style="margin:0; padding:0; background:#EDEAE2; -webkit-text-size-adjust:100%;"${
+<body style="margin:0; padding:0; background:${PAGE_BG}; -webkit-text-size-adjust:100%;"${
     editable ? ` data-csrf="${escapeHtml(data.csrf || '')}"` : ''
   }>
   <center>
@@ -657,7 +661,7 @@ function renderReminderEmail({ heading, headingColor, bodyHtml, buttonUrl, butto
 ${fontFaceCss(fontBase || '')}
 @media only screen and (max-width: 640px) { .sheet { width: 100% !important; margin: 0 !important; } }
 </style></head>
-<body style="margin:0; padding:0; background:#EDEAE2; -webkit-text-size-adjust:100%;">
+<body style="margin:0; padding:0; background:${PAGE_BG}; -webkit-text-size-adjust:100%;">
   <center>
   <table role="presentation" class="sheet" width="560" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:560px; max-width:100%; background:#ffffff; margin:24px 0;">
     <tr><td height="5" style="background:${GOLD}; font-size:0; line-height:0;">&nbsp;</td></tr>
@@ -674,7 +678,7 @@ ${fontFaceCss(fontBase || '')}
           )}</a></td></tr>`
         : ''
     }
-    <tr><td style="padding:12px 26px 22px 26px; font-family:${SANS}; font-size:12px; color:#8a8a8a;">${escapeHtml(
+    <tr><td style="padding:12px 26px 22px 26px; font-family:${SANS}; font-size:12px; color:#6b7280;">${escapeHtml(
     schoolName
   )} - automated newsletter reminder.</td></tr>
   </table>
