@@ -55,6 +55,7 @@ function usersLocals(req, extra = {}) {
     sectionKeys: SECTION_KEYS,
     isSiteAdmin: req.user.role === 'admin',
     pendingInvites: invites.pendingInvitees().length,
+    newInvites: invites.neverInvited().length,
     importReport: null,
     inviteResult: null,
     ...extra,
@@ -104,12 +105,31 @@ router.post('/users/import', requireSiteAdmin, (req, res) => {
   res.render('users', usersLocals(req, { importReport: report }));
 });
 
-// One click: every account that has not set a password yet gets a Mailchimp
-// email with its personal "create your password" link.
+// Bulk invitations. scope=new (default) emails only accounts that have never
+// been sent an invite - so after adding one person, one person gets emailed.
+// scope=all re-sends to everyone still without a password (reminder round;
+// earlier links are replaced).
 router.post('/users/send-invites', requireSiteAdmin, async (req, res) => {
   let inviteResult;
   try {
-    inviteResult = await invites.sendStaffInvites();
+    const users = req.body.scope === 'all' ? invites.pendingInvitees() : invites.neverInvited();
+    inviteResult = await invites.sendStaffInvites(users);
+  } catch (err) {
+    inviteResult = { sent: false, reason: err.message };
+  }
+  res.render('users', usersLocals(req, { inviteResult }));
+});
+
+// Invite (or re-invite) a single person from their row in the table.
+router.post('/users/:id/invite', requireSiteAdmin, async (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).render('error', { message: 'User not found.' });
+  if (user.password_hash !== '') {
+    return res.status(400).render('error', { message: `${user.name} has already set a password - no invitation needed.` });
+  }
+  let inviteResult;
+  try {
+    inviteResult = await invites.sendStaffInvites([user]);
   } catch (err) {
     inviteResult = { sent: false, reason: err.message };
   }

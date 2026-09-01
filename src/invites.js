@@ -21,6 +21,12 @@ function pendingInvitees() {
   return db.prepare("SELECT * FROM users WHERE password_hash = '' ORDER BY name").all();
 }
 
+// The subset that has never even been emailed an invite - what the default
+// send button targets, so adding one new person emails one new person.
+function neverInvited() {
+  return db.prepare("SELECT * FROM users WHERE password_hash = '' AND invite_sent_at IS NULL ORDER BY name").all();
+}
+
 // Generates and stores a fresh token for each pending account; returns the
 // raw tokens so the caller can put them into the emails. Re-issuing simply
 // invalidates any earlier link.
@@ -75,13 +81,15 @@ function inviteEmailHtml() {
   });
 }
 
-// One Mailchimp campaign to everyone still waiting to activate: each member
-// is upserted with their personal token in the INVITE merge field, and the
-// email's button links to /invite/*|INVITE|*.
-async function sendStaffInvites() {
-  const pending = pendingInvitees();
+// One Mailchimp campaign to the given accounts (default: everyone who has
+// never been emailed an invite): each member is upserted with their personal
+// token in the INVITE merge field, and the email's button links to
+// /invite/*|INVITE|*. Pass an explicit list to target one person, or every
+// pending account for a reminder round.
+async function sendStaffInvites(users = neverInvited()) {
+  const pending = users.filter((u) => u.password_hash === '');
   if (!pending.length) {
-    return { sent: false, reason: 'Everyone already has a password - nobody needs an invite.' };
+    return { sent: false, reason: 'Nobody to invite - everyone selected already has a password or has been emailed.' };
   }
   if (!mailchimp.isConfigured() || !config.mailchimp.teachersAudienceId) {
     return { sent: false, reason: 'Mailchimp is not configured (API key / audience ID missing).' };
@@ -105,4 +113,4 @@ async function sendStaffInvites() {
   return { sent: true, sentTo: result.sentTo, failed: result.failed };
 }
 
-module.exports = { pendingInvitees, issueTokens, findByToken, activate, sendStaffInvites, inviteEmailHtml };
+module.exports = { pendingInvitees, neverInvited, issueTokens, findByToken, activate, sendStaffInvites, inviteEmailHtml };

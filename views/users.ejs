@@ -59,13 +59,20 @@
   </div>
   <div class="card">
     <h2>Invitation emails</h2>
-    <p class="muted"><strong><%= pendingInvites %></strong> account(s) have not set a password yet. One click sends
-    each of them a branded Mailchimp email with their <strong>personal login link</strong>: they open it, create a
-    password, and land in the dashboard. Sending again replaces earlier links (safe for reminders to
-    non-responders - people who already set a password are never emailed).</p>
-    <form method="post" action="/users/send-invites" data-confirm="Email a personal login link to every account that has not set a password yet?">
+    <p class="muted">Each invitation is a branded Mailchimp email with a <strong>personal login link</strong>: the
+    recipient opens it, creates a password, and lands in the dashboard. <strong><%= newInvites %></strong> account(s)
+    have never been emailed; <strong><%= pendingInvites %></strong> still have no password overall. The main button
+    only emails people who have <em>never</em> received an invite, so already-invited staff are not emailed again.
+    Use the reminder button (or the per-row buttons below) to re-send - a re-send replaces the earlier link.</p>
+    <form method="post" action="/users/send-invites" data-confirm="Email a personal login link to every account that has never been invited yet?" class="inline-form">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
-      <button class="btn btn-primary" <%= pendingInvites ? '' : 'disabled' %>>Send login invites (<%= pendingInvites %>)</button>
+      <input type="hidden" name="scope" value="new">
+      <button class="btn btn-primary" <%= newInvites ? '' : 'disabled' %>>Send invites to <%= newInvites %> new</button>
+    </form>
+    <form method="post" action="/users/send-invites" data-confirm="Re-send an invitation to EVERY account still without a password, including people already emailed? Their earlier links stop working." class="inline-form">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="scope" value="all">
+      <button class="btn btn-ghost" <%= pendingInvites ? '' : 'disabled' %>>Re-send reminders to all <%= pendingInvites %> not activated</button>
     </form>
   </div>
 </div>
@@ -107,6 +114,12 @@
             </form>
           </td>
           <td class="row-actions">
+            <% if (locals.isSiteAdmin && u.invited) { %>
+            <form method="post" action="/users/<%= u.id %>/invite" class="inline-form" <%- u.invite_sent_at ? 'data-confirm="Re-send the invitation email to this person? Their earlier link stops working."' : '' %>>
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <button class="btn btn-ghost btn-sm"><%= u.invite_sent_at ? 'Re-send invite' : 'Send invite' %></button>
+            </form>
+            <% } %>
             <% if (u.id !== currentUser.id) { %>
             <form method="post" action="/users/<%= u.id %>/delete" data-confirm="Delete this account?">
               <input type="hidden" name="_csrf" value="<%= csrf %>">

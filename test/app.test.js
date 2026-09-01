@@ -1032,14 +1032,60 @@ test('invite link: sets the password once, signs in, and cannot be reused', asyn
   assert.strictEqual((await caradoc.get('/')).status, 200);
 });
 
-test('send-invites without Mailchimp reports the reason; invite email carries the merge-tag link', async () => {
+test('send-invites targets only never-emailed accounts by default; scope=all is the reminder round', async () => {
+  // Everyone still pending was already stamped by issueTokens above, so the
+  // default (scope=new) has nobody left to email - adding a new person later
+  // must not re-email these stragglers.
   const res = await post('/users/send-invites', {});
   assert.strictEqual(res.status, 200);
-  assert.match(await res.text(), /No invitations were sent:.*Mailchimp is not configured/);
+  assert.match(await res.text(), /No invitations were sent:.*Nobody to invite/);
+
+  // The explicit reminder round reaches for everyone pending - and with
+  // Mailchimp unconfigured it reports exactly that.
+  const all = await post('/users/send-invites', { scope: 'all' });
+  assert.strictEqual(all.status, 200);
+  assert.match(await all.text(), /No invitations were sent:.*Mailchimp is not configured/);
+
   const { inviteEmailHtml } = require('../src/invites');
   const html = inviteEmailHtml();
   assert.match(html, /\/invite\/\*\|INVITE\|\*/, 'the button carries the personal merge-tag link');
   assert.match(html, /Create your password/);
+});
+
+test('a newly added person is the only "new" invitee; single-person invites work per row', async () => {
+  const invites = require('../src/invites');
+  await post('/users/import', { csv: 'Newest Arrival,new.arrival@import.local' });
+
+  // neverInvited() sees only the new person; pendingInvitees() sees everyone.
+  const fresh = invites.neverInvited();
+  assert.strictEqual(fresh.length, 1);
+  assert.strictEqual(fresh[0].email, 'new.arrival@import.local');
+  assert.ok(invites.pendingInvitees().length > 1, 'earlier stragglers are still pending overall');
+
+  // The users page offers the split buttons and a per-row send button.
+  const page = await (await get('/users')).text();
+  assert.match(page, /Send invites to 1 new/);
+  assert.match(page, /Re-send reminders to all \d+ not activated/);
+  assert.match(page, /Send invite</, 'never-emailed row gets a first-time button');
+  assert.match(page, /Re-send invite</, 'already-emailed row gets a re-send button');
+
+  // Issuing a token for one person leaves everyone else's link untouched.
+  const before = db.prepare("SELECT invite_token_hash FROM users WHERE email = 's.murray@import.local'").get();
+  invites.issueTokens(fresh);
+  const after = db.prepare("SELECT invite_token_hash FROM users WHERE email = 's.murray@import.local'").get();
+  assert.strictEqual(after.invite_token_hash, before.invite_token_hash, 'other tokens are not reissued');
+
+  // Per-row route: site admin only, refuses activated accounts, and reports
+  // the Mailchimp reason for a valid pending target.
+  const newRow = db.prepare("SELECT id FROM users WHERE email = 'new.arrival@import.local'").get();
+  const activatedRow = db.prepare("SELECT id FROM users WHERE email = 'c.peters@import.local'").get();
+  const slt = await loginAs('slt.primary@test.local', 'workflow-pass-1');
+  assert.strictEqual((await slt.post(`/users/${newRow.id}/invite`, {})).status, 403);
+  assert.strictEqual((await post(`/users/${activatedRow.id}/invite`, {})).status, 400, 'no invites to activated accounts');
+  assert.strictEqual((await post('/users/999999/invite', {})).status, 404);
+  const single = await post(`/users/${newRow.id}/invite`, {});
+  assert.strictEqual(single.status, 200);
+  assert.match(await single.text(), /No invitations were sent:.*Mailchimp is not configured/);
 });
 
 // Keep this test LAST: recreating the admin row invalidates the shared session.
