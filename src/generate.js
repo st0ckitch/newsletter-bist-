@@ -8,7 +8,7 @@ const mailchimp = require('./mailchimp');
 const { renderNewsletter } = require('./newsletter');
 const { generationWeekStart, generationDay } = require('./appweek');
 
-const SECTION_LABELS = { whole_school: 'Whole School', primary: 'Primary', secondary: 'Secondary' };
+const { SECTIONS: SECTION_LABELS } = require('./sections');
 
 function collectWeekData(weekStart) {
   const issueDate = generationDay(weekStart); // the day this week's issue is assembled/sent
@@ -16,14 +16,22 @@ function collectWeekData(weekStart) {
   const events = db
     .prepare('SELECT * FROM events WHERE event_date >= ? OR (end_date IS NOT NULL AND end_date >= ?) ORDER BY event_date, created_at')
     .all(issueDate, issueDate);
-  // Only articles the admin kept included make the issue.
-  const news = db.prepare('SELECT * FROM news WHERE week_start = ? AND included = 1 ORDER BY created_at').all(weekStart);
+  // A story reaches parents only once the SLT member for its area has
+  // checked it AND it has been kept in the issue during layout.
+  const news = db
+    .prepare("SELECT * FROM news WHERE week_start = ? AND included = 1 AND review_status = 'approved' ORDER BY created_at")
+    .all(weekStart);
   const photosByNews = {};
   for (const n of news) {
     photosByNews[n.id] = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id').all(n.id);
   }
   const principalMessage = db.prepare('SELECT * FROM principal_messages WHERE week_start = ?').get(weekStart) || null;
-  return { weekStart, issueDate, events, news, photosByNews, principalMessage };
+  // Stories that will miss this issue unless someone acts, so the report can
+  // name them instead of silently dropping them.
+  const awaitingReview = db
+    .prepare("SELECT id, title, section FROM news WHERE week_start = ? AND review_status = 'pending' ORDER BY created_at")
+    .all(weekStart);
+  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview };
 }
 
 function photoPublicUrl(photo, baseUrl = config.appBaseUrl) {
@@ -127,6 +135,17 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
       data.principalMessage ? 'present' : 'MISSING'
     }, week of ${weekStart}`
   );
+  if (data.awaitingReview.length) {
+    const list = data.awaitingReview
+      .map((n) => `"${n.title}" (${SECTION_LABELS[n.section] || n.section})`)
+      .join(', ');
+    warnings.push(
+      `${data.awaitingReview.length} story/stories are still waiting for their SLT check and were left out: ${list}`
+    );
+    step(false, 'SLT check on submitted stories', `${data.awaitingReview.length} still awaiting a decision - left out of this issue: ${list}`);
+  } else {
+    step(true, 'SLT check on submitted stories', 'every story for this week has been checked');
+  }
   step(
     mailchimp.isConfigured(),
     'Mailchimp API key',
@@ -258,9 +277,12 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
 
   const existingRow = db.prepare('SELECT id FROM issues WHERE week_start = ?').get(weekStart);
   if (existingRow) {
+    // A rebuilt issue is a different letter: any earlier approval no longer
+    // covers it, so the principal proof-reads the new version.
     db.prepare(
       `UPDATE issues SET generated_at = datetime('now'), campaign_id = COALESCE(?, campaign_id),
-       campaign_web_url = COALESCE(?, campaign_web_url), html = ?, status = ?, warnings = ? WHERE id = ?`
+       campaign_web_url = COALESCE(?, campaign_web_url), html = ?, status = ?, warnings = ?,
+       approved_by = NULL, approved_at = NULL WHERE id = ?`
     ).run(campaignId, campaignWebUrl, html, status, JSON.stringify(warnings), existingRow.id);
   } else {
     db.prepare(
@@ -268,11 +290,27 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
     ).run(weekStart, campaignId, campaignWebUrl, html, status, JSON.stringify(warnings));
   }
 
+  step(
+    false,
+    "Principal's approval to send",
+    'not yet given - the draft waits in Mailchimp until the principal has proof-read it and pressed Approve on the Issues page'
+  );
+
   console.log(
     `[generate] Issue for week ${weekStart} generated (${trigger}); status=${status}` +
       (warnings.length ? `; warnings: ${warnings.join(' | ')}` : '')
   );
-  return { weekStart, issueDate: data.issueDate, html, status, campaignId, campaignWebUrl, warnings, steps };
+  return {
+    weekStart,
+    issueDate: data.issueDate,
+    html,
+    status,
+    campaignId,
+    campaignWebUrl,
+    warnings,
+    steps,
+    awaitingReview: data.awaitingReview,
+  };
 }
 
 module.exports = { generateIssue, collectWeekData, buildRenderData, SECTION_LABELS };

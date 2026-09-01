@@ -14,12 +14,17 @@ db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
 
 db.exec(`
+-- Roles and content areas are validated in the application (src/roles.js,
+-- src/sections.js) rather than by CHECK constraints: the school changes them
+-- from time to time and a constraint would mean rebuilding the table on
+-- every change.
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE COLLATE NOCASE,
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('primary','secondary','principal','admin')),
+  role TEXT NOT NULL,
+  section TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -39,9 +44,13 @@ CREATE TABLE IF NOT EXISTS news (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
   body TEXT NOT NULL,
-  section TEXT NOT NULL CHECK (section IN ('primary','secondary','whole_school')),
+  section TEXT NOT NULL,
   included INTEGER NOT NULL DEFAULT 1,
   slot TEXT NOT NULL DEFAULT 'D',
+  review_status TEXT NOT NULL DEFAULT 'pending',
+  reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TEXT,
+  review_note TEXT,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   week_start TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -76,7 +85,9 @@ CREATE TABLE IF NOT EXISTS issues (
   campaign_web_url TEXT,
   html TEXT NOT NULL,
   status TEXT NOT NULL,
-  warnings TEXT NOT NULL DEFAULT '[]'
+  warnings TEXT NOT NULL DEFAULT '[]',
+  approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approved_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS reminder_log (
@@ -102,9 +113,45 @@ CREATE INDEX IF NOT EXISTS idx_issues_week ON issues(week_start);
 `);
 
 // Databases created before a column existed get it added in place.
+// Returns true when the column was actually added, so callers can back-fill.
 function ensureColumn(table, column, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
-  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  if (cols.includes(column)) return false;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  return true;
+}
+
+// SQLite cannot drop a CHECK constraint in place. The original schema pinned
+// the list of roles and content areas into CHECK clauses; the school has
+// since added Sixth Form, Co-Curricular and the SLT/marketing roles, so
+// databases still carrying those constraints are rebuilt once, without them.
+// Columns are matched by name, so this runs after the ensureColumn calls.
+function dropCheckConstraints(table) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+  if (!row || !/\bCHECK\s*\(/i.test(row.sql)) return;
+  const tmp = `${table}__rebuild`;
+  const rebuilt = row.sql
+    .replace(new RegExp(`CREATE TABLE\\s+"?${table}"?`, 'i'), `CREATE TABLE ${tmp}`)
+    // Strip "CHECK (...)" - the constraints here contain no nested parens.
+    .replace(/\s*CHECK\s*\([^()]*\)/gi, '');
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    db.exec('BEGIN');
+    db.exec(rebuilt);
+    const newCols = db.prepare(`PRAGMA table_info(${tmp})`).all().map((c) => c.name);
+    const oldCols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    const shared = newCols.filter((c) => oldCols.includes(c)).join(', ');
+    db.exec(`INSERT INTO ${tmp} (${shared}) SELECT ${shared} FROM ${table}`);
+    db.exec(`DROP TABLE ${table}`);
+    db.exec(`ALTER TABLE ${tmp} RENAME TO ${table}`);
+    db.exec('COMMIT');
+    console.log(`[db] Rebuilt "${table}" without its CHECK constraint (roles/areas are validated in the app).`);
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
 }
 ensureColumn('news', 'included', "included INTEGER NOT NULL DEFAULT 1");
 ensureColumn('news', 'slot', "slot TEXT NOT NULL DEFAULT 'D'");
@@ -115,6 +162,22 @@ ensureColumn('principal_messages', 'photo_mailchimp_url', 'photo_mailchimp_url T
 ensureColumn('events', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
 ensureColumn('news', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
 ensureColumn('principal_messages', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 0');
+
+// SLT sign-off on stories, and the principal's approval of the whole issue.
+ensureColumn('users', 'section', 'section TEXT');
+ensureColumn('news', 'reviewed_by', 'reviewed_by INTEGER');
+ensureColumn('news', 'reviewed_at', 'reviewed_at TEXT');
+ensureColumn('news', 'review_note', 'review_note TEXT');
+ensureColumn('issues', 'approved_by', 'approved_by INTEGER');
+ensureColumn('issues', 'approved_at', 'approved_at TEXT');
+if (ensureColumn('news', 'review_status', "review_status TEXT NOT NULL DEFAULT 'pending'")) {
+  // Stories that existed before reviewing was introduced were already live -
+  // treat them as checked rather than hiding them from the next issue.
+  db.prepare("UPDATE news SET review_status = 'approved'").run();
+}
+
+dropCheckConstraints('users');
+dropCheckConstraints('news');
 
 // The generation schedule moved from Friday 15:00 to Thursday 18:00 -
 // databases still carrying the old default follow along; a custom schedule

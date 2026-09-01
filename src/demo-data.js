@@ -93,7 +93,7 @@ const DEMO_ARTICLES = [
   },
   {
     slot: 'H',
-    section: 'primary',
+    section: 'co_curricular',
     title: 'Reading Challenge: 1,000 Books and Counting',
     body:
       'Our whole-school Reading Challenge has passed a wonderful milestone - together, primary students have now read over 1,000 books this term!\n\nEvery class keeps a reading tree in their corridor, and it has been lovely to watch the leaves multiply week by week. Special congratulations to Year 3, our most-read class so far. Keep the recommendations coming - the library has restocked all the favourites.',
@@ -101,7 +101,7 @@ const DEMO_ARTICLES = [
   },
   {
     slot: 'I',
-    section: 'secondary',
+    section: 'sixth_form',
     title: 'Duke of Edinburgh Expedition Reaches the Kazbegi Foothills',
     body:
       'Our Duke of Edinburgh Bronze group completed their qualifying expedition this weekend, hiking and camping in the foothills near Stepantsminda.\n\nStudents navigated the full route themselves, carried everything they needed, and cooked their own meals - all in true expedition conditions. The teamwork, resilience and good humour they showed over the two days was outstanding. Well done to all fourteen participants!',
@@ -132,7 +132,7 @@ function fillDemoData(userId) {
   }
 
   const insertNews = db.prepare(
-    'INSERT INTO news (title, body, section, included, slot, created_by, week_start, is_demo) VALUES (?, ?, ?, 1, ?, ?, ?, 1)'
+    "INSERT INTO news (title, body, section, included, slot, review_status, created_by, week_start, is_demo) VALUES (?, ?, ?, 1, ?, 'approved', ?, ?, 1)"
   );
   const insertPhoto = db.prepare("INSERT INTO photos (news_id, filename, original_name, mime) VALUES (?, ?, ?, 'image/png')");
   for (const article of DEMO_ARTICLES) {

@@ -1,6 +1,8 @@
 const express = require('express');
 const { db } = require('../db');
-const { requireLogin, requireRole, csrfOk, canEditRecord, canManage } = require('../auth');
+const { requireLogin, requireLayout, requireReviewer, csrfOk, canEditRecord, canManage } = require('../auth');
+const { canReviewSection, isReviewer, canLayout } = require('../roles');
+const { SECTION_KEYS, SECTIONS, isSection } = require('../sections');
 const { submissionWeekStart } = require('../appweek');
 const { CONTENT_SLOTS, DEFAULT_SLOT, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount } = require('../slots');
 const { upload, isRealImage, removeFiles } = require('../uploads');
@@ -44,9 +46,10 @@ function photosUpload(req, res, next) {
   });
 }
 
-function allowedSections(user) {
-  if (canManage(user)) return ['whole_school', 'primary', 'secondary'];
-  return [user.role, 'whole_school'];
+// Every member of staff can write for any area - the SLT member responsible
+// for that area checks the story before it reaches the newsletter.
+function allowedSections() {
+  return SECTION_KEYS;
 }
 
 function loadNews(req, res, next) {
@@ -70,9 +73,9 @@ function validate(body, user) {
   if (words > MAX_ARTICLE_WORDS) {
     errors.push(`Article text is limited to ${MAX_ARTICLE_WORDS} words - currently ${words}. Please shorten it.`);
   }
-  if (!allowedSections(user).includes(section)) errors.push('Invalid section.');
-  // Template placement is the admin's / principal's call.
-  const slot = canManage(user) && CONTENT_SLOTS.includes(body.slot) ? body.slot : null;
+  if (!isSection(section)) errors.push('Choose the area this story belongs to.');
+  // Template placement belongs to whoever lays the issue out.
+  const slot = canLayout(user) && CONTENT_SLOTS.includes(body.slot) ? body.slot : null;
   return { errors, values: { title, body: bodyText, section, slot } };
 }
 
@@ -83,8 +86,9 @@ function savePhotos(newsId, files) {
 
 function formLocals(req, extra) {
   return {
-    sections: allowedSections(req.user),
-    isManager: canManage(req.user),
+    sections: allowedSections(),
+    sectionLabels: SECTIONS,
+    isManager: canLayout(req.user),
     slotLabels: SLOT_LABELS,
     contentSlots: CONTENT_SLOTS,
     maxWords: MAX_ARTICLE_WORDS,
@@ -96,11 +100,24 @@ router.get('/news', requireLogin, (req, res) => {
   const weekStart = submissionWeekStart();
   const rows = db
     .prepare(
-      `SELECT n.*, u.name AS author, (SELECT COUNT(*) FROM photos p WHERE p.news_id = n.id) AS photo_count
-       FROM news n LEFT JOIN users u ON u.id = n.created_by ORDER BY n.created_at DESC LIMIT 100`
+      `SELECT n.*, u.name AS author, r.name AS reviewer,
+              (SELECT COUNT(*) FROM photos p WHERE p.news_id = n.id) AS photo_count
+       FROM news n
+       LEFT JOIN users u ON u.id = n.created_by
+       LEFT JOIN users r ON r.id = n.reviewed_by
+       ORDER BY n.created_at DESC LIMIT 100`
     )
-    .all();
-  res.render('news', { rows, weekStart, isManager: canManage(req.user), slotLabels: SLOT_LABELS, contentSlots: CONTENT_SLOTS });
+    .all()
+    .map((n) => ({ ...n, canReview: canReviewSection(req.user, n.section) }));
+  res.render('news', {
+    rows,
+    weekStart,
+    isManager: canLayout(req.user),
+    isReviewer: isReviewer(req.user),
+    sectionLabels: SECTIONS,
+    slotLabels: SLOT_LABELS,
+    contentSlots: CONTENT_SLOTS,
+  });
 });
 
 router.get('/news/new', requireLogin, (req, res) => {
@@ -113,9 +130,23 @@ router.post('/news', requireLogin, photosUpload, (req, res) => {
     removeFiles((req.files || []).map((f) => f.filename));
     return res.status(400).render('news_form', formLocals(req, { item: values, photos: [], errors }));
   }
+  // A story written by the person who would check it needs no second look.
+  const selfChecked = canReviewSection(req.user, values.section);
   const info = db
-    .prepare('INSERT INTO news (title, body, section, slot, created_by, week_start) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(values.title, values.body, values.section, values.slot || DEFAULT_SLOT, req.user.id, submissionWeekStart());
+    .prepare(
+      `INSERT INTO news (title, body, section, slot, review_status, reviewed_by, reviewed_at, created_by, week_start)
+       VALUES (?, ?, ?, ?, ?, ?, ${selfChecked ? "datetime('now')" : 'NULL'}, ?, ?)`
+    )
+    .run(
+      values.title,
+      values.body,
+      values.section,
+      values.slot || DEFAULT_SLOT,
+      selfChecked ? 'approved' : 'pending',
+      selfChecked ? req.user.id : null,
+      req.user.id,
+      submissionWeekStart()
+    );
   savePhotos(info.lastInsertRowid, req.files);
   res.redirect('/news');
 });
@@ -134,23 +165,50 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, (req, res) => {
       .status(400)
       .render('news_form', formLocals(req, { item: { ...values, id: req.newsItem.id }, photos, errors }));
   }
+  // Rewriting a checked story sends it back for review, unless the person
+  // editing is the one who would check it anyway.
+  const recheck = req.newsItem.review_status === 'approved' && !canReviewSection(req.user, values.section);
   db.prepare(
-    "UPDATE news SET title = ?, body = ?, section = ?, slot = ?, updated_at = datetime('now') WHERE id = ?"
+    `UPDATE news SET title = ?, body = ?, section = ?, slot = ?, updated_at = datetime('now')
+     ${recheck ? ", review_status = 'pending', reviewed_by = NULL, reviewed_at = NULL, review_note = NULL" : ''}
+     WHERE id = ?`
   ).run(values.title, values.body, values.section, values.slot || req.newsItem.slot || DEFAULT_SLOT, req.newsItem.id);
   savePhotos(req.newsItem.id, req.files);
   res.redirect(`/news/${req.newsItem.id}/edit`);
 });
 
-// Admin curation: choose whether an article makes this week's issue.
-router.post('/news/:id/include', requireRole('principal', 'admin'), (req, res) => {
+// SLT sign-off: each SLT member checks the stories in their own area
+// (whole-school stories can be checked by any of them); the principal and
+// admins can check anything. Only checked stories reach the newsletter.
+router.post('/news/:id/review', requireReviewer, (req, res) => {
+  const item = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
+  if (!item) return res.status(404).render('error', { message: 'News item not found.' });
+  if (!canReviewSection(req.user, item.section)) {
+    return res.status(403).render('error', {
+      message: `Stories in "${SECTIONS[item.section] || item.section}" are checked by the SLT member responsible for that area.`,
+    });
+  }
+  const decision = req.body.decision;
+  if (!['approved', 'rejected', 'pending'].includes(decision)) {
+    return res.status(400).render('error', { message: 'Unknown review decision.' });
+  }
+  const note = (req.body.review_note || '').trim().slice(0, 500) || null;
+  db.prepare(
+    "UPDATE news SET review_status = ?, reviewed_by = ?, reviewed_at = datetime('now'), review_note = ? WHERE id = ?"
+  ).run(decision, req.user.id, note, item.id);
+  res.redirect(req.body.back === 'dashboard' ? '/' : '/news');
+});
+
+// Curation: choose whether a checked story makes this week's issue.
+router.post('/news/:id/include', requireLayout, (req, res) => {
   const item = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).render('error', { message: 'News item not found.' });
   db.prepare('UPDATE news SET included = ? WHERE id = ?').run(req.body.included === '1' ? 1 : 0, item.id);
   res.redirect('/news');
 });
 
-// Admin placement: move an article to another template section.
-router.post('/news/:id/slot', requireRole('principal', 'admin'), (req, res) => {
+// Placement: move an article to another template section.
+router.post('/news/:id/slot', requireLayout, (req, res) => {
   const item = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).render('error', { message: 'News item not found.' });
   if (!CONTENT_SLOTS.includes(req.body.slot)) {

@@ -5,13 +5,13 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config');
 const { db, getSetting, setSetting } = require('../db');
-const { requireRole, csrfOk } = require('../auth');
+const { requireLayout, csrfOk } = require('../auth');
 const { upload, isRealImage, removeFiles } = require('../uploads');
 const { MAX_ARTICLE_WORDS, wordCount, CONTENT_SLOTS, DEFAULT_SLOT } = require('../slots');
 const { isValidDateStr } = require('../week');
 
 const router = express.Router();
-const manager = requireRole('principal', 'admin');
+const manager = requireLayout;
 
 const bad = (res, error, status = 400) => res.status(status).json({ ok: false, error });
 

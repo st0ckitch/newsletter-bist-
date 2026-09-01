@@ -8,13 +8,14 @@
     <label>Title *
       <input type="text" name="title" value="<%= item ? item.title : '' %>" required maxlength="200" placeholder="e.g. Inter-School Friendly Tennis Tournament Success">
     </label>
-    <label>Section *
+    <label>Area *
       <select name="section" required>
         <% sections.forEach(function(s) { %>
-          <option value="<%= s %>" <%= item && item.section === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
+          <option value="<%= s %>" <%= item && item.section === s ? 'selected' : '' %>><%= sectionLabels[s] || s.replace('_', ' ') %></option>
         <% }) %>
       </select>
     </label>
+    <p class="muted">The SLT member responsible for this area checks the story before it goes into the newsletter.</p>
     <label>Article text * (max <%= maxWords %> words)
       <textarea name="body" rows="10" required data-word-limit="<%= maxWords %>" placeholder="Write the article. Leave an empty line between paragraphs."><%= item ? item.body : '' %></textarea>
     </label>

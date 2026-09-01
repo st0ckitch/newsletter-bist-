@@ -10,12 +10,20 @@
 <% if (result.status === 'draft_created') { %>
   <div class="alert alert-ok">
     <strong>✅ Draft campaign created in Mailchimp.</strong>
-    Nothing was sent - review it and press Send in Mailchimp.
-    <% if (result.campaignWebUrl) { %>
-      <div class="btn-row" style="margin-top:10px;">
-        <a class="btn btn-primary" href="<%= result.campaignWebUrl %>" target="_blank" rel="noopener">Open the draft in Mailchimp</a>
-      </div>
-    <% } %>
+    Nothing was sent - the principal proof-reads and approves the issue, then it is sent from Mailchimp.
+    <div class="btn-row" style="margin-top:10px;">
+      <% if (result.campaignWebUrl) { %>
+        <a class="btn btn-secondary" href="<%= result.campaignWebUrl %>" target="_blank" rel="noopener">Open the draft in Mailchimp</a>
+      <% } %>
+      <% if (locals.canApprove && locals.issueId) { %>
+        <form method="post" action="/newsletter/issues/<%= issueId %>/approve" data-confirm="Approve this issue for sending? Marketing will be told it can be sent from Mailchimp.">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn btn-primary">Approve for sending</button>
+        </form>
+      <% } else { %>
+        <a class="btn btn-ghost" href="/newsletter/issues">Issues &amp; approval</a>
+      <% } %>
+    </div>
   </div>
 <% } else { %>
   <div class="alert alert-error">

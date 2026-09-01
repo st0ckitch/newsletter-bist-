@@ -1,6 +1,7 @@
 const express = require('express');
 const { db } = require('../db');
-const { requireLogin, requireRole } = require('../auth');
+const { requireLogin, requireLayout, requireApprover } = require('../auth');
+const { canLayout, canApproveIssue } = require('../roles');
 const { isValidDateStr } = require('../week');
 const { submissionWeekStart } = require('../appweek');
 const { generateIssue, collectWeekData, buildRenderData } = require('../generate');
@@ -18,7 +19,7 @@ router.get('/newsletter/preview.html', requireLogin, (req, res) => {
   // as labelled placeholders. With ?edit=1, managers get the live editor -
   // click any text or photo to change it in place. The generated Mailchimp
   // draft contains neither placeholders nor editor markup.
-  const editable = req.query.edit === '1' && ['principal', 'admin'].includes(req.user.role);
+  const editable = req.query.edit === '1' && canLayout(req.user);
   const html = renderNewsletter(
     // baseUrl '' keeps preview images and fonts relative to this panel, so
     // they load on any host regardless of the APP_BASE_URL setting.
@@ -40,22 +41,52 @@ router.get('/newsletter/preview', requireLogin, (req, res) => {
 // six article slots with photos, principal's message with portrait) with
 // sample content; the second button removes exactly that again. Content staff
 // wrote themselves is never modified by either.
-router.post('/demo-data/fill', requireRole('principal', 'admin'), (req, res) => {
+router.post('/demo-data/fill', requireLayout, (req, res) => {
   fillDemoData(req.user.id);
   res.redirect('/newsletter/preview?demo=filled');
 });
 
-router.post('/demo-data/clear', requireRole('principal', 'admin'), (req, res) => {
+router.post('/demo-data/clear', requireLayout, (req, res) => {
   clearDemoData();
   res.redirect('/newsletter/preview?demo=cleared');
 });
 
 router.get('/newsletter/issues', requireLogin, (req, res) => {
-  const issues = db.prepare('SELECT id, week_start, generated_at, campaign_id, campaign_web_url, status, warnings FROM issues ORDER BY week_start DESC').all();
+  const issues = db
+    .prepare(
+      `SELECT i.id, i.week_start, i.generated_at, i.campaign_id, i.campaign_web_url, i.status, i.warnings,
+              i.approved_at, u.name AS approved_by_name
+       FROM issues i LEFT JOIN users u ON u.id = i.approved_by ORDER BY i.week_start DESC`
+    )
+    .all();
   res.render('issues', {
     issues: issues.map((i) => ({ ...i, warnings: JSON.parse(i.warnings || '[]') })),
     generated: req.query.generated === '1',
+    approved: req.query.approved === '1',
+    canApprove: canApproveIssue(req.user),
   });
+});
+
+// The principal's final proof-read. Nothing is sent by the tool - approval
+// records that the issue has been checked and tells marketing they may press
+// Send in Mailchimp. Regenerating the issue clears it again.
+router.post('/newsletter/issues/:id/approve', requireApprover, async (req, res, next) => {
+  try {
+    const issue = db.prepare('SELECT * FROM issues WHERE id = ?').get(req.params.id);
+    if (!issue) return res.status(404).render('error', { message: 'Issue not found.' });
+    db.prepare("UPDATE issues SET approved_by = ?, approved_at = datetime('now') WHERE id = ?").run(
+      req.user.id,
+      issue.id
+    );
+    const notified = await reminders.sendApprovalNotification({
+      ...issue,
+      approverName: req.user.name,
+    });
+    if (!notified.sent) console.log(`[approve] Approval email not sent: ${notified.reason}`);
+    res.redirect('/newsletter/issues?approved=1');
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get('/newsletter/issues/:id.html', requireLogin, (req, res) => {
@@ -66,17 +97,22 @@ router.get('/newsletter/issues/:id.html', requireLogin, (req, res) => {
 
 // Manual "aggregate now": renders, creates/updates the Mailchimp draft and
 // shows a step-by-step report of exactly what happened.
-router.post('/newsletter/generate', requireRole('principal', 'admin'), async (req, res, next) => {
+router.post('/newsletter/generate', requireLayout, async (req, res, next) => {
   try {
     const result = await generateIssue({ trigger: `manual (${req.user.email})` });
-    res.render('generate_report', { result });
+    const issue = db.prepare('SELECT id FROM issues WHERE week_start = ?').get(result.weekStart);
+    res.render('generate_report', {
+      result,
+      issueId: issue ? issue.id : null,
+      canApprove: canApproveIssue(req.user),
+    });
   } catch (err) {
     next(err);
   }
 });
 
 // Manual reminder triggers for testing / chasing people outside the schedule.
-router.post('/reminders/monday', requireRole('principal', 'admin'), async (req, res, next) => {
+router.post('/reminders/monday', requireLayout, async (req, res, next) => {
   try {
     const result = await reminders.sendMondayReminder({ manual: true });
     res.render('message', {
@@ -88,7 +124,7 @@ router.post('/reminders/monday', requireRole('principal', 'admin'), async (req, 
   }
 });
 
-router.post('/reminders/thursday', requireRole('principal', 'admin'), async (req, res, next) => {
+router.post('/reminders/thursday', requireLayout, async (req, res, next) => {
   try {
     const result = await reminders.sendThursdayReminder({ manual: true });
     res.render('message', {

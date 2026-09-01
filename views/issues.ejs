@@ -3,9 +3,11 @@
   <h1>Generated issues</h1>
 </div>
 <% if (generated) { %><div class="alert alert-ok">Issue generated. If Mailchimp is configured, the draft campaign has been created/updated.</div><% } %>
+<% if (locals.approved) { %><div class="alert alert-ok">Approved. Marketing has been notified that the issue may now be sent from Mailchimp.</div><% } %>
+<p class="muted">The issue is written by staff, checked by the SLT member for each area, laid out by marketing, and finally proof-read and approved by the principal. Nothing is ever sent automatically - after approval, the draft is sent from Mailchimp.</p>
 <div class="card">
   <table class="table">
-    <thead><tr><th>Week</th><th>Generated (UTC)</th><th>Status</th><th>Mailchimp</th><th></th></tr></thead>
+    <thead><tr><th>Week</th><th>Generated (UTC)</th><th>Status</th><th>Approval</th><th>Mailchimp</th><th></th></tr></thead>
     <tbody>
       <% issues.forEach(function(i) { %>
         <tr>
@@ -15,11 +17,23 @@
             <%= i.status === 'draft_created' ? '✅ draft in Mailchimp' : '📄 saved locally only' %>
             <% if (i.warnings.length) { %><br><span class="muted">⚠ <%= i.warnings.join(' · ') %></span><% } %>
           </td>
+          <td>
+            <% if (i.approved_at) { %>
+              ✅ approved<br><span class="muted">by <%= i.approved_by_name || 'the principal' %>, <%= i.approved_at %></span>
+            <% } else if (locals.canApprove) { %>
+              <form method="post" action="/newsletter/issues/<%= i.id %>/approve" data-confirm="Approve this issue for sending? Marketing will be told it can be sent from Mailchimp.">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <button class="btn btn-primary btn-sm">Approve for sending</button>
+              </form>
+            <% } else { %>
+              <span class="muted">⏳ awaiting the principal</span>
+            <% } %>
+          </td>
           <td><% if (i.campaign_web_url) { %><a href="<%= i.campaign_web_url %>" target="_blank" rel="noopener">open draft</a><% } else { %>-<% } %></td>
           <td><a class="btn btn-ghost btn-sm" href="/newsletter/issues/<%= i.id %>.html" target="_blank" rel="noopener">View HTML</a></td>
         </tr>
       <% }) %>
-      <% if (!issues.length) { %><tr><td colspan="5" class="muted">No issues generated yet. The Friday 15:00 job (or “Generate draft now”) will create the first one.</td></tr><% } %>
+      <% if (!issues.length) { %><tr><td colspan="6" class="muted">No issues generated yet. The scheduled generation job (or “Generate draft now”) will create the first one.</td></tr><% } %>
     </tbody>
   </table>
 </div>

@@ -1,6 +1,8 @@
 const express = require('express');
 const { db, getSetting } = require('../db');
 const { requireLogin, canManage } = require('../auth');
+const { isReviewer, canReviewSection, canLayout, canApproveIssue } = require('../roles');
+const { SECTIONS } = require('../sections');
 const { formatHuman, todayStr } = require('../week');
 const { submissionWeekStart, generationDay, generationTimeLabel } = require('../appweek');
 const { submissionStatus } = require('../reminders');
@@ -24,6 +26,17 @@ router.get('/', requireLogin, (req, res) => {
   const issue = db.prepare('SELECT * FROM issues WHERE week_start = ?').get(weekStart) || null;
   const reminderLog = db.prepare('SELECT * FROM reminder_log ORDER BY id DESC LIMIT 8').all();
 
+  // Stories waiting for a check, narrowed to the areas this person covers.
+  const awaitingReview = isReviewer(req.user)
+    ? db
+        .prepare(
+          `SELECT n.*, u.name AS author FROM news n LEFT JOIN users u ON u.id = n.created_by
+           WHERE n.review_status = 'pending' ORDER BY n.created_at DESC LIMIT 25`
+        )
+        .all()
+        .filter((n) => canReviewSection(req.user, n.section))
+    : [];
+
   res.render('dashboard', {
     weekStart,
     deadline,
@@ -38,6 +51,11 @@ router.get('/', requireLogin, (req, res) => {
     submissions: submissionStatus(weekStart),
     reminderLog,
     isManager: canManage(req.user),
+    isLayout: canLayout(req.user),
+    canApprove: canApproveIssue(req.user),
+    awaitingReview,
+    sectionLabels: SECTIONS,
+    myArea: req.user.section ? SECTIONS[req.user.section] || req.user.section : null,
     mailchimpConfigured: mailchimp.isConfigured(),
   });
 });

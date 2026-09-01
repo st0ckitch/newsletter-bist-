@@ -1,48 +1,93 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { db } = require('../db');
-const { requireRole, requireLogin } = require('../auth');
+const { requireAdmin, requireLogin } = require('../auth');
+const { ASSIGNABLE_ROLES, ALL_ROLES, ROLE_LABELS } = require('../roles');
+const { SECTIONS, SECTION_KEYS } = require('../sections');
 
 const router = express.Router();
-const ROLES = ['primary', 'secondary', 'principal', 'admin'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-router.get('/users', requireRole('principal', 'admin'), (req, res) => {
-  const users = db.prepare('SELECT id, email, name, role, created_at FROM users ORDER BY role, name').all();
-  res.render('users', { users, created: req.query.created === '1' });
+// Only SLT members carry an area of responsibility; for everyone else the
+// field is meaningless and is stored as NULL.
+function areaFor(role, section) {
+  if (role !== 'slt') return null;
+  return SECTION_KEYS.includes(section) ? section : null;
+}
+
+function userFormLocals(extra) {
+  return {
+    roles: ASSIGNABLE_ROLES,
+    roleLabels: ROLE_LABELS,
+    sections: SECTIONS,
+    ...extra,
+  };
+}
+
+router.get('/users', requireAdmin, (req, res) => {
+  const users = db.prepare('SELECT id, email, name, role, section, created_at FROM users ORDER BY role, name').all();
+  res.render('users', {
+    users,
+    created: req.query.created === '1',
+    roleLabels: ROLE_LABELS,
+    sections: SECTIONS,
+    assignableRoles: ASSIGNABLE_ROLES,
+    sectionKeys: SECTION_KEYS,
+  });
 });
 
-router.get('/users/new', requireRole('principal', 'admin'), (req, res) => {
-  res.render('user_form', { values: { email: '', name: '', role: 'primary' }, errors: [], roles: ROLES });
+router.get('/users/new', requireAdmin, (req, res) => {
+  res.render('user_form', userFormLocals({ values: { email: '', name: '', role: 'staff', section: '' }, errors: [] }));
 });
 
-router.post('/users', requireRole('principal', 'admin'), (req, res) => {
+router.post('/users', requireAdmin, (req, res) => {
   const values = {
     email: (req.body.email || '').trim(),
     name: (req.body.name || '').trim(),
     role: req.body.role,
+    section: req.body.section || '',
   };
   const password = req.body.password || '';
   const errors = [];
   if (!EMAIL_RE.test(values.email)) errors.push('A valid email address is required.');
   if (!values.name) errors.push('Name is required.');
-  if (!ROLES.includes(values.role)) errors.push('Invalid role.');
+  if (!ALL_ROLES.includes(values.role)) errors.push('Invalid role.');
   if (password.length < 8) errors.push('Password must be at least 8 characters.');
   if (values.email && db.prepare('SELECT 1 FROM users WHERE email = ?').get(values.email)) {
     errors.push('A user with this email already exists.');
   }
-  if (errors.length) return res.status(400).render('user_form', { values, errors, roles: ROLES });
+  if (errors.length) return res.status(400).render('user_form', userFormLocals({ values, errors }));
 
-  db.prepare('INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO users (email, name, password_hash, role, section) VALUES (?, ?, ?, ?, ?)').run(
     values.email,
     values.name,
     bcrypt.hashSync(password, 10),
-    values.role
+    values.role,
+    areaFor(values.role, values.section)
   );
   res.redirect('/users?created=1');
 });
 
-router.post('/users/:id/password', requireRole('principal', 'admin'), (req, res) => {
+// Change someone's role, or which area an SLT member checks, without
+// recreating the account.
+router.post('/users/:id/role', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).render('error', { message: 'User not found.' });
+  const role = req.body.role;
+  if (!ALL_ROLES.includes(role)) return res.status(400).render('error', { message: 'Invalid role.' });
+  const managers = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role IN ('admin','principal')").get().c;
+  if (['admin', 'principal'].includes(user.role) && !['admin', 'principal'].includes(role) && managers <= 1) {
+    return res.status(400).render('error', { message: 'Cannot remove the last admin/principal account.' });
+  }
+  db.prepare('UPDATE users SET role = ?, section = ? WHERE id = ?').run(
+    role,
+    areaFor(role, req.body.section || ''),
+    user.id
+  );
+  res.redirect('/users');
+});
+
+router.post('/users/:id/password', requireAdmin, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).render('error', { message: 'User not found.' });
   const password = req.body.password || '';
@@ -53,7 +98,7 @@ router.post('/users/:id/password', requireRole('principal', 'admin'), (req, res)
   res.redirect('/users');
 });
 
-router.post('/users/:id/delete', requireRole('principal', 'admin'), (req, res) => {
+router.post('/users/:id/delete', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (id === req.user.id) {
     return res.status(400).render('error', { message: 'You cannot delete your own account.' });

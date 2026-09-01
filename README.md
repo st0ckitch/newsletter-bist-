@@ -26,14 +26,36 @@ reminders only go out when "Automatic reminder emails" is turned on in
 Settings, and a configured newsletter editor gets a review email whenever
 the scheduled generation finishes.
 
-## Roles
+## Who does what
 
-- **primary / secondary** - teachers: submit events, news and photos for their
-  section (or whole-school); receive the reminder emails; can edit/delete only
-  their own items.
-- **principal** - everything teachers can do, plus the weekly principal's
-  message & quote, user management, settings, manual draft generation.
-- **admin** - full access (for IT); receives no reminders.
+The issue passes along a chain, and each step is enforced by the tool:
+
+| Role | Responsibility |
+|---|---|
+| **staff** | Every teacher and LSA. Writes stories and adds events for **any** area; edits/deletes only their own items; receives the reminder emails. |
+| **slt** | Checks the stories submitted for **their own area** (set per account); whole-school stories can be checked by any SLT member. Also has admin rights: accounts, settings and layout. |
+| **marketing** | Lays the issue out: include/exclude stories, template sections, the live editor, and creating the Mailchimp draft. |
+| **principal** | The weekly message & quote, plus the **final proof-read and approval** before the issue is sent. |
+| **admin** | Full access, for IT. |
+
+`primary` / `secondary` are the original teacher roles - existing accounts keep
+working and behave exactly like **staff**.
+
+A story only reaches parents once **both** happen: the SLT member for its area
+has checked it, and marketing has kept it in the issue. Rewriting a checked
+story sends it back for a new check; a story written by the person who would
+check it is checked already. The generation report names anything still
+waiting, so nothing disappears silently.
+
+Approving is the last gate: the tool never sends anything, and regenerating an
+issue clears its approval so the principal proof-reads the version that will
+actually go out. When the principal approves, marketing is emailed that it may
+be sent from Mailchimp.
+
+## Content areas
+
+Whole School · Primary · Secondary · Sixth Form · Co-Curricular. Each has an
+SLT member responsible for checking its stories (assigned under **Users**).
 
 Everyone gets their own login. Accounts are created under **Users** (or with
 `npm run create-user`).

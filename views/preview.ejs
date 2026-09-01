@@ -1,5 +1,5 @@
 <%- include('partials/head', { title: 'Preview' }) %>
-<% const canEdit = ['principal','admin'].includes(currentUser.role); %>
+<% const canEdit = Boolean(locals.can && can.layout); %>
 <div class="page-head">
   <h1><%= canEdit ? 'Live editor' : 'Newsletter preview' %> - week of <%= weekStart %></h1>
   <div class="page-actions">

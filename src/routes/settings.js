@@ -1,7 +1,7 @@
 const express = require('express');
 const cron = require('node-cron');
 const { allSettings, getSetting, setSetting } = require('../db');
-const { requireRole, csrfOk } = require('../auth');
+const { requireManager, csrfOk } = require('../auth');
 const { upload, isRealImage, removeFiles } = require('../uploads');
 const mailchimp = require('../mailchimp');
 const scheduler = require('../scheduler');
@@ -47,13 +47,13 @@ function isValidTimezone(tz) {
   }
 }
 
-router.get('/settings', requireRole('principal', 'admin'), (req, res) => {
+router.get('/settings', requireManager, (req, res) => {
   res.render('settings', settingsLocals({ saved: req.query.saved === '1' }));
 });
 
 // Masthead background image (behind "THE ROAR" in the header). Stored as a
 // setting; the CDN copy is re-uploaded on the next generation.
-router.post('/settings/masthead-photo', requireRole('principal', 'admin'), (req, res, next) => {
+router.post('/settings/masthead-photo', requireManager, (req, res, next) => {
   upload.single('masthead')(req, res, (err) => {
     const cleanup = () => removeFiles(req.file ? [req.file.filename] : []);
     if (err) {
@@ -84,7 +84,7 @@ router.post('/settings/masthead-photo', requireRole('principal', 'admin'), (req,
   });
 });
 
-router.post('/settings/masthead-photo/delete', requireRole('principal', 'admin'), (req, res) => {
+router.post('/settings/masthead-photo/delete', requireManager, (req, res) => {
   const old = getSetting('masthead_photo');
   if (old) removeFiles([old]);
   setSetting('masthead_photo', '');
@@ -93,7 +93,7 @@ router.post('/settings/masthead-photo/delete', requireRole('principal', 'admin')
   res.redirect('/settings?saved=1');
 });
 
-router.post('/settings', requireRole('principal', 'admin'), (req, res) => {
+router.post('/settings', requireManager, (req, res) => {
   const errors = [];
   const updates = {};
   for (const key of EDITABLE) {
@@ -126,7 +126,7 @@ router.post('/settings', requireRole('principal', 'admin'), (req, res) => {
   res.redirect('/settings?saved=1');
 });
 
-router.post('/settings/test-mailchimp', requireRole('principal', 'admin'), async (req, res, next) => {
+router.post('/settings/test-mailchimp', requireManager, async (req, res, next) => {
   try {
     let testResult;
     try {

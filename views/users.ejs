@@ -6,13 +6,30 @@
 <% if (created) { %><div class="alert alert-ok">User created - share the login details with them.</div><% } %>
 <div class="card">
   <table class="table">
-    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Reset password</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Email</th><th>Role &amp; area</th><th>Reset password</th><th></th></tr></thead>
     <tbody>
       <% users.forEach(function(u) { %>
         <tr>
           <td><%= u.name %></td>
           <td><%= u.email %></td>
-          <td><span class="tag tag-<%= u.role %>"><%= u.role %></span></td>
+          <td>
+            <form method="post" action="/users/<%= u.id %>/role" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <select name="role" class="slot-select">
+                <% assignableRoles.concat(assignableRoles.includes(u.role) ? [] : [u.role]).forEach(function(r) { %>
+                  <option value="<%= r %>" <%= u.role === r ? 'selected' : '' %>><%= r %></option>
+                <% }) %>
+              </select>
+              <select name="section" class="slot-select">
+                <option value="">- all areas -</option>
+                <% sectionKeys.forEach(function(k) { %>
+                  <option value="<%= k %>" <%= u.section === k ? 'selected' : '' %>><%= sections[k] %></option>
+                <% }) %>
+              </select>
+              <button class="btn btn-ghost btn-sm">Set</button>
+            </form>
+            <span class="muted"><%= roleLabels[u.role] || u.role %></span>
+          </td>
           <td>
             <form method="post" action="/users/<%= u.id %>/password" class="inline-form">
               <input type="hidden" name="_csrf" value="<%= csrf %>">

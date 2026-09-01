@@ -80,6 +80,17 @@ b, strong { font-weight: 600; }
 .tag-principal { background: #ece4fa; color: #5b3ea4; }
 .tag-admin { background: #e3e6ec; color: #394356; }
 .tag-whole_school { background: #e2f0e8; color: #24684a; }
+.tag-sixth_form { background: #e7e2fa; color: #4a3aa4; }
+.tag-co_curricular { background: #fbe6dd; color: #a2512a; }
+.tag-staff { background: #e4ecfa; color: #2c56a4; }
+.tag-slt { background: #dfe4f5; color: #1d3061; }
+.tag-marketing { background: #fdeccb; color: #8a6210; }
+/* SLT review state */
+.tag-approved { background: #e2f0e8; color: #24684a; }
+.tag-pending { background: #fdeccb; color: #8a6210; }
+.tag-rejected { background: #fadcd9; color: #a3312a; }
+.btn-row-tight { gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.input-sm { padding: 4px 8px; font-size: 12px; width: 130px; }
 
 label { display: block; margin: 0 0 14px 0; font-weight: 600; font-size: 14px; color: var(--navy); }
 input[type="text"], input[type="email"], input[type="password"], input[type="date"], select, textarea {

@@ -13,11 +13,19 @@
     <label>Role *
       <select name="role" required>
         <% roles.forEach(function(r) { %>
-          <option value="<%= r %>" <%= values.role === r ? 'selected' : '' %>><%= r %></option>
+          <option value="<%= r %>" <%= values.role === r ? 'selected' : '' %>><%= roleLabels[r] || r %></option>
         <% }) %>
       </select>
     </label>
-    <p class="muted">primary / secondary - teachers who submit content and receive reminders. principal - submits the weekly message and manages the tool. admin - full access, no reminders.</p>
+    <label>Area of responsibility (SLT only)
+      <select name="section">
+        <option value="">- not an area lead -</option>
+        <% Object.keys(sections).forEach(function(k) { %>
+          <option value="<%= k %>" <%= values.section === k ? 'selected' : '' %>><%= sections[k] %></option>
+        <% }) %>
+      </select>
+    </label>
+    <p class="muted">An SLT member checks the stories submitted for their area (whole-school stories can be checked by any SLT member). Leave the area empty for an SLT member who covers everything.</p>
     <label>Password * (min 8 characters)
       <input type="password" name="password" minlength="8" required>
     </label>

@@ -22,13 +22,15 @@
       <% } %>
       <a href="/newsletter/preview">Preview</a>
       <a href="/newsletter/issues">Issues</a>
-      <% if (['principal','admin'].includes(currentUser.role)) { %>
+      <% if (locals.can && can.administer) { %>
         <a href="/users">Users</a>
+      <% } %>
+      <% if (locals.can && can.manage) { %>
         <a href="/settings">Settings</a>
       <% } %>
     </nav>
     <div class="topbar-user">
-      <span><%= currentUser.name %> · <%= currentUser.role %></span>
+      <span><%= currentUser.name %> · <%= currentUser.role %><%= currentUser.section ? ' (' + currentUser.section.replace('_',' ') + ')' : '' %></span>
       <form method="post" action="/logout">
         <input type="hidden" name="_csrf" value="<%= csrf %>">
         <button type="submit" class="btn btn-ghost btn-sm">Log out</button>

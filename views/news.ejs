@@ -3,17 +3,45 @@
   <h1>News articles</h1>
   <div class="page-actions"><a class="btn btn-primary" href="/news/new">+ Add news</a></div>
 </div>
-<% if (isManager) { %>
-  <p class="muted">You decide what goes to parents: toggle <strong>Included</strong> to pick the articles for this week's issue, and set the <strong>template section</strong> (D/F/H = left column, E/G/I = right column, top to bottom). Sections A-C are fixed: header &amp; quote, upcoming events, principal's message.</p>
-<% } %>
+<p class="muted">Anyone on the staff can write a story for any area. The <strong>SLT member responsible for that area</strong> checks it, and only checked stories go into the newsletter.<% if (isManager) { %> Marketing then decides what makes this week's issue (<strong>Included</strong>) and where it sits in the template (D/F/H = left column, E/G/I = right column). Sections A-C are fixed: header &amp; quote, upcoming events, principal's message.<% } %></p>
 <div class="card">
   <table class="table">
-    <thead><tr><th>Title</th><th>Audience</th><th>Template section</th><th>Included</th><th>Photos</th><th>Week</th><th>By</th><th></th></tr></thead>
+    <thead><tr><th>Title</th><th>Area</th><th>SLT check</th><th>Template section</th><th>Included</th><th>Photos</th><th>Week</th><th>By</th><th></th></tr></thead>
     <tbody>
       <% rows.forEach(function(n) { %>
-        <tr class="<%= n.week_start === weekStart ? 'row-current' : '' %> <%= n.included ? '' : 'row-excluded' %>">
+        <tr class="<%= n.week_start === weekStart ? 'row-current' : '' %> <%= n.included && n.review_status === 'approved' ? '' : 'row-excluded' %>">
           <td><%= n.title %></td>
-          <td><span class="tag tag-<%= n.section %>"><%= n.section.replace('_',' ') %></span></td>
+          <td><span class="tag tag-<%= n.section %>"><%= sectionLabels[n.section] || n.section.replace('_',' ') %></span></td>
+          <td>
+            <% if (n.review_status === 'approved') { %>
+              <span class="tag tag-approved">✅ checked</span>
+            <% } else if (n.review_status === 'rejected') { %>
+              <span class="tag tag-rejected">🚫 sent back</span>
+            <% } else { %>
+              <span class="tag tag-pending">⏳ awaiting check</span>
+            <% } %>
+            <% if (n.reviewer) { %><br><span class="muted"><%= n.reviewer %></span><% } %>
+            <% if (n.review_note) { %><br><span class="muted">“<%= n.review_note %>”</span><% } %>
+            <% if (n.canReview) { %>
+              <div class="btn-row btn-row-tight">
+                <% if (n.review_status !== 'approved') { %>
+                  <form method="post" action="/news/<%= n.id %>/review" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrf %>">
+                    <input type="hidden" name="decision" value="approved">
+                    <button class="btn btn-primary btn-sm">Approve</button>
+                  </form>
+                <% } %>
+                <% if (n.review_status !== 'rejected') { %>
+                  <form method="post" action="/news/<%= n.id %>/review" class="inline-form" data-confirm="Send this story back to its author?">
+                    <input type="hidden" name="_csrf" value="<%= csrf %>">
+                    <input type="hidden" name="decision" value="rejected">
+                    <input type="text" name="review_note" placeholder="reason (optional)" maxlength="500" class="input-sm">
+                    <button class="btn btn-danger btn-sm">Send back</button>
+                  </form>
+                <% } %>
+              </div>
+            <% } %>
+          </td>
           <td>
             <% if (isManager) { %>
               <form method="post" action="/news/<%= n.id %>/slot" class="inline-form">
@@ -44,7 +72,7 @@
           <td><%= n.week_start %><%= n.week_start === weekStart ? ' (this week)' : '' %></td>
           <td class="muted"><%= n.author || '-' %></td>
           <td class="row-actions">
-            <% if (['principal','admin'].includes(currentUser.role) || n.created_by === currentUser.id) { %>
+            <% if ((locals.can && can.manage) || n.created_by === currentUser.id) { %>
               <a class="btn btn-ghost btn-sm" href="/news/<%= n.id %>/edit">Edit</a>
               <form method="post" action="/news/<%= n.id %>/delete" data-confirm="Delete this article and its photos?">
                 <input type="hidden" name="_csrf" value="<%= csrf %>">
@@ -54,7 +82,7 @@
           </td>
         </tr>
       <% }) %>
-      <% if (!rows.length) { %><tr><td colspan="8" class="muted">No news yet - add the first article!</td></tr><% } %>
+      <% if (!rows.length) { %><tr><td colspan="9" class="muted">No news yet - add the first article!</td></tr><% } %>
     </tbody>
   </table>
 </div>

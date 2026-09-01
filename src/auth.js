@@ -1,10 +1,12 @@
 const crypto = require('crypto');
 const { db } = require('./db');
+const roles = require('./roles');
 
 // Loads the logged-in user (if any) and prepares a CSRF token for forms.
 function attachUser(req, res, next) {
   if (req.session && req.session.userId) {
-    req.user = db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(req.session.userId) || null;
+    req.user =
+      db.prepare('SELECT id, email, name, role, section FROM users WHERE id = ?').get(req.session.userId) || null;
     if (!req.user) req.session = null;
   }
   if (req.session && !req.session.csrf) {
@@ -12,6 +14,14 @@ function attachUser(req, res, next) {
   }
   res.locals.currentUser = req.user || null;
   res.locals.csrf = req.session ? req.session.csrf : '';
+  // Views ask "may this person do X?" rather than listing role names.
+  res.locals.can = {
+    manage: roles.canManage(req.user),
+    layout: roles.canLayout(req.user),
+    review: roles.isReviewer(req.user),
+    approve: roles.canApproveIssue(req.user),
+    administer: roles.canAdminister(req.user),
+  };
   next();
 }
 
@@ -62,13 +72,57 @@ function requireRole(...roles) {
   };
 }
 
-// Managers can edit anything; teachers only their own records.
-function canManage(user) {
-  return user && (user.role === 'admin' || user.role === 'principal');
-}
+// Managers (SLT, marketing, principal, admin) can edit anything; staff only
+// their own records. See src/roles.js for the full capability map.
+const { canManage } = roles;
 
 function canEditRecord(user, record) {
   return canManage(user) || (record && record.created_by === user.id);
 }
 
-module.exports = { attachUser, csrfProtection, csrfOk, verifyCsrf, requireLogin, requireRole, canManage, canEditRecord };
+// Route guards built from the capability map, so a role change is a one-line
+// edit in src/roles.js.
+function requireCapability(check, message) {
+  return (req, res, next) => {
+    if (!req.user) return res.redirect('/login');
+    if (!check(req.user)) return res.status(403).render('error', { message });
+    next();
+  };
+}
+
+const requireLayout = requireCapability(
+  roles.canLayout,
+  'Laying out the newsletter is done by marketing, SLT, the principal or an admin.'
+);
+const requireReviewer = requireCapability(
+  roles.isReviewer,
+  'Checking stories is done by SLT, the principal or an admin.'
+);
+const requireApprover = requireCapability(
+  roles.canApproveIssue,
+  'Only the principal (or an admin) can approve an issue for sending.'
+);
+const requireAdmin = requireCapability(
+  roles.canAdminister,
+  'You do not have permission to access this page.'
+);
+const requireManager = requireCapability(
+  roles.canManage,
+  'You do not have permission to access this page.'
+);
+
+module.exports = {
+  attachUser,
+  csrfProtection,
+  csrfOk,
+  verifyCsrf,
+  requireLogin,
+  requireRole,
+  requireLayout,
+  requireReviewer,
+  requireApprover,
+  requireAdmin,
+  requireManager,
+  canManage,
+  canEditRecord,
+};

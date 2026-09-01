@@ -769,6 +769,174 @@ test('settings save the reminder toggle, editor email and the new generation sch
   require('../src/scheduler').stop();
 });
 
+
+// ---- SLT review workflow, five content areas, approval to send ----
+
+// Signs in as another account in its own cookie jar, so several roles can act
+// in the same test.
+async function loginAs(email, password) {
+  const jar = new Map();
+  const absorb = (res) => (res.headers.getSetCookie() || []).forEach((c) => jar.set(c.split('=')[0], c.split(';')[0]));
+  const cookie = () => [...jar.values()].join('; ');
+  const page = await fetch(base + '/login');
+  absorb(page);
+  const token = await extractCsrf(await page.text());
+  const login = await fetch(base + '/login', {
+    method: 'POST',
+    headers: { cookie: cookie(), 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ _csrf: token, email, password }).toString(),
+    redirect: 'manual',
+  });
+  absorb(login);
+  assert.strictEqual(login.status, 302, `${email} could not log in`);
+  const session = {
+    csrf: token,
+    get: async (url) => {
+      const res = await fetch(base + url, { headers: { cookie: cookie() }, redirect: 'manual' });
+      absorb(res);
+      return res;
+    },
+    post: async (url, params) => {
+      const res = await fetch(base + url, {
+        method: 'POST',
+        headers: { cookie: cookie(), 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ _csrf: session.csrf, ...params }).toString(),
+        redirect: 'manual',
+      });
+      absorb(res);
+      return res;
+    },
+  };
+  return session;
+}
+
+async function makeUser(name, email, role, section) {
+  await post('/users', { name, email, role, section: section || '', password: 'workflow-pass-1' });
+  return loginAs(email, 'workflow-pass-1');
+}
+
+test('staff can write for any of the five areas; stories start unchecked', async () => {
+  const teacher = await makeUser('Caradoc Teacher', 'caradoc@test.local', 'staff');
+  const form = await (await teacher.get('/news/new')).text();
+  for (const area of ['Whole School', 'Primary', 'Secondary', 'Sixth Form', 'Co-Curricular']) {
+    assert.ok(form.includes(area), `area ${area} offered to staff`);
+  }
+  // A teacher may write about Sixth Form even though they are not in it.
+  const res = await teacher.post('/news', { title: 'Sixth Form Trip', body: 'A great day out.', section: 'sixth_form' });
+  assert.strictEqual(res.status, 302);
+  const row = db.prepare("SELECT * FROM news WHERE title = 'Sixth Form Trip'").get();
+  assert.strictEqual(row.section, 'sixth_form');
+  assert.strictEqual(row.review_status, 'pending', 'staff submissions wait for the SLT check');
+
+  // Unchecked stories stay out of the newsletter.
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.ok(!preview.includes('Sixth Form Trip'), 'an unchecked story is not in the issue');
+});
+
+test('SLT check only their own area, and approving puts the story in the issue', async () => {
+  const primaryHead = await makeUser('Primary Head', 'slt.primary@test.local', 'slt', 'primary');
+  const sixthHead = await makeUser('Sixth Form Head', 'slt.sixth@test.local', 'slt', 'sixth_form');
+  const id = db.prepare("SELECT id FROM news WHERE title = 'Sixth Form Trip'").get().id;
+
+  // The primary lead has no say over a sixth-form story.
+  const refused = await primaryHead.post(`/news/${id}/review`, { decision: 'approved' });
+  assert.strictEqual(refused.status, 403);
+  assert.strictEqual(db.prepare('SELECT review_status FROM news WHERE id = ?').get(id).review_status, 'pending');
+
+  const ok = await sixthHead.post(`/news/${id}/review`, { decision: 'approved' });
+  assert.strictEqual(ok.status, 302);
+  const row = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
+  assert.strictEqual(row.review_status, 'approved');
+  assert.ok(row.reviewed_by, 'the checker is recorded');
+
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /Sixth Form Trip/, 'a checked story is in the issue');
+
+  // Sending it back with a note removes it again.
+  await sixthHead.post(`/news/${id}/review`, { decision: 'rejected', review_note: 'Please add a photo.' });
+  const after = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
+  assert.strictEqual(after.review_status, 'rejected');
+  assert.strictEqual(after.review_note, 'Please add a photo.');
+  const preview2 = await (await get('/newsletter/preview.html')).text();
+  assert.ok(!preview2.includes('Sixth Form Trip'));
+});
+
+test('whole-school stories can be checked by any SLT member; rewriting one sends it back', async () => {
+  const teacher = await loginAs('caradoc@test.local', 'workflow-pass-1');
+  const primaryHead = await loginAs('slt.primary@test.local', 'workflow-pass-1');
+  await teacher.post('/news', { title: 'Whole School Assembly', body: 'Everyone attended.', section: 'whole_school' });
+  const id = db.prepare("SELECT id FROM news WHERE title = 'Whole School Assembly'").get().id;
+
+  const ok = await primaryHead.post(`/news/${id}/review`, { decision: 'approved' });
+  assert.strictEqual(ok.status, 302, 'whole-school stories are open to any SLT member');
+  assert.strictEqual(db.prepare('SELECT review_status FROM news WHERE id = ?').get(id).review_status, 'approved');
+
+  // The author rewriting it means it needs checking again.
+  await teacher.post(`/news/${id}`, {
+    title: 'Whole School Assembly (updated)',
+    body: 'Everyone attended and sang.',
+    section: 'whole_school',
+  });
+  assert.strictEqual(db.prepare('SELECT review_status FROM news WHERE id = ?').get(id).review_status, 'pending');
+});
+
+test('marketing lays the issue out but cannot approve it; the principal can', async () => {
+  const marketing = await makeUser('Marketing Lead', 'marketing@test.local', 'marketing');
+  const principal = await makeUser('Head Teacher', 'principal@test.local', 'principal');
+  const id = db.prepare("SELECT id FROM news WHERE title LIKE 'Whole School Assembly%'").get().id;
+
+  // Layout actions are open to marketing.
+  assert.strictEqual((await marketing.post(`/news/${id}/include`, { included: '0' })).status, 302);
+  assert.strictEqual((await marketing.post(`/news/${id}/include`, { included: '1' })).status, 302);
+  assert.strictEqual((await marketing.post(`/news/${id}/slot`, { slot: 'F' })).status, 302);
+  assert.match((await (await marketing.get('/newsletter/preview.html?edit=1')).text()), /preview-editor\.js/);
+
+  const report = await marketing.post('/newsletter/generate', {});
+  assert.strictEqual(report.status, 200);
+  const issue = db.prepare('SELECT * FROM issues ORDER BY id DESC').get();
+  assert.ok(!issue.approved_at, 'a fresh issue is not approved');
+
+  // Marketing must not sign the issue off...
+  const refused = await marketing.post(`/newsletter/issues/${issue.id}/approve`, {});
+  assert.strictEqual(refused.status, 403);
+  // ...the principal does.
+  const approved = await principal.post(`/newsletter/issues/${issue.id}/approve`, {});
+  assert.strictEqual(approved.status, 302);
+  const signed = db.prepare('SELECT * FROM issues WHERE id = ?').get(issue.id);
+  assert.ok(signed.approved_at && signed.approved_by, 'approval is recorded with who and when');
+
+  // Rebuilding the issue means it must be proof-read again.
+  await marketing.post('/newsletter/generate', {});
+  const rebuilt = db.prepare('SELECT * FROM issues WHERE id = ?').get(issue.id);
+  assert.ok(!rebuilt.approved_at, 'regenerating clears the approval');
+  require('../src/scheduler').stop();
+});
+
+test('staff cannot review, lay out or approve', async () => {
+  const teacher = await loginAs('caradoc@test.local', 'workflow-pass-1');
+  const id = db.prepare('SELECT id FROM news ORDER BY id DESC').get().id;
+  const issue = db.prepare('SELECT id FROM issues ORDER BY id DESC').get();
+  assert.strictEqual((await teacher.post(`/news/${id}/review`, { decision: 'approved' })).status, 403);
+  assert.strictEqual((await teacher.post(`/news/${id}/include`, { included: '0' })).status, 403);
+  assert.strictEqual((await teacher.post('/newsletter/generate', {})).status, 403);
+  assert.strictEqual((await teacher.post(`/newsletter/issues/${issue.id}/approve`, {})).status, 403);
+  assert.strictEqual((await teacher.get('/users')).status, 403);
+  // ...but the live editor stays read-only rather than erroring.
+  const preview = await (await teacher.get('/newsletter/preview.html?edit=1')).text();
+  assert.ok(!preview.includes('preview-editor.js'), 'no live editor for staff');
+});
+
+test('the generation report names stories still waiting for their SLT check', async () => {
+  const teacher = await loginAs('caradoc@test.local', 'workflow-pass-1');
+  await teacher.post('/news', { title: 'Unchecked Story', body: 'Waiting for a decision.', section: 'primary' });
+  const result = await generateIssue({ trigger: 'test' });
+  const step = result.steps.find((s) => s.label.includes('SLT check'));
+  assert.ok(step && !step.ok, 'the report flags the outstanding check');
+  assert.match(step.detail, /Unchecked Story/);
+  assert.ok(result.warnings.some((w) => /waiting for their SLT check/.test(w)));
+  assert.ok(!result.html.includes('Unchecked Story'), 'it is left out of the draft');
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

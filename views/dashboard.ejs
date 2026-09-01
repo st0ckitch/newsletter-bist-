@@ -7,7 +7,7 @@
   <div class="page-actions">
     <a class="btn btn-secondary" href="/news/new">+ Add news</a>
     <a class="btn btn-secondary" href="/events/new">+ Add event</a>
-    <% if (isManager) { %>
+    <% if (isLayout) { %>
     <form method="post" action="/demo-data/fill" data-confirm="Fill every template section with sample events, articles, photos and a principal&#39;s message? Content your staff wrote is kept - demo items are marked and can be removed again with one click.">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <button type="submit" class="btn btn-secondary">Fill with demo content</button>
@@ -22,6 +22,47 @@
 
 <% if (!mailchimpConfigured) { %>
   <div class="alert alert-warn">Mailchimp is not configured - reminders and draft creation are disabled. Set <code>MAILCHIMP_API_KEY</code>, <code>MAILCHIMP_SERVER_PREFIX</code> and <code>MAILCHIMP_AUDIENCE_ID</code> in <code>.env</code>.</div>
+<% } %>
+
+<% if (locals.can && can.review) { %>
+<div class="card">
+  <div class="card-head-row">
+    <h2>Stories awaiting your check<%= awaitingReview.length ? ' (' + awaitingReview.length + ')' : '' %></h2>
+    <span class="muted"><%= myArea ? 'Your area: ' + myArea : 'You can check every area' %></span>
+  </div>
+  <% if (!awaitingReview.length) { %>
+    <p class="muted">Nothing waiting - every story in your area has been checked.</p>
+  <% } else { %>
+    <p class="muted">Only checked stories go into the newsletter. Approve the ones that are ready, or send a story back with a note for its author.</p>
+    <table class="table">
+      <thead><tr><th>Story</th><th>Area</th><th>By</th><th>Week</th><th></th></tr></thead>
+      <tbody>
+        <% awaitingReview.forEach(function(n) { %>
+          <tr>
+            <td><a href="/news/<%= n.id %>/edit"><%= n.title %></a></td>
+            <td><span class="tag tag-<%= n.section %>"><%= sectionLabels[n.section] || n.section.replace('_',' ') %></span></td>
+            <td class="muted"><%= n.author || '-' %></td>
+            <td class="muted"><%= n.week_start %></td>
+            <td class="row-actions">
+              <form method="post" action="/news/<%= n.id %>/review" class="inline-form">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <input type="hidden" name="decision" value="approved">
+                <input type="hidden" name="back" value="dashboard">
+                <button class="btn btn-primary btn-sm">Approve</button>
+              </form>
+              <form method="post" action="/news/<%= n.id %>/review" class="inline-form" data-confirm="Send this story back to its author?">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <input type="hidden" name="decision" value="rejected">
+                <input type="hidden" name="back" value="dashboard">
+                <button class="btn btn-danger btn-sm">Send back</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
 <% } %>
 
 <div class="grid-2">
