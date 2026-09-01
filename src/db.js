@@ -165,6 +165,11 @@ ensureColumn('principal_messages', 'is_demo', 'is_demo INTEGER NOT NULL DEFAULT 
 
 // SLT sign-off on stories, and the principal's approval of the whole issue.
 ensureColumn('users', 'section', 'section TEXT');
+// Invited accounts: created without a password (password_hash = ''), then
+// activated through a personal /invite/<token> link sent by email. Only a
+// SHA-256 of the token is stored, so the database never holds a live link.
+ensureColumn('users', 'invite_token_hash', 'invite_token_hash TEXT');
+ensureColumn('users', 'invite_sent_at', 'invite_sent_at TEXT');
 ensureColumn('news', 'reviewed_by', 'reviewed_by INTEGER');
 ensureColumn('news', 'reviewed_at', 'reviewed_at TEXT');
 ensureColumn('news', 'review_note', 'review_note TEXT');
@@ -264,7 +269,7 @@ function seedAdmin() {
       'admin'
     );
     console.log(`[db] Created admin user ${email} from ADMIN_EMAIL / ADMIN_PASSWORD.`);
-  } else if (!bcrypt.compareSync(password, existing.password_hash)) {
+  } else if (!existing.password_hash || !bcrypt.compareSync(password, existing.password_hash)) {
     db.prepare("UPDATE users SET password_hash = ?, role = 'admin' WHERE id = ?").run(
       bcrypt.hashSync(password, 10),
       existing.id

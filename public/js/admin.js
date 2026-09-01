@@ -104,3 +104,20 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   refresh();
 })();
+
+// Staff import: picking a CSV file fills the paste box (the form itself
+// posts plain text, so no multipart handling is needed).
+(function () {
+  var fileInput = document.getElementById('csv-file');
+  var textarea = document.getElementById('csv-text');
+  if (!fileInput || !textarea) return;
+  fileInput.addEventListener('change', function () {
+    var file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      textarea.value = (textarea.value ? textarea.value.replace(/\s+$/, '') + '\n' : '') + reader.result;
+    };
+    reader.readAsText(file);
+  });
+})();

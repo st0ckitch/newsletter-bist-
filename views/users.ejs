@@ -4,13 +4,82 @@
   <div class="page-actions"><a class="btn btn-primary" href="/users/new">+ Add user</a></div>
 </div>
 <% if (created) { %><div class="alert alert-ok">User created - share the login details with them.</div><% } %>
+
+<% if (locals.importReport) { %>
+  <div class="alert alert-ok">
+    <strong>Import finished:</strong> <%= importReport.created.length %> account(s) created,
+    <%= importReport.existing.length %> already existed (left untouched),
+    <%= importReport.invalid.length %> line(s) skipped as invalid.
+  </div>
+  <% if (importReport.created.length) { %>
+    <div class="card"><h2>Created (no password yet - send invites below)</h2>
+      <table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Area</th></tr></thead><tbody>
+        <% importReport.created.forEach(function(u) { %>
+          <tr><td><%= u.name %></td><td><%= u.email %></td><td><%= u.role %></td><td><%= u.section ? (sections[u.section] || u.section) : '-' %></td></tr>
+        <% }) %>
+      </tbody></table>
+    </div>
+  <% } %>
+  <% if (importReport.invalid.length) { %>
+    <div class="alert alert-warn"><strong>Skipped lines:</strong> <%= importReport.invalid.join(' · ') %></div>
+  <% } %>
+<% } %>
+
+<% if (locals.inviteResult) { %>
+  <% if (inviteResult.sent) { %>
+    <div class="alert alert-ok">
+      <strong>Invitations sent to <%= inviteResult.sentTo.length %> staff member(s).</strong>
+      Each email carries a personal &quot;Create your password&quot; link.
+      <% if (inviteResult.failed && inviteResult.failed.length) { %>
+        <br>⚠ Could not reach: <%= inviteResult.failed.map(function(f){ return f.email + ' (' + f.error + ')'; }).join('; ') %>
+      <% } %>
+    </div>
+  <% } else { %>
+    <div class="alert alert-error"><strong>No invitations were sent:</strong> <%= inviteResult.reason %></div>
+  <% } %>
+<% } %>
+
+<% if (locals.isSiteAdmin) { %>
+<div class="grid-2">
+  <div class="card">
+    <h2>Import staff</h2>
+    <p class="muted">Paste (or choose a file with) one person per line: <code>Name,email</code> - optionally
+    <code>Name,email,role,area</code> (role: staff / slt / marketing / principal / admin; area for SLT:
+    whole_school / primary / secondary / sixth_form / co_curricular). Header rows and duplicates are skipped,
+    and <strong>existing accounts are never modified</strong>. Imported accounts have no password until their
+    owner activates them through the invitation email.</p>
+    <form method="post" action="/users/import">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label>CSV file <input type="file" id="csv-file" accept=".csv,text/csv,text/plain"></label>
+      <label>Rows to import
+        <textarea name="csv" id="csv-text" rows="6" placeholder="Caradoc Peters,c.peters@bist.ge&#10;Samuel Murray,s.murray@bist.ge,slt,secondary"></textarea>
+      </label>
+      <button class="btn btn-primary" data-confirm="Create accounts for every new email in the list? Nobody can log in until they set a password through their invitation email.">Import accounts</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Invitation emails</h2>
+    <p class="muted"><strong><%= pendingInvites %></strong> account(s) have not set a password yet. One click sends
+    each of them a branded Mailchimp email with their <strong>personal login link</strong>: they open it, create a
+    password, and land in the dashboard. Sending again replaces earlier links (safe for reminders to
+    non-responders - people who already set a password are never emailed).</p>
+    <form method="post" action="/users/send-invites" data-confirm="Email a personal login link to every account that has not set a password yet?">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="btn btn-primary" <%= pendingInvites ? '' : 'disabled' %>>Send login invites (<%= pendingInvites %>)</button>
+    </form>
+  </div>
+</div>
+<% } %>
 <div class="card">
   <table class="table">
     <thead><tr><th>Name</th><th>Email</th><th>Role &amp; area</th><th>Reset password</th><th></th></tr></thead>
     <tbody>
       <% users.forEach(function(u) { %>
         <tr>
-          <td><%= u.name %></td>
+          <td><%= u.name %>
+            <% if (u.invited) { %><br><span class="tag tag-pending">✉ invited<%= u.invite_sent_at ? '' : ' - email not sent yet' %></span>
+            <% } %>
+          </td>
           <td><%= u.email %></td>
           <td>
             <form method="post" action="/users/<%= u.id %>/role" class="inline-form">

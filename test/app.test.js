@@ -937,6 +937,111 @@ test('the generation report names stories still waiting for their SLT check', as
   assert.ok(!result.html.includes('Unchecked Story'), 'it is left out of the draft');
 });
 
+
+// ---- staff import + invitation links ----
+
+test('site admin imports staff from CSV; accounts start locked, SLT cannot import', async () => {
+  const csv = [
+    'Member Name,Member Email', // header is skipped
+    'Caradoc Peters,c.peters@import.local',
+    'Samuel Murray,s.murray@import.local,slt,secondary',
+    'Orla OShea,o.oshea@import.local,slt,primary',
+    'Head Teacher,principal@test.local', // exists already - untouched
+    'broken line without email',
+    'Caradoc Peters,c.peters@import.local', // duplicate inside the file
+  ].join('\n');
+  const res = await post('/users/import', { csv });
+  assert.strictEqual(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /3 account\(s\) created/);
+  assert.match(html, /1 already existed/);
+  assert.match(html, /1 line\(s\) skipped as invalid/);
+
+  const caradoc = db.prepare("SELECT * FROM users WHERE email = 'c.peters@import.local'").get();
+  assert.strictEqual(caradoc.role, 'staff');
+  assert.strictEqual(caradoc.password_hash, '', 'imported accounts have no password');
+  const murray = db.prepare("SELECT * FROM users WHERE email = 's.murray@import.local'").get();
+  assert.strictEqual(murray.role, 'slt');
+  assert.strictEqual(murray.section, 'secondary');
+  const existing = db.prepare("SELECT password_hash FROM users WHERE email = 'principal@test.local'").get();
+  assert.ok(existing.password_hash.length > 10, 'existing accounts are never touched');
+
+  // A locked account cannot log in, and the login page says why.
+  const attempt = await fetch(base + '/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: cookies },
+    body: new URLSearchParams({ _csrf: csrf, email: 'c.peters@import.local', password: 'whatever123' }).toString(),
+    redirect: 'manual',
+  });
+  assert.strictEqual(attempt.status, 401);
+  assert.match(await attempt.text(), /not been activated yet/);
+
+  // Import and invite-sending are for the site admin only - not SLT.
+  const slt = await loginAs('slt.primary@test.local', 'workflow-pass-1');
+  assert.strictEqual((await slt.post('/users/import', { csv: 'X,x@import.local' })).status, 403);
+  assert.strictEqual((await slt.post('/users/send-invites', {})).status, 403);
+});
+
+test('invite link: sets the password once, signs in, and cannot be reused', async () => {
+  const invites = require('../src/invites');
+  const bcrypt = require('bcryptjs');
+  const pending = invites.pendingInvitees();
+  assert.ok(pending.length >= 3, 'imported accounts are pending invites');
+  const issued = invites.issueTokens(pending);
+  const mine = issued.find(({ user }) => user.email === 'c.peters@import.local');
+  assert.ok(mine.link.includes(`/invite/${mine.token}`));
+  const stored = db.prepare("SELECT invite_token_hash FROM users WHERE email = 'c.peters@import.local'").get();
+  assert.ok(stored.invite_token_hash && stored.invite_token_hash !== mine.token, 'only a hash of the token is stored');
+
+  // The personal page renders...
+  const page = await fetch(base + `/invite/${mine.token}`);
+  assert.strictEqual(page.status, 200);
+  const pageHtml = await page.text();
+  assert.match(pageHtml, /Caradoc Peters/);
+  const jar = (page.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
+  const token = pageHtml.match(/name="_csrf" value="([^"]+)"/)[1];
+
+  // ...rejects a weak or mismatched password...
+  const weak = await fetch(base + `/invite/${mine.token}`, {
+    method: 'POST',
+    headers: { cookie: jar, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ _csrf: token, password: 'short', password_confirm: 'short' }).toString(),
+    redirect: 'manual',
+  });
+  assert.strictEqual(weak.status, 400);
+
+  // ...and on success sets the password, signs the user in and burns the link.
+  const ok = await fetch(base + `/invite/${mine.token}`, {
+    method: 'POST',
+    headers: { cookie: jar, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ _csrf: token, password: 'caradoc-pass-1', password_confirm: 'caradoc-pass-1' }).toString(),
+    redirect: 'manual',
+  });
+  assert.strictEqual(ok.status, 302);
+  assert.strictEqual(ok.headers.get('location'), '/');
+  const activated = db.prepare("SELECT * FROM users WHERE email = 'c.peters@import.local'").get();
+  assert.ok(bcrypt.compareSync('caradoc-pass-1', activated.password_hash));
+  assert.strictEqual(activated.invite_token_hash, null, 'token burned after use');
+  const reuse = await fetch(base + `/invite/${mine.token}`);
+  assert.strictEqual(reuse.status, 404);
+  const bogus = await fetch(base + '/invite/definitely-not-a-real-token-here');
+  assert.strictEqual(bogus.status, 404);
+
+  // The new password logs in normally now.
+  const caradoc = await loginAs('c.peters@import.local', 'caradoc-pass-1');
+  assert.strictEqual((await caradoc.get('/')).status, 200);
+});
+
+test('send-invites without Mailchimp reports the reason; invite email carries the merge-tag link', async () => {
+  const res = await post('/users/send-invites', {});
+  assert.strictEqual(res.status, 200);
+  assert.match(await res.text(), /No invitations were sent:.*Mailchimp is not configured/);
+  const { inviteEmailHtml } = require('../src/invites');
+  const html = inviteEmailHtml();
+  assert.match(html, /\/invite\/\*\|INVITE\|\*/, 'the button carries the personal merge-tag link');
+  assert.match(html, /Create your password/);
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

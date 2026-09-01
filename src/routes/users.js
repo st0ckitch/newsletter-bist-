@@ -4,6 +4,18 @@ const { db } = require('../db');
 const { requireAdmin, requireLogin } = require('../auth');
 const { ASSIGNABLE_ROLES, ALL_ROLES, ROLE_LABELS } = require('../roles');
 const { SECTIONS, SECTION_KEYS } = require('../sections');
+const invites = require('../invites');
+
+// The staff-import and invitation email actions belong to the site admin
+// alone (the marketing owner's account) - SLT keep the ordinary account
+// management on this page but cannot bulk-import or mass-email.
+function requireSiteAdmin(req, res, next) {
+  if (!req.user) return res.redirect('/login');
+  if (req.user.role !== 'admin') {
+    return res.status(403).render('error', { message: 'Only the site admin can import staff and send invitation emails.' });
+  }
+  next();
+}
 
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -24,16 +36,84 @@ function userFormLocals(extra) {
   };
 }
 
-router.get('/users', requireAdmin, (req, res) => {
-  const users = db.prepare('SELECT id, email, name, role, section, created_at FROM users ORDER BY role, name').all();
-  res.render('users', {
+// The session lives in a 4KB cookie, so import/invite results are rendered
+// straight into the response instead of being stashed as flash data.
+function usersLocals(req, extra = {}) {
+  const users = db
+    .prepare(
+      `SELECT id, email, name, role, section, created_at, invite_sent_at,
+              (password_hash = '') AS invited
+       FROM users ORDER BY role, name`
+    )
+    .all();
+  return {
     users,
-    created: req.query.created === '1',
+    created: false,
     roleLabels: ROLE_LABELS,
     sections: SECTIONS,
     assignableRoles: ASSIGNABLE_ROLES,
     sectionKeys: SECTION_KEYS,
-  });
+    isSiteAdmin: req.user.role === 'admin',
+    pendingInvites: invites.pendingInvitees().length,
+    importReport: null,
+    inviteResult: null,
+    ...extra,
+  };
+}
+
+router.get('/users', requireAdmin, (req, res) => {
+  res.render('users', usersLocals(req, { created: req.query.created === '1' }));
+});
+
+/* ---------------- bulk import & invitation emails (site admin only) ------ */
+
+// Paste/upload of "Name,Email[,role[,area]]" lines. Accounts are created
+// WITHOUT a password: nobody can log in as them until they open their
+// personal invite link and set one. Existing accounts are never touched.
+router.post('/users/import', requireSiteAdmin, (req, res) => {
+  const report = { created: [], existing: [], invalid: [] };
+  const lines = String(req.body.csv || '').split(/\r?\n/);
+  const seen = new Set();
+  const insert = db.prepare(
+    "INSERT INTO users (email, name, password_hash, role, section) VALUES (?, ?, '', ?, ?)"
+  );
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const cols = line.split(',').map((c) => c.trim());
+    const name = cols[0] || '';
+    const email = (cols[1] || '').toLowerCase();
+    if (/^(member\s*)?e-?mail$/.test(email)) continue; // header row
+    let role = (cols[2] || 'staff').toLowerCase();
+    let section = (cols[3] || '').toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      if (line) report.invalid.push(line.slice(0, 120));
+      continue;
+    }
+    if (seen.has(email)) continue; // duplicate inside the file - first row wins
+    seen.add(email);
+    if (!ALL_ROLES.includes(role)) role = 'staff';
+    if (!SECTION_KEYS.includes(section)) section = '';
+    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) {
+      report.existing.push(email);
+      continue;
+    }
+    insert.run(email, name || email.split('@')[0], role, areaFor(role, section));
+    report.created.push({ email, name, role, section: role === 'slt' ? section : '' });
+  }
+  res.render('users', usersLocals(req, { importReport: report }));
+});
+
+// One click: every account that has not set a password yet gets a Mailchimp
+// email with its personal "create your password" link.
+router.post('/users/send-invites', requireSiteAdmin, async (req, res) => {
+  let inviteResult;
+  try {
+    inviteResult = await invites.sendStaffInvites();
+  } catch (err) {
+    inviteResult = { sent: false, reason: err.message };
+  }
+  res.render('users', usersLocals(req, { inviteResult }));
 });
 
 router.get('/users/new', requireAdmin, (req, res) => {

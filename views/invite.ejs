@@ -1,0 +1,17 @@
+<%- include('partials/head', { title: 'Set up your account' }) %>
+<div class="card card-narrow" style="max-width: 460px; margin: 40px auto;">
+  <h1>Welcome, <%= user.name %></h1>
+  <p class="muted">Your <strong>The Roar</strong> newsletter account (<%= user.email %>) is ready - choose a password to finish setting it up. You'll be signed in straight away.</p>
+  <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+  <form method="post" action="/invite/<%= token %>">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Choose a password (min 8 characters)
+      <input type="password" name="password" minlength="8" required autofocus autocomplete="new-password">
+    </label>
+    <label>Repeat it
+      <input type="password" name="password_confirm" minlength="8" required autocomplete="new-password">
+    </label>
+    <button type="submit" class="btn btn-primary">Create password &amp; sign in</button>
+  </form>
+</div>
+<%- include('partials/foot') %>

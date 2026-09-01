@@ -54,12 +54,13 @@ async function ping() {
 
 // Add or update a member of an audience (used to keep teachers subscribed so
 // reminder campaigns can reach them).
-async function upsertMember(listId, email, name, tags = []) {
+async function upsertMember(listId, email, name, tags = [], extraMergeFields = {}) {
   const hash = subscriberHash(email);
+  const mergeFields = { ...(name ? { FNAME: name } : {}), ...extraMergeFields };
   const member = await request('PUT', `/lists/${listId}/members/${hash}`, {
     email_address: email,
     status_if_new: 'subscribed',
-    merge_fields: name ? { FNAME: name } : {},
+    merge_fields: mergeFields,
   });
   // Staff reminders are operational email - if a teacher previously
   // unsubscribed/was archived, try to re-activate them; Mailchimp rejects
@@ -128,6 +129,14 @@ async function uploadFile(name, buffer) {
   return file.full_size_url;
 }
 
+// A custom merge field on an audience (e.g. INVITE for personal invitation
+// links): created once, reused forever. Tags are limited to 10 characters.
+async function ensureMergeField(listId, tag, name) {
+  const existing = await request('GET', `/lists/${listId}/merge-fields?count=100`);
+  if ((existing.merge_fields || []).some((f) => f.tag === tag)) return;
+  await request('POST', `/lists/${listId}/merge-fields`, { tag, name, type: 'text', public: false });
+}
+
 // Round-trip check that image hosting works: upload a 1x1 PNG to the File
 // Manager, then delete it again. Returns the CDN URL it briefly had.
 const TEST_PIXEL = Buffer.from(
@@ -151,12 +160,12 @@ async function testFileManager() {
 // teachers audience, build a static segment, create a campaign for that
 // segment and send it. One problematic address must not block the others,
 // so upsert failures are collected and reported instead of thrown.
-async function sendToEmails({ listId, emails, subject, title, html, fromName, replyTo, memberNames = {}, tags = [] }) {
+async function sendToEmails({ listId, emails, subject, title, html, fromName, replyTo, memberNames = {}, mergeFieldsByEmail = {}, tags = [] }) {
   const reachable = [];
   const failed = [];
   for (const email of emails) {
     try {
-      await upsertMember(listId, email, memberNames[email], tags);
+      await upsertMember(listId, email, memberNames[email], tags, mergeFieldsByEmail[email] || {});
       reachable.push(email);
     } catch (err) {
       failed.push({ email, error: err.message });
@@ -191,6 +200,7 @@ module.exports = {
   getCampaign,
   uploadFile,
   testFileManager,
+  ensureMergeField,
   sendToEmails,
   campaignEditUrl,
   MailchimpError,
