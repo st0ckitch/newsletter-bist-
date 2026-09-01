@@ -55,6 +55,12 @@ function createApp() {
   );
 
   app.use(attachUser);
+  // Learn the public address from real signed-in traffic, so emailed links
+  // (invites, reminders) never point at localhost when APP_BASE_URL is unset.
+  app.use((req, res, next) => {
+    if (req.user) require('./baseurl').rememberBaseUrl(req);
+    next();
+  });
   app.use(csrfProtection);
 
   app.use(require('./routes/auth'));

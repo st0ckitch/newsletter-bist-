@@ -2,6 +2,7 @@
 // static segment of the teachers audience.
 const { db, getSetting } = require('./db');
 const config = require('./config');
+const { publicBaseUrl } = require('./baseurl');
 const mailchimp = require('./mailchimp');
 const { renderReminderEmail, escapeHtml } = require('./newsletter');
 const { formatHuman } = require('./week');
@@ -67,10 +68,10 @@ async function sendReminder({ type, users, subject, heading, headingColor, bodyH
     heading,
     headingColor,
     bodyHtml,
-    buttonUrl: config.appBaseUrl,
+    buttonUrl: publicBaseUrl(),
     buttonLabel: 'Open the newsletter admin panel',
     schoolName: getSetting('school_name'),
-    fontBase: config.appBaseUrl,
+    fontBase: publicBaseUrl(),
   });
   const memberNames = Object.fromEntries(users.map((u) => [u.email, u.name]));
   try {

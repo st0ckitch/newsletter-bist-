@@ -1088,6 +1088,36 @@ test('a newly added person is the only "new" invitee; single-person invites work
   assert.match(await single.text(), /No invitations were sent:.*Mailchimp is not configured/);
 });
 
+test('emailed links use the learned public address, never localhost', async () => {
+  const config = require('../src/config');
+  const { publicBaseUrl, rememberBaseUrl } = require('../src/baseurl');
+  const invites = require('../src/invites');
+  const { setSetting } = require('../src/db');
+
+  // Learned from an admin browsing the real domain (behind the proxy).
+  rememberBaseUrl({ protocol: 'https', get: (h) => (h === 'host' ? 'newsletter.example.org' : null) });
+  assert.strictEqual(publicBaseUrl(), 'https://newsletter.example.org');
+  assert.match(invites.inviteEmailHtml(), /https:\/\/newsletter\.example\.org\/invite\/\*\|INVITE\|\*/);
+
+  // A localhost host header must never overwrite it.
+  rememberBaseUrl({ protocol: 'http', get: (h) => (h === 'host' ? 'localhost:9999' : null) });
+  assert.strictEqual(publicBaseUrl(), 'https://newsletter.example.org');
+
+  // With Mailchimp configured but no public address at all, sending refuses
+  // outright instead of mailing dead localhost links.
+  db.prepare("DELETE FROM settings WHERE key = 'public_base_url'").run();
+  const saved = { ...config.mailchimp };
+  Object.assign(config.mailchimp, { apiKey: 'x-us1', serverPrefix: 'us1', teachersAudienceId: 'list1' });
+  try {
+    const refused = await invites.sendStaffInvites(invites.pendingInvitees());
+    assert.strictEqual(refused.sent, false);
+    assert.match(refused.reason, /public address is still http:\/\/localhost/);
+  } finally {
+    Object.assign(config.mailchimp, saved);
+    setSetting('public_base_url', '');
+  }
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

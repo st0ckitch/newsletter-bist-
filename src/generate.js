@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { db, getSetting, setSetting } = require('./db');
 const config = require('./config');
+const { publicBaseUrl, isPublicUrl } = require('./baseurl');
 const mailchimp = require('./mailchimp');
 const { renderNewsletter } = require('./newsletter');
 const { generationWeekStart, generationDay } = require('./appweek');
@@ -34,7 +35,7 @@ function collectWeekData(weekStart) {
   return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview };
 }
 
-function photoPublicUrl(photo, baseUrl = config.appBaseUrl) {
+function photoPublicUrl(photo, baseUrl = publicBaseUrl()) {
   if (photo.mailchimp_url) return photo.mailchimp_url;
   return `${baseUrl}/uploads/${photo.filename}`;
 }
@@ -68,7 +69,7 @@ async function ensurePhotosUploaded(photos, warnings) {
 // clients need full URLs - and '' for the in-panel preview, so preview
 // images and fonts resolve relative to the panel itself and work on any
 // host even before APP_BASE_URL is configured.
-function buildRenderData(data, { placeholders = false, editable = false, csrf = '', baseUrl = config.appBaseUrl } = {}) {
+function buildRenderData(data, { placeholders = false, editable = false, csrf = '', baseUrl = publicBaseUrl() } = {}) {
   const articles = data.news.map((n) => ({
     id: n.id,
     title: n.title,
@@ -161,13 +162,14 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   // Email clients need absolute URLs for the webfonts and for any photo that
   // is not on the Mailchimp CDN - a localhost base means those break in the
   // sent email.
-  const basePublic = !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(config.appBaseUrl);
+  const resolvedBase = publicBaseUrl();
+  const basePublic = isPublicUrl(resolvedBase);
   step(
     basePublic,
     'Public app URL (APP_BASE_URL)',
     basePublic
-      ? config.appBaseUrl
-      : `${config.appBaseUrl} - not reachable from the internet. Set APP_BASE_URL to your public URL (e.g. https://your-app.up.railway.app) so fonts and photos load in the email.`
+      ? resolvedBase
+      : `${resolvedBase} - not reachable from the internet. Set APP_BASE_URL to your public URL (e.g. https://newsletter.bist.ge) so fonts and photos load in the email.`
   );
   if (mailchimp.isConfigured()) {
     try {
@@ -217,7 +219,7 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   const localPhotos = allPhotos.filter((p) => !p.mailchimp_url);
   if (localPhotos.length && mailchimp.isConfigured()) {
     warnings.push(
-      `${localPhotos.length} photo(s) are not on the Mailchimp CDN; the draft links to ${config.appBaseUrl}/uploads/… ` +
+      `${localPhotos.length} photo(s) are not on the Mailchimp CDN; the draft links to ${publicBaseUrl()}/uploads/… ` +
         'which must be publicly reachable for parents to see them.'
     );
   }

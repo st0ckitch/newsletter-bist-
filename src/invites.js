@@ -8,6 +8,7 @@
 const crypto = require('crypto');
 const { db, getSetting } = require('./db');
 const config = require('./config');
+const { publicBaseUrl, isPublicUrl } = require('./baseurl');
 const mailchimp = require('./mailchimp');
 const { renderReminderEmail, escapeHtml } = require('./newsletter');
 
@@ -37,7 +38,7 @@ function issueTokens(users = pendingInvitees()) {
   return users.map((user) => {
     const token = crypto.randomBytes(24).toString('base64url');
     stamp.run(hashToken(token), user.id);
-    return { user, token, link: `${config.appBaseUrl}/invite/${token}` };
+    return { user, token, link: `${publicBaseUrl()}/invite/${token}` };
   });
 }
 
@@ -59,7 +60,7 @@ function activate(userId, passwordHash) {
   db.prepare('UPDATE users SET password_hash = ?, invite_token_hash = NULL WHERE id = ?').run(passwordHash, userId);
 }
 
-function inviteEmailHtml() {
+function inviteEmailHtml(baseUrl = publicBaseUrl()) {
   const name = getSetting('newsletter_name');
   const school = getSetting('school_name');
   const bodyHtml = `
@@ -74,10 +75,10 @@ function inviteEmailHtml() {
     heading: 'Set up your newsletter account',
     headingColor: '#1d3061',
     bodyHtml,
-    buttonUrl: `${config.appBaseUrl}/invite/*|${MERGE_TAG}|*`,
+    buttonUrl: `${baseUrl}/invite/*|${MERGE_TAG}|*`,
     buttonLabel: 'Create your password',
     schoolName: school,
-    fontBase: config.appBaseUrl,
+    fontBase: baseUrl,
   });
 }
 
@@ -94,6 +95,17 @@ async function sendStaffInvites(users = neverInvited()) {
   if (!mailchimp.isConfigured() || !config.mailchimp.teachersAudienceId) {
     return { sent: false, reason: 'Mailchimp is not configured (API key / audience ID missing).' };
   }
+  // Never email links that point at localhost - recipients could not open
+  // them. The public address is learned from the admin's own browsing, so in
+  // practice this only trips when invites are sent from a script/CLI before
+  // APP_BASE_URL is configured.
+  const baseUrl = publicBaseUrl();
+  if (!isPublicUrl(baseUrl)) {
+    return {
+      sent: false,
+      reason: `The app's public address is still ${baseUrl}, so the login links would not open for anyone. Set the APP_BASE_URL variable to your public URL (e.g. https://newsletter.bist.ge) and try again.`,
+    };
+  }
   await mailchimp.ensureMergeField(config.mailchimp.teachersAudienceId, MERGE_TAG, 'Newsletter invite token');
   const issued = issueTokens(pending);
   const mergeFieldsByEmail = {};
@@ -103,7 +115,7 @@ async function sendStaffInvites(users = neverInvited()) {
     emails: issued.map(({ user }) => user.email),
     subject: `🔑 Your ${getSetting('newsletter_name')} account - create your password`,
     title: `Staff invites ${new Date().toISOString().slice(0, 16)}`,
-    html: inviteEmailHtml(),
+    html: inviteEmailHtml(baseUrl),
     fromName: getSetting('from_name'),
     replyTo: getSetting('reply_to') || config.admin.email,
     memberNames: Object.fromEntries(issued.map(({ user }) => [user.email, user.name])),
