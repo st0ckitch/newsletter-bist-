@@ -190,6 +190,10 @@ ensureColumn('users', 'section', 'section TEXT');
 // SHA-256 of the token is stored, so the database never holds a live link.
 ensureColumn('users', 'invite_token_hash', 'invite_token_hash TEXT');
 ensureColumn('users', 'invite_sent_at', 'invite_sent_at TEXT');
+// Activation/usage visibility: when the person set their password through
+// their invite link, and when they last signed in.
+ensureColumn('users', 'activated_at', 'activated_at TEXT');
+ensureColumn('users', 'last_login_at', 'last_login_at TEXT');
 ensureColumn('news', 'reviewed_by', 'reviewed_by INTEGER');
 ensureColumn('news', 'reviewed_at', 'reviewed_at TEXT');
 ensureColumn('news', 'review_note', 'review_note TEXT');

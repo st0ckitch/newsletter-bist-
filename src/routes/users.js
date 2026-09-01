@@ -20,6 +20,18 @@ function requireSiteAdmin(req, res, next) {
 const router = express.Router();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// SQLite stamps are UTC "YYYY-MM-DD HH:MM:SS"; show them in school time.
+function fmtWhen(stamp) {
+  if (!stamp) return '';
+  return new Date(`${stamp.replace(' ', 'T')}Z`).toLocaleString('en-GB', {
+    timeZone: 'Asia/Tbilisi',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 // Only SLT members carry an area of responsibility; for everyone else the
 // field is meaningless and is stored as NULL.
 function areaFor(role, section) {
@@ -42,12 +54,13 @@ function usersLocals(req, extra = {}) {
   const users = db
     .prepare(
       `SELECT id, email, name, role, section, created_at, invite_sent_at,
-              (password_hash = '') AS invited
+              activated_at, last_login_at, (password_hash = '') AS invited
        FROM users ORDER BY role, name`
     )
     .all();
   return {
     users,
+    fmtWhen,
     created: false,
     roleLabels: ROLE_LABELS,
     sections: SECTIONS,

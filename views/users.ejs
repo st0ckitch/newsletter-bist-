@@ -78,13 +78,22 @@
 </div>
 <% } %>
 <div class="card">
+  <p class="muted"><span class="tag tag-approved">✓ active</span> = has created their password and can sign in
+  (<strong><%= users.filter(function(u){ return !u.invited; }).length %></strong> of <%= users.length %>);
+  <span class="tag tag-pending">✉</span> = still waiting on them. Times are Georgian time.</p>
   <table class="table">
     <thead><tr><th>Name</th><th>Email</th><th>Role &amp; area</th><th>Reset password</th><th></th></tr></thead>
     <tbody>
       <% users.forEach(function(u) { %>
         <tr>
           <td><%= u.name %>
-            <% if (u.invited) { %><br><span class="tag tag-pending">✉ invited<%= u.invite_sent_at ? '' : ' - email not sent yet' %></span>
+            <% if (u.invited) { %>
+              <br><span class="tag tag-pending">✉ <%= u.invite_sent_at ? 'invited ' + fmtWhen(u.invite_sent_at) + ' - waiting' : 'no invite emailed yet' %></span>
+            <% } else { %>
+              <br><span class="tag tag-approved">✓ active</span>
+              <span class="muted" style="font-size:12px">
+                <%= u.activated_at ? 'password set ' + fmtWhen(u.activated_at) : '' %><%= u.last_login_at ? (u.activated_at ? ' · ' : '') + 'last login ' + fmtWhen(u.last_login_at) : '' %>
+              </span>
             <% } %>
           </td>
           <td><%= u.email %></td>

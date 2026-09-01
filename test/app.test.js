@@ -1088,6 +1088,28 @@ test('a newly added person is the only "new" invitee; single-person invites work
   assert.match(await single.text(), /No invitations were sent:.*Mailchimp is not configured/);
 });
 
+test('the users page shows who activated their account and when they last signed in', async () => {
+  // c.peters activated via the invite link earlier - both stamps recorded.
+  const caradoc = db.prepare("SELECT * FROM users WHERE email = 'c.peters@import.local'").get();
+  assert.ok(caradoc.activated_at, 'activation is timestamped');
+  assert.ok(caradoc.last_login_at, 'activation counts as a sign-in');
+
+  // An ordinary login refreshes last_login_at.
+  db.prepare("UPDATE users SET last_login_at = NULL WHERE email = 'c.peters@import.local'").run();
+  await loginAs('c.peters@import.local', 'caradoc-pass-1');
+  assert.ok(
+    db.prepare("SELECT last_login_at FROM users WHERE email = 'c.peters@import.local'").get().last_login_at,
+    'logging in stamps last_login_at'
+  );
+
+  // The users page labels activated accounts and still-waiting invitees.
+  const page = await (await get('/users')).text();
+  assert.match(page, /✓ active/);
+  assert.match(page, /password set /);
+  assert.match(page, /last login /);
+  assert.match(page, /waiting|no invite emailed yet/);
+});
+
 test('emailed links use the learned public address, never localhost', async () => {
   const config = require('../src/config');
   const { publicBaseUrl, rememberBaseUrl } = require('../src/baseurl');

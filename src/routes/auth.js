@@ -61,6 +61,7 @@ router.post('/login', verifyCsrf, async (req, res, next) => {
       return res.status(401).render('login', { error: 'Incorrect email or password.', email });
     }
     attempts.delete(key);
+    db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id);
     req.session.userId = user.id;
     res.redirect('/');
   } catch (err) {

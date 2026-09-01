@@ -55,9 +55,12 @@ function findByToken(token) {
   return user;
 }
 
-// Sets the password and burns the token.
+// Sets the password, burns the token and records the activation moment
+// (activation signs the person straight in, so it counts as a login too).
 function activate(userId, passwordHash) {
-  db.prepare('UPDATE users SET password_hash = ?, invite_token_hash = NULL WHERE id = ?').run(passwordHash, userId);
+  db.prepare(
+    "UPDATE users SET password_hash = ?, invite_token_hash = NULL, activated_at = datetime('now'), last_login_at = datetime('now') WHERE id = ?"
+  ).run(passwordHash, userId);
 }
 
 function inviteEmailHtml(baseUrl = publicBaseUrl()) {
