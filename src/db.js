@@ -105,11 +105,6 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_events_week ON events(week_start);
-CREATE INDEX IF NOT EXISTS idx_news_week2 ON news(week_start, included);
-CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
-CREATE INDEX IF NOT EXISTS idx_news_week ON news(week_start);
-CREATE INDEX IF NOT EXISTS idx_issues_week ON issues(week_start);
 `);
 
 // Databases created before a column existed get it added in place.
@@ -126,14 +121,39 @@ function ensureColumn(table, column, ddl) {
 // since added Sixth Form, Co-Curricular and the SLT/marketing roles, so
 // databases still carrying those constraints are rebuilt once, without them.
 // Columns are matched by name, so this runs after the ensureColumn calls.
+// Removes every CHECK clause from a CREATE TABLE statement. The clauses
+// contain nested parentheses - CHECK (role IN ('a','b')) - so this walks the
+// text balancing parens rather than trusting a regex.
+function stripCheckClauses(sql) {
+  let out = sql;
+  for (;;) {
+    const m = /\bCHECK\s*\(/i.exec(out);
+    if (!m) return out;
+    let depth = 0;
+    let end = -1;
+    for (let i = m.index + m[0].length - 1; i < out.length; i++) {
+      if (out[i] === '(') depth += 1;
+      else if (out[i] === ')') {
+        depth -= 1;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    if (end === -1) throw new Error(`Unbalanced CHECK clause while rebuilding: ${sql}`);
+    out = out.slice(0, m.index).replace(/\s+$/, ' ') + out.slice(end + 1);
+  }
+}
+
 function dropCheckConstraints(table) {
   const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
   if (!row || !/\bCHECK\s*\(/i.test(row.sql)) return;
   const tmp = `${table}__rebuild`;
-  const rebuilt = row.sql
-    .replace(new RegExp(`CREATE TABLE\\s+"?${table}"?`, 'i'), `CREATE TABLE ${tmp}`)
-    // Strip "CHECK (...)" - the constraints here contain no nested parens.
-    .replace(/\s*CHECK\s*\([^()]*\)/gi, '');
+  const rebuilt = stripCheckClauses(row.sql).replace(
+    new RegExp(`CREATE TABLE\\s+"?${table}"?`, 'i'),
+    `CREATE TABLE ${tmp}`
+  );
   db.exec('PRAGMA foreign_keys = OFF');
   try {
     db.exec('BEGIN');
@@ -183,6 +203,16 @@ if (ensureColumn('news', 'review_status', "review_status TEXT NOT NULL DEFAULT '
 
 dropCheckConstraints('users');
 dropCheckConstraints('news');
+// Indexes are created only here, AFTER the column migrations (idx_news_week2
+// covers a column that old databases gain via ensureColumn) and after any
+// table rebuild (which drops the old table's indexes with it).
+db.exec(`
+CREATE INDEX IF NOT EXISTS idx_events_week ON events(week_start);
+CREATE INDEX IF NOT EXISTS idx_news_week2 ON news(week_start, included);
+CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
+CREATE INDEX IF NOT EXISTS idx_news_week ON news(week_start);
+CREATE INDEX IF NOT EXISTS idx_issues_week ON issues(week_start);
+`);
 
 // The generation schedule moved from Friday 15:00 to Thursday 18:00 -
 // databases still carrying the old default follow along; a custom schedule
@@ -278,4 +308,4 @@ function seedAdmin() {
   }
 }
 
-module.exports = { db, getSetting, setSetting, allSettings, seedAdmin, SETTING_DEFAULTS };
+module.exports = { db, getSetting, setSetting, allSettings, seedAdmin, SETTING_DEFAULTS, stripCheckClauses, dropCheckConstraints };
