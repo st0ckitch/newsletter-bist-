@@ -689,6 +689,28 @@ test('article form preview endpoint renders the draft with links and photos', as
   assert.ok([302, 403].includes(anon.status));
 });
 
+test('Foundation is a full area: in the menu, locked to its own template section', async () => {
+  // The area appears in the news form dropdown...
+  const form = await (await get('/news/new')).text();
+  assert.match(form, /<option value="foundation"[^>]*>Foundation<\/option>/);
+  assert.match(form, /data-slots="V"/, 'the form knows Foundation maps to section V');
+  // ...a Foundation story lands in its dedicated section by default...
+  await post('/news', { title: 'Foundation Sandpit News', body: 'Little ones had fun.', section: 'foundation' });
+  const row = db.prepare("SELECT * FROM news WHERE title = 'Foundation Sandpit News'").get();
+  assert.strictEqual(row.slot, 'V');
+  // ...cannot be moved into a column...
+  const bad = await post(`/news/${row.id}/slot`, { slot: 'D' });
+  assert.strictEqual(bad.status, 400);
+  assert.match(await bad.text(), /full-width section \(V\)/);
+  // ...and renders as a full-width band between the columns and Sixth Form.
+  const preview = await (await get('/newsletter/preview.html')).text();
+  const idx = preview.indexOf('Foundation Sandpit News');
+  assert.ok(idx > -1, 'foundation story renders');
+  assert.match(preview, /SECTION X/, 'empty Sixth Form band still shows its placeholder');
+  assert.ok(preview.indexOf('SECTION X') > idx, 'Foundation band sits above the Sixth Form band');
+  db.prepare("DELETE FROM news WHERE title = 'Foundation Sandpit News'").run();
+});
+
 test('live editor API: drag-and-drop swaps sections within a column; the area rule guards drags', async () => {
   await post('/news', { title: 'Drag Article A', body: 'aaa', section: 'primary', slot: 'D' });
   await post('/news', { title: 'Drag Article B', body: 'bbb', section: 'primary', slot: 'F' });

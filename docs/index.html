@@ -260,6 +260,7 @@ const SANS = FIRAGO; // text role - weight 300
 
 const SECTION_LABELS = {
   whole_school: 'Whole School',
+  foundation: 'Foundation',
   primary: 'Primary',
   secondary: 'Secondary',
   sixth_form: 'Sixth Form',
@@ -275,18 +276,20 @@ const SLOT_LABELS = {
   G: 'G - Secondary \u00b7 right column, middle',
   H: 'H - Primary \u00b7 left column, bottom',
   I: 'I - Secondary \u00b7 right column, bottom',
+  V: 'V - Foundation \u00b7 full width, below the columns',
   X: 'X - Sixth Form \u00b7 full width, below the columns',
   Y: 'Y - Co-Curricular \u00b7 full width, at the bottom',
 };
-const CONTENT_SLOTS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
+const CONTENT_SLOTS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'V', 'X', 'Y'];
 const LEFT_SLOTS = ['D', 'F', 'H'];
 const RIGHT_SLOTS = ['E', 'G', 'I'];
 const DEFAULT_SLOT = 'D';
-const SECTION_SLOTS = { whole_school: ['W'], primary: LEFT_SLOTS, secondary: RIGHT_SLOTS, sixth_form: ['X'], co_curricular: ['Y'] };
+const SECTION_SLOTS = { whole_school: ['W'], foundation: ['V'], primary: LEFT_SLOTS, secondary: RIGHT_SLOTS, sixth_form: ['X'], co_curricular: ['Y'] };
 const allowedSlots = (section) => SECTION_SLOTS[section] || CONTENT_SLOTS;
 const defaultSlot = (section) => allowedSlots(section)[0];
 function columnRule(section) {
   if (section === 'whole_school') return 'Whole School stories live in their own full-width section (W) under the header.';
+  if (section === 'foundation') return 'Foundation stories live in their own full-width section (V) below the columns.';
   if (section === 'primary') return 'Primary stories always go in the left column (D/F/H).';
   if (section === 'secondary') return 'Secondary stories always go in the right column (E/G/I).';
   if (section === 'sixth_form') return 'Sixth Form stories live in their own full-width section (X) below the columns.';
@@ -543,6 +546,7 @@ function renderNewsletter(data) {
   };
   const wholeSchoolBand = bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the header.');
   const lowerBands =
+    bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below the two columns.') +
     bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below the two columns.') +
     bandHtml('Y', 'Co-Curricular - full width', 'Co-Curricular stories run full width here, at the bottom.');
   const lowerBandsRow = lowerBands ? `<tr><td class="wrap-pad" style="padding:0 14px 6px 14px;">${lowerBands}</td></tr>` : '';

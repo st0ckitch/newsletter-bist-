@@ -14,11 +14,12 @@ const SLOT_LABELS = {
   G: 'G - Secondary · right column, middle',
   H: 'H - Primary · left column, bottom',
   I: 'I - Secondary · right column, bottom',
+  V: 'V - Foundation · full width, below the columns',
   X: 'X - Sixth Form · full width, below the columns',
   Y: 'Y - Co-Curricular · full width, at the bottom',
 };
 
-const CONTENT_SLOTS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
+const CONTENT_SLOTS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'V', 'X', 'Y'];
 const LEFT_SLOTS = ['D', 'F', 'H'];
 const RIGHT_SLOTS = ['E', 'G', 'I'];
 const DEFAULT_SLOT = 'D';
@@ -37,6 +38,7 @@ function wordCount(text) {
 // Co-Curricular each have a dedicated full-width section of their own.
 const SECTION_SLOTS = {
   whole_school: ['W'],
+  foundation: ['V'],
   primary: LEFT_SLOTS,
   secondary: RIGHT_SLOTS,
   sixth_form: ['X'],
@@ -55,6 +57,7 @@ function defaultSlot(section) {
 // The human-readable rule behind a refused placement (null = no restriction).
 function columnRule(section) {
   if (section === 'whole_school') return 'Whole School stories live in their own full-width section (W) under the header.';
+  if (section === 'foundation') return 'Foundation stories live in their own full-width section (V) below the columns.';
   if (section === 'primary') return 'Primary stories always go in the left column (D/F/H).';
   if (section === 'secondary') return 'Secondary stories always go in the right column (E/G/I).';
   if (section === 'sixth_form') return 'Sixth Form stories live in their own full-width section (X) below the columns.';

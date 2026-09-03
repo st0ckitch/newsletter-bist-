@@ -530,6 +530,7 @@ function renderNewsletter(data) {
   };
   const wholeSchoolBand = bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the header.');
   const lowerBands =
+    bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below the two columns.') +
     bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below the two columns.') +
     bandHtml('Y', 'Co-Curricular - full width', 'Co-Curricular stories run full width here, at the bottom.');
   const lowerBandsRow = lowerBands

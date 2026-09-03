@@ -2,6 +2,7 @@
 // responsible for checking its stories before they reach the newsletter.
 const SECTIONS = {
   whole_school: 'Whole School',
+  foundation: 'Foundation',
   primary: 'Primary',
   secondary: 'Secondary',
   sixth_form: 'Sixth Form',
