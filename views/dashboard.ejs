@@ -3,6 +3,11 @@
   <div>
     <h1>This week's issue</h1>
     <p class="muted">Week of <%= weekStartHuman %> · newsletter assembled <strong><%= deadlineHuman %> at <%= generateTime %></strong></p>
+    <% if (typeof submissionWeek !== 'undefined' && submissionWeek !== weekStart) { %>
+      <div class="alert alert-ok">This week's issue has been <strong>assembled</strong> and is shown below for proofing.
+      New stories submitted now go into <strong>next week's issue</strong> -
+      <a href="/newsletter/preview?week=<%= submissionWeek %>">preview next week</a>.</div>
+    <% } %>
   </div>
   <div class="page-actions">
     <a class="btn btn-secondary" href="/news/new">+ Add news</a>

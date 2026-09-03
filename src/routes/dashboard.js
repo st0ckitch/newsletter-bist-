@@ -4,7 +4,7 @@ const { requireLogin, canManage } = require('../auth');
 const { isReviewer, canReviewSection, canLayout, canApproveIssue } = require('../roles');
 const { SECTIONS } = require('../sections');
 const { formatHuman, todayStr } = require('../week');
-const { submissionWeekStart, generationDay, generationTimeLabel } = require('../appweek');
+const { submissionWeekStart, generationWeekStart, generationDay, generationTimeLabel } = require('../appweek');
 const { submissionStatus } = require('../reminders');
 const mailchimp = require('../mailchimp');
 
@@ -12,7 +12,10 @@ const router = express.Router();
 
 router.get('/', requireLogin, (req, res) => {
   const tz = getSetting('timezone');
-  const weekStart = submissionWeekStart();
+  // The issue being assembled/proofed: stays on this week through Sunday
+  // even after the Thursday cutoff has rolled the SUBMISSION week forward.
+  const weekStart = generationWeekStart();
+  const submissionWeek = submissionWeekStart();
   const deadline = generationDay(weekStart);
   const today = todayStr(tz);
 
@@ -39,6 +42,7 @@ router.get('/', requireLogin, (req, res) => {
 
   res.render('dashboard', {
     weekStart,
+    submissionWeek,
     deadline,
     deadlineHuman: formatHuman(deadline),
     generateTime: generationTimeLabel(),

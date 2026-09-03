@@ -22,6 +22,15 @@
     <% } %>
   </div>
 </div>
+<% if (typeof submissionWeek !== 'undefined' && submissionWeek !== issueWeek) { %>
+  <% if (weekStart === issueWeek) { %>
+    <div class="alert alert-ok">The <strong>Thursday cutoff has passed</strong>: this is the issue that was assembled and is being proofed.
+    New stories now land in next week's issue - <a href="/newsletter/preview?week=<%= submissionWeek %>">view next week (<%= submissionWeek %>)</a>.</div>
+  <% } else if (weekStart === submissionWeek) { %>
+    <div class="alert alert-warn">You are viewing <strong>next week's issue</strong> (week of <%= weekStart %>) - stories submitted after the Thursday cutoff collect here.
+    <a href="/newsletter/preview">Back to this week's issue</a>.</div>
+  <% } %>
+<% } %>
 <% if (typeof demo !== 'undefined' && demo === 'filled') { %>
   <div class="alert alert-ok">Demo content added - every template section is now filled with sample events, articles, photos and a principal&#39;s message. Use <strong>Remove demo content</strong> to take it out again; anything staff wrote themselves is untouched.</div>
 <% } else if (typeof demo !== 'undefined' && demo === 'cleared') { %>

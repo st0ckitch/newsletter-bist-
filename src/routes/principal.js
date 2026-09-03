@@ -2,7 +2,7 @@ const express = require('express');
 const { db } = require('../db');
 const { requireRole, csrfOk } = require('../auth');
 const { formatHuman } = require('../week');
-const { submissionWeekStart, generationDay, generationTimeLabel } = require('../appweek');
+const { generationWeekStart, generationDay, generationTimeLabel } = require('../appweek');
 const { upload, isRealImage, removeFiles } = require('../uploads');
 
 const router = express.Router();
@@ -38,7 +38,7 @@ function photoUpload(req, res, next) {
 }
 
 router.get('/principal-message', requireRole('principal', 'admin'), (req, res) => {
-  const weekStart = submissionWeekStart();
+  const weekStart = generationWeekStart();
   res.render('principal', {
     message: currentMessage(weekStart),
     weekStart,
@@ -49,7 +49,7 @@ router.get('/principal-message', requireRole('principal', 'admin'), (req, res) =
 });
 
 router.post('/principal-message', requireRole('principal', 'admin'), photoUpload, (req, res) => {
-  const weekStart = submissionWeekStart();
+  const weekStart = generationWeekStart();
   const body = (req.body.body || '').trim();
   const quote = (req.body.quote || '').trim() || null;
   const quote_author = (req.body.quote_author || '').trim() || null;
@@ -82,7 +82,7 @@ router.post('/principal-message', requireRole('principal', 'admin'), photoUpload
 });
 
 router.post('/principal-message/photo/delete', requireRole('principal', 'admin'), (req, res) => {
-  const weekStart = submissionWeekStart();
+  const weekStart = generationWeekStart();
   const existing = currentMessage(weekStart);
   if (existing && existing.photo) {
     removeFiles([existing.photo]);

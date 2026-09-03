@@ -8,7 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { db, getSetting, setSetting } = require('./db');
 const config = require('./config');
-const { submissionWeekStart } = require('./appweek');
+const { generationWeekStart } = require('./appweek');
 const { addDays, weekDeadline } = require('./week');
 
 const DEMO_ASSETS = path.join(__dirname, '..', 'assets', 'demo');
@@ -113,7 +113,7 @@ const DEMO_ARTICLES = [
 // everything staff wrote stays exactly as it is.
 function fillDemoData(userId) {
   clearDemoData();
-  const weekStart = submissionWeekStart();
+  const weekStart = generationWeekStart();
   const issueDate = weekDeadline(weekStart); // the Friday the issue covers
 
   const demoEvents = [

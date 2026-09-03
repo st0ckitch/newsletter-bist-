@@ -3,7 +3,7 @@ const { db } = require('../db');
 const { requireLogin, requireLayout, requireApprover } = require('../auth');
 const { canLayout, canApproveIssue } = require('../roles');
 const { isValidDateStr } = require('../week');
-const { submissionWeekStart } = require('../appweek');
+const { submissionWeekStart, generationWeekStart } = require('../appweek');
 const { generateIssue, collectWeekData, buildRenderData } = require('../generate');
 const { renderNewsletter } = require('../newsletter');
 const { fillDemoData, clearDemoData, hasDemoData } = require('../demo-data');
@@ -14,7 +14,11 @@ const router = express.Router();
 // Live preview of the current week's newsletter, exactly as it would be
 // rendered right now (embedded in the dashboard and on the preview page).
 router.get('/newsletter/preview.html', requireLogin, (req, res) => {
-  const weekStart = isValidDateStr(req.query.week) ? req.query.week : submissionWeekStart();
+  // Default to the week whose issue is being assembled/proofed. After the
+  // Thursday cutoff the submission week rolls to next Monday, but the team
+  // keeps proofing THIS week's issue through the weekend - the preview must
+  // not go blank at 18:00 on Thursday.
+  const weekStart = isValidDateStr(req.query.week) ? req.query.week : generationWeekStart();
   // The preview always shows the template's structure: empty sections render
   // as labelled placeholders. With ?edit=1, managers get the live editor -
   // click any text or photo to change it in place. The generated Mailchimp
@@ -29,9 +33,11 @@ router.get('/newsletter/preview.html', requireLogin, (req, res) => {
 });
 
 router.get('/newsletter/preview', requireLogin, (req, res) => {
-  const weekStart = isValidDateStr(req.query.week) ? req.query.week : submissionWeekStart();
+  const weekStart = isValidDateStr(req.query.week) ? req.query.week : generationWeekStart();
   res.render('preview', {
     weekStart,
+    issueWeek: generationWeekStart(),
+    submissionWeek: submissionWeekStart(),
     hasDemo: hasDemoData(),
     demo: ['filled', 'cleared'].includes(req.query.demo) ? req.query.demo : null,
   });
