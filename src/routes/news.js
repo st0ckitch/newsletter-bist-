@@ -4,7 +4,7 @@ const { requireLogin, requireLayout, requireReviewer, csrfOk, canEditRecord, can
 const { canReviewSection, isReviewer, canLayout } = require('../roles');
 const { SECTION_KEYS, SECTIONS, isSection } = require('../sections');
 const { submissionWeekStart } = require('../appweek');
-const { CONTENT_SLOTS, DEFAULT_SLOT, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount } = require('../slots');
+const { CONTENT_SLOTS, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount, allowedSlots, defaultSlot, columnRule } = require('../slots');
 const { upload, isRealImage, removeFiles } = require('../uploads');
 const { renderArticlePreview } = require('../newsletter');
 
@@ -74,8 +74,9 @@ function validate(body, user) {
     errors.push(`Article text is limited to ${MAX_ARTICLE_WORDS} words - currently ${words}. Please shorten it.`);
   }
   if (!isSection(section)) errors.push('Choose the area this story belongs to.');
-  // Template placement belongs to whoever lays the issue out.
-  const slot = canLayout(user) && CONTENT_SLOTS.includes(body.slot) ? body.slot : null;
+  // Template placement belongs to whoever lays the issue out, and the area
+  // decides which column is available (primary = left, secondary = right).
+  const slot = canLayout(user) && allowedSlots(section).includes(body.slot) ? body.slot : null;
   return { errors, values: { title, body: bodyText, section, slot } };
 }
 
@@ -91,6 +92,7 @@ function formLocals(req, extra) {
     isManager: canLayout(req.user),
     slotLabels: SLOT_LABELS,
     contentSlots: CONTENT_SLOTS,
+    sectionSlots: Object.fromEntries(allowedSections().map((s) => [s, allowedSlots(s)])),
     maxWords: MAX_ARTICLE_WORDS,
     ...extra,
   };
@@ -117,6 +119,7 @@ router.get('/news', requireLogin, (req, res) => {
     sectionLabels: SECTIONS,
     slotLabels: SLOT_LABELS,
     contentSlots: CONTENT_SLOTS,
+    slotsFor: allowedSlots,
   });
 });
 
@@ -141,7 +144,7 @@ router.post('/news', requireLogin, photosUpload, (req, res) => {
       values.title,
       values.body,
       values.section,
-      values.slot || DEFAULT_SLOT,
+      values.slot || defaultSlot(values.section),
       selfChecked ? 'approved' : 'pending',
       selfChecked ? req.user.id : null,
       req.user.id,
@@ -172,7 +175,15 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, (req, res) => {
     `UPDATE news SET title = ?, body = ?, section = ?, slot = ?, updated_at = datetime('now')
      ${recheck ? ", review_status = 'pending', reviewed_by = NULL, reviewed_at = NULL, review_note = NULL" : ''}
      WHERE id = ?`
-  ).run(values.title, values.body, values.section, values.slot || req.newsItem.slot || DEFAULT_SLOT, req.newsItem.id);
+  ).run(
+    values.title,
+    values.body,
+    values.section,
+    // Keep the existing placement unless the (possibly changed) area now
+    // forbids that column - then fall back to the area's own column.
+    values.slot || (allowedSlots(values.section).includes(req.newsItem.slot) ? req.newsItem.slot : defaultSlot(values.section)),
+    req.newsItem.id
+  );
   savePhotos(req.newsItem.id, req.files);
   res.redirect(`/news/${req.newsItem.id}/edit`);
 });
@@ -211,8 +222,8 @@ router.post('/news/:id/include', requireLayout, (req, res) => {
 router.post('/news/:id/slot', requireLayout, (req, res) => {
   const item = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).render('error', { message: 'News item not found.' });
-  if (!CONTENT_SLOTS.includes(req.body.slot)) {
-    return res.status(400).render('error', { message: 'Invalid template section.' });
+  if (!allowedSlots(item.section).includes(req.body.slot)) {
+    return res.status(400).render('error', { message: columnRule(item.section) || 'Invalid template section.' });
   }
   db.prepare('UPDATE news SET slot = ? WHERE id = ?').run(req.body.slot, item.id);
   res.redirect('/news');

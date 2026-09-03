@@ -121,3 +121,29 @@ document.addEventListener('DOMContentLoaded', function () {
     reader.readAsText(file);
   });
 })();
+
+// The template-section dropdown only offers the positions the chosen area
+// allows (Whole School = W, Primary = left column, Secondary = right column,
+// Sixth Form = X, Co-Curricular = Y).
+function syncSlotChoices(sectionSelect) {
+  var form = sectionSelect.form;
+  var slotSelect = form && form.querySelector('select[name=slot]');
+  if (!slotSelect) return;
+  var opt = sectionSelect.options[sectionSelect.selectedIndex];
+  var allowed = ((opt && opt.getAttribute('data-slots')) || '').split(',').filter(Boolean);
+  if (!allowed.length) return;
+  Array.prototype.forEach.call(slotSelect.options, function (o) {
+    var ok = allowed.indexOf(o.value) !== -1;
+    o.hidden = !ok;
+    o.disabled = !ok;
+  });
+  if (allowed.indexOf(slotSelect.value) === -1) slotSelect.value = allowed[0];
+}
+document.addEventListener('change', function (e) {
+  if (e.target && e.target.matches && e.target.matches('select[name=section][data-slots-control]')) {
+    syncSlotChoices(e.target);
+  }
+});
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('select[name=section][data-slots-control]').forEach(syncSlotChoices);
+});

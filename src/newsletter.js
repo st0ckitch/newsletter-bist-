@@ -8,7 +8,7 @@
 //   columns, each article under a colored header bar with its photos
 //   Footer - staff directory grid + branding.
 const { formatIssueDate } = require('./week');
-const { LEFT_SLOTS, RIGHT_SLOTS, DEFAULT_SLOT, MAX_ARTICLE_WORDS } = require('./slots');
+const { LEFT_SLOTS, RIGHT_SLOTS, CONTENT_SLOTS, DEFAULT_SLOT, MAX_ARTICLE_WORDS } = require('./slots');
 
 // Palette matched to the school's letter template: deep navy #0d1b3e with a
 // royal-navy companion, bright gold #f5b921 accents (#b08409 for gold text on
@@ -372,20 +372,24 @@ function renderArticle(article, barColor, slotLetter, editable) {
 }
 
 // Articles carry a slot letter; D/F/H flow down the left column, E/G/I down
-// the right, in slot order (matching the original page layout). In
-// placeholder mode an empty slot renders as a labelled dashed box instead of
-// disappearing.
+// the right, in slot order (matching the original page layout); W/X/Y render
+// as full-width bands elsewhere. In placeholder mode an empty slot renders as
+// a labelled dashed box instead of disappearing.
 function columnHtml(letters, articles, articleHtml, placeholders, strays = []) {
-  const known = new Set([...LEFT_SLOTS, ...RIGHT_SLOTS]);
+  const known = new Set(CONTENT_SLOTS);
   let html = '';
   for (const letter of letters) {
     const inSlot = articles.filter((a) => (a.slot || DEFAULT_SLOT) === letter);
     if (inSlot.length) {
       html += inSlot.map((a) => articleHtml(a, letter)).join('');
     } else if (placeholders) {
-      const side = LEFT_SLOTS.includes(letter) ? 'left' : 'right';
-      const pos = ['top', 'middle', 'bottom'][(LEFT_SLOTS.includes(letter) ? LEFT_SLOTS : RIGHT_SLOTS).indexOf(letter)];
-      html += placeholderBox(letter, `Article slot - ${side} column, ${pos}`, 'Assign an article to this section in the News list.');
+      const left = LEFT_SLOTS.includes(letter);
+      const pos = ['top', 'middle', 'bottom'][(left ? LEFT_SLOTS : RIGHT_SLOTS).indexOf(letter)];
+      html += placeholderBox(
+        letter,
+        `${left ? 'Primary' : 'Secondary'} - ${left ? 'left' : 'right'} column, ${pos}`,
+        'Assign an article to this section in the News list.'
+      );
     }
   }
   html += strays.filter((a) => !known.has(a.slot || DEFAULT_SLOT)).map((a) => articleHtml(a, DEFAULT_SLOT)).join('');
@@ -516,6 +520,25 @@ function renderNewsletter(data) {
     (principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '') +
     columnHtml(RIGHT_SLOTS, articles, articleHtml, placeholders);
 
+  // Dedicated full-width sections: Whole School (W) above the two columns,
+  // Sixth Form (X) and Co-Curricular (Y) below them. An empty band collapses
+  // entirely in drafts and shows a labelled placeholder in the preview.
+  const bandHtml = (letter, label, hint) => {
+    const inSlot = articles.filter((a) => (a.slot || DEFAULT_SLOT) === letter);
+    if (inSlot.length) return inSlot.map((a) => articleHtml(a, letter)).join('');
+    return placeholders ? placeholderBox(letter, label, hint) : '';
+  };
+  const wholeSchoolBand = bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the header.');
+  const lowerBands =
+    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below the two columns.') +
+    bandHtml('Y', 'Co-Curricular - full width', 'Co-Curricular stories run full width here, at the bottom.');
+  const lowerBandsRow = lowerBands
+    ? `
+    <tr>
+      <td class="wrap-pad" style="padding:0 14px 6px 14px;">${lowerBands}</td>
+    </tr>`
+    : '';
+
   const quoteBlock =
     quote && quote.text
       ? `
@@ -593,6 +616,7 @@ ${fontFaceCss(fontBase)}
     <tr>
       <td class="wrap-pad" style="padding:20px 14px 6px 14px;">
         ${mobilePrincipal}
+        ${wholeSchoolBand}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
             <td class="col" width="${COL_W}" valign="top">${leftColumn || '&nbsp;'}</td>
@@ -602,6 +626,7 @@ ${fontFaceCss(fontBase)}
         </table>
       </td>
     </tr>
+    ${lowerBandsRow}
 
     ${renderFooter(footerNote, newsletterName, schoolName, issueDateLabel)}
   </table>

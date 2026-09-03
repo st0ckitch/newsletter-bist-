@@ -47,7 +47,7 @@
               <form method="post" action="/news/<%= n.id %>/slot" class="inline-form">
                 <input type="hidden" name="_csrf" value="<%= csrf %>">
                 <select name="slot" class="slot-select">
-                  <% contentSlots.forEach(function(s) { %>
+                  <% slotsFor(n.section).concat(slotsFor(n.section).includes(n.slot) ? [] : [n.slot]).forEach(function(s) { %>
                     <option value="<%= s %>" <%= n.slot === s ? 'selected' : '' %>><%= slotLabels[s] %></option>
                   <% }) %>
                 </select>

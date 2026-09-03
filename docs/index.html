@@ -268,17 +268,31 @@ const SECTION_LABELS = {
 const SECTION_KEYS = Object.keys(SECTION_LABELS);
 
 const SLOT_LABELS = {
-  D: 'D - Left column \u00b7 top',
-  E: 'E - Right column \u00b7 top',
-  F: 'F - Left column \u00b7 middle',
-  G: 'G - Right column \u00b7 middle',
-  H: 'H - Left column \u00b7 bottom',
-  I: 'I - Right column \u00b7 bottom',
+  W: 'W - Whole School \u00b7 full width, under the header',
+  D: 'D - Primary \u00b7 left column, top',
+  E: 'E - Secondary \u00b7 right column, top',
+  F: 'F - Primary \u00b7 left column, middle',
+  G: 'G - Secondary \u00b7 right column, middle',
+  H: 'H - Primary \u00b7 left column, bottom',
+  I: 'I - Secondary \u00b7 right column, bottom',
+  X: 'X - Sixth Form \u00b7 full width, below the columns',
+  Y: 'Y - Co-Curricular \u00b7 full width, at the bottom',
 };
-const CONTENT_SLOTS = ['D', 'E', 'F', 'G', 'H', 'I'];
+const CONTENT_SLOTS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
 const LEFT_SLOTS = ['D', 'F', 'H'];
 const RIGHT_SLOTS = ['E', 'G', 'I'];
 const DEFAULT_SLOT = 'D';
+const SECTION_SLOTS = { whole_school: ['W'], primary: LEFT_SLOTS, secondary: RIGHT_SLOTS, sixth_form: ['X'], co_curricular: ['Y'] };
+const allowedSlots = (section) => SECTION_SLOTS[section] || CONTENT_SLOTS;
+const defaultSlot = (section) => allowedSlots(section)[0];
+function columnRule(section) {
+  if (section === 'whole_school') return 'Whole School stories live in their own full-width section (W) under the header.';
+  if (section === 'primary') return 'Primary stories always go in the left column (D/F/H).';
+  if (section === 'secondary') return 'Secondary stories always go in the right column (E/G/I).';
+  if (section === 'sixth_form') return 'Sixth Form stories live in their own full-width section (X) below the columns.';
+  if (section === 'co_curricular') return 'Co-Curricular stories live in their own full-width section (Y) at the bottom.';
+  return null;
+}
 const MAX_ARTICLE_WORDS = 100;
 const wordCountOf = (t) => String(t || '').split(/\s+/).filter(Boolean).length;
 
@@ -448,16 +462,16 @@ function renderArticleBlock(article, barColor, slotLetter, editable) {
     </table></div>`;
 }
 function slotColumnHtml(letters, articles, articleHtml, placeholders, strays = []) {
-  const known = new Set([...LEFT_SLOTS, ...RIGHT_SLOTS]);
+  const known = new Set(CONTENT_SLOTS);
   let html = '';
   for (const letter of letters) {
     const inSlot = articles.filter((a) => (a.slot || DEFAULT_SLOT) === letter);
     if (inSlot.length) {
       html += inSlot.map((a) => articleHtml(a, letter)).join('');
     } else if (placeholders) {
-      const side = LEFT_SLOTS.includes(letter) ? 'left' : 'right';
-      const pos = ['top', 'middle', 'bottom'][(LEFT_SLOTS.includes(letter) ? LEFT_SLOTS : RIGHT_SLOTS).indexOf(letter)];
-      html += placeholderBox(letter, `Article slot - ${side} column, ${pos}`, 'Assign an article to this section in the News list.');
+      const left = LEFT_SLOTS.includes(letter);
+      const pos = ['top', 'middle', 'bottom'][(left ? LEFT_SLOTS : RIGHT_SLOTS).indexOf(letter)];
+      html += placeholderBox(letter, `${left ? 'Primary' : 'Secondary'} - ${left ? 'left' : 'right'} column, ${pos}`, 'Assign an article to this section in the News list.');
     }
   }
   html += strays.filter((a) => !known.has(a.slot || DEFAULT_SLOT)).map((a) => articleHtml(a, DEFAULT_SLOT)).join('');
@@ -522,6 +536,16 @@ function renderNewsletter(data) {
     : '';
   const leftColumn = eventsHtml + slotColumnHtml(LEFT_SLOTS, articles, articleHtml, placeholders, articles);
   const rightColumn = (principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '') + slotColumnHtml(RIGHT_SLOTS, articles, articleHtml, placeholders);
+  const bandHtml = (letter, label, hint) => {
+    const inSlot = articles.filter((a) => (a.slot || DEFAULT_SLOT) === letter);
+    if (inSlot.length) return inSlot.map((a) => articleHtml(a, letter)).join('');
+    return placeholders ? placeholderBox(letter, label, hint) : '';
+  };
+  const wholeSchoolBand = bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the header.');
+  const lowerBands =
+    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below the two columns.') +
+    bandHtml('Y', 'Co-Curricular - full width', 'Co-Curricular stories run full width here, at the bottom.');
+  const lowerBandsRow = lowerBands ? `<tr><td class="wrap-pad" style="padding:0 14px 6px 14px;">${lowerBands}</td></tr>` : '';
   const quoteBlock = quote && quote.text
     ? `<tr><td class="quote-pad" style="background:${NAVY_DEEP}; padding:30px 36px 28px 36px; text-align:center;">
       <p style="margin:0; font-family:${SERIF}; font-weight:800; font-size:46px; line-height:0.6; color:${GOLD};">&ldquo;</p>
@@ -548,11 +572,13 @@ function renderNewsletter(data) {
 ${quoteBlock}
 <tr><td class="wrap-pad" style="padding:20px 14px 6px 14px;">
   ${mobilePrincipal}
+  ${wholeSchoolBand}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
     <td class="col" width="${COL_W}" valign="top">${leftColumn || '&nbsp;'}</td>
     <td class="gutter" width="16" style="font-size:0; line-height:0;">&nbsp;</td>
     <td class="col" width="${COL_W}" valign="top">${rightColumn || '&nbsp;'}</td>
   </tr></table></td></tr>
+${lowerBandsRow}
 ${renderFooter(footerNote, newsletterName, schoolName, issueDateLabel)}
 </table></center>${editable ? '<scr' + 'ipt>' + (window.PREVIEW_EDITOR_JS || '') + '</scr' + 'ipt>' : ''}</body></html>`;
 }
@@ -571,7 +597,7 @@ function renderReminderEmail({ heading, headingColor, bodyHtml, buttonUrl, butto
 }
 
 /* ================= state ================= */
-const STORAGE_KEY = 'roar-demo-v6';
+const STORAGE_KEY = 'roar-demo-v7';
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi', monday_reminder_cron: '0 9 * * 1', thursday_reminder_cron: '0 9 * * 4',
   friday_generate_cron: '0 18 * * 4', auto_reminders: '0', editor_email: '', newsletter_name: 'The Roar',
@@ -617,13 +643,13 @@ function seedState() {
     { id: 6, title: 'End of the Year Show - Primary & Secondary', event_date: addDays(nextMon, 8), end_date: null, time_note: '1:00-2:00pm', location: 'Theatre', created_by: 1, week_start: week },
   ];
   const news = [
-    { id: 1, title: 'Inter-School Friendly Tennis Tournament Success', section: 'whole_school', slot: 'E', included: 1, review_status: 'approved', reviewed_by: 2, created_by: 1, week_start: week, created_at: 1,
+    { id: 1, title: 'Inter-School Friendly Tennis Tournament Success', section: 'whole_school', slot: 'W', included: 1, review_status: 'approved', reviewed_by: 2, created_by: 1, week_start: week, created_at: 1,
       body: 'On 6 June, LIONS Academy hosted an Inter-School Friendly Tennis Tournament with the European School, bringing together 24 student participants for an exciting day of competition and sportsmanship.\n\nThe LIONS Academy team, which included students from both BIST and BGA, delivered an outstanding performance and emerged as the overall tournament champions.\n\nCongratulations to all participants for their dedication, teamwork, and excellent sportsmanship!',
       photos: [{ id: 1, src: 'seed:tennis1', name: 'tennis-court.png' }, { id: 2, src: 'seed:tennis2', name: 'champions.png' }, { id: 3, src: 'seed:tennis3', name: 'medals.png' }] },
-    { id: 2, title: 'Foundation Students Bake Traditional Adjarian Khachapuri', section: 'primary', slot: 'G', included: 1, review_status: 'approved', reviewed_by: 4, created_by: 3, week_start: week, created_at: 2,
+    { id: 2, title: 'Foundation Students Bake Traditional Adjarian Khachapuri', section: 'primary', slot: 'D', included: 1, review_status: 'approved', reviewed_by: 4, created_by: 3, week_start: week, created_at: 2,
       body: 'This week, our Foundation classes enjoyed a delightful hands-on cooking activity as they learned how to make traditional Adjarian Khachapuri, one of Georgia\u2019s most beloved dishes.\n\nUsing dough, they carefully shaped their khachapuri into the traditional boat shape before filling it with delicious cheese. The students developed their fine motor skills, creativity, and confidence while working collaboratively with their classmates.',
       photos: [{ id: 4, src: 'seed:khachapuri1', name: 'baking.png' }, { id: 5, src: 'seed:khachapuri2', name: 'khachapuri.png' }] },
-    { id: 3, title: 'Maths Chessboard Challenge', section: 'sixth_form', slot: 'F', included: 1, review_status: 'pending', reviewed_by: null, created_by: 6, week_start: week, created_at: 3,
+    { id: 3, title: 'Maths Chessboard Challenge', section: 'sixth_form', slot: 'X', included: 1, review_status: 'pending', reviewed_by: null, created_by: 6, week_start: week, created_at: 3,
       body: 'Year 6 put their mathematical thinking to the test with the famous Chessboard Rice Challenge. Starting with just one grain of rice on the first square and doubling the amount on each subsequent square, pupils investigated how quickly numbers can grow.\n\nThe challenge sparked discussion about exponential growth and demonstrated how mathematics can help us understand quantities far beyond what we encounter in everyday life.',
       photos: [{ id: 6, src: 'seed:chess1', name: 'chessboard.png' }] },
   ];
@@ -893,7 +919,7 @@ function vNews() {
     <td>${esc(n.title)}</td><td><span class="tag tag-${n.section}">${SECTION_LABELS[n.section] || n.section.replace('_', ' ')}</span></td>
     <td>${reviewCell(n)}</td>
     <td>${mgr
-      ? `<select class="slot-select" data-slot="${n.id}">${CONTENT_SLOTS.map((sl) => `<option value="${sl}" ${(n.slot || DEFAULT_SLOT) === sl ? 'selected' : ''}>${SLOT_LABELS[sl]}</option>`).join('')}</select>`
+      ? `<select class="slot-select" data-slot="${n.id}">${allowedSlots(n.section).concat(allowedSlots(n.section).includes(n.slot || DEFAULT_SLOT) ? [] : [n.slot || DEFAULT_SLOT]).map((sl) => `<option value="${sl}" ${(n.slot || DEFAULT_SLOT) === sl ? 'selected' : ''}>${SLOT_LABELS[sl]}</option>`).join('')}</select>`
       : `<span class="tag tag-slot">${esc(n.slot || DEFAULT_SLOT)}</span>`}</td>
     <td>${mgr
       ? `<button class="btn btn-sm ${n.included === 0 ? 'btn-danger' : 'btn-ghost'}" data-act="news-include" data-param="${n.id}">${n.included === 0 ? '\ud83d\udeab out - include' : '\u2705 in - exclude'}</button>`
@@ -917,7 +943,7 @@ function vNewsForm(item) {
     <p class="muted"><span data-word-count></span></p>
     <p class="muted"><strong>Links:</strong> paste a URL (https://\u2026) or write <code>[link text](https://\u2026)</code> - both become clickable links in the newsletter.</p>
     ${isManager() ? `<label>Template section <select name="slot">${CONTENT_SLOTS.map((sl) => `<option value="${sl}" ${item && item.slot === sl ? 'selected' : ''}>${SLOT_LABELS[sl]}</option>`).join('')}</select></label>
-    <p class="muted">Sections A-C are fixed (header &amp; quote, upcoming events, principal\u2019s message). D/F/H fill the left column, E/G/I the right.</p>`
+    <p class="muted">The area decides where the story can go: Whole School runs full width under the header (W), Primary fills the left column (D/F/H), Secondary the right (E/G/I), and Sixth Form (X) and Co-Curricular (Y) run full width below the columns. Pick the area first - the list here only offers its positions.</p>`
     : item && item.slot ? `<p class="muted">Template section: <strong>${SLOT_LABELS[item.slot] || esc(item.slot)}</strong> - placement is set by the admin.</p>` : ''}
     <label>Photos (JPEG/PNG/WebP/GIF) <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple></label>
     <p class="muted">The first photo becomes the large hero image in the newsletter; the rest appear in a two-column grid. In the real app files are checked by content and uploaded to the Mailchimp CDN at generation time.<br><strong>Recommended:</strong> landscape photos around <strong>1200 \u00d7 800 px</strong> (minimum 800 px wide), JPEG, under <strong>2 MB</strong> each - sharp on retina screens and fast to load.</p>
@@ -950,6 +976,19 @@ function articlePreviewHtml(title, body, sectionLabel, photoUrls) {
 <body style="margin:0; padding:18px 10px; background:${IVORY};"><center>
 <table role="presentation" width="${COL_W}" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:${COL_W}px; max-width:100%;"><tr><td>${renderArticleBlock(article, BAR_COLORS[0], null, false)}</td></tr></table>
 </center></body></html>`;
+}
+function syncFormSlotChoices() {
+  const form = document.getElementById('news-form');
+  const sectionSel = form && form.querySelector('select[name=section]');
+  const slotSel = form && form.querySelector('select[name=slot]');
+  if (!sectionSel || !slotSel) return;
+  const allowed = allowedSlots(sectionSel.value);
+  [...slotSel.options].forEach((o) => {
+    const ok = allowed.includes(o.value);
+    o.hidden = !ok;
+    o.disabled = !ok;
+  });
+  if (!allowed.includes(slotSel.value)) slotSel.value = allowed[0];
 }
 function updateFormPreview() {
   const frame = document.getElementById('article-preview');
@@ -1216,6 +1255,7 @@ function render() {
   const issueFrame = document.getElementById('issue-frame');
   if (issueFrame) issueFrame.srcdoc = newsletterHtml(issueFrame.dataset.week, false);
   if (document.getElementById('article-preview')) updateFormPreview();
+  syncFormSlotChoices();
 }
 
 document.addEventListener('click', (e) => {
@@ -1342,18 +1382,18 @@ document.addEventListener('submit', (e) => {
     if (!title || !body || !allowedSections().includes(section)) { notify('Check the form', 'Title, text and a permitted section are required.'); return; }
     const words = wordCountOf(body);
     if (words > MAX_ARTICLE_WORDS) { notify('Article too long', `Article text is limited to ${MAX_ARTICLE_WORDS} words - currently ${words}. Please shorten it.`); return; }
-    const slot = isManager() && CONTENT_SLOTS.includes(val('slot')) ? val('slot') : null;
+    const slot = isManager() && allowedSlots(val('section')).includes(val('slot')) ? val('slot') : null;
     readPhotos(form.querySelector('input[type=file]'), (photos) => {
       if (S.view === 'news-edit') {
         const n = S.news.find((x) => x.id === Number(S.viewParam));
         const recheck = (n.review_status || 'approved') === 'approved' && !canReviewSection(section);
-        Object.assign(n, { title, body, section, slot: slot || n.slot || DEFAULT_SLOT });
+        Object.assign(n, { title, body, section, slot: slot || (allowedSlots(section).includes(n.slot) ? n.slot : defaultSlot(section)) });
         if (recheck) Object.assign(n, { review_status: 'pending', reviewed_by: null, review_note: null });
         n.photos.push(...photos);
         save(); go('news-edit', String(n.id));
       } else {
         const selfChecked = canReviewSection(section);
-        S.news.push({ id: nid(), title, body, section, slot: slot || DEFAULT_SLOT, included: 1, photos,
+        S.news.push({ id: nid(), title, body, section, slot: slot || defaultSlot(section), included: 1, photos,
           review_status: selfChecked ? 'approved' : 'pending', reviewed_by: selfChecked ? me().id : null, review_note: null,
           created_by: me().id, week_start: subWeekStart(), created_at: Date.now() });
         save(); go('news');
@@ -1486,7 +1526,10 @@ window.DemoEditor = {
     const n = S.news.find((x) => x.id === Number(newsId));
     if (!n) return { ok: false, error: 'That article no longer exists.' };
     if (!CONTENT_SLOTS.includes(slot)) return { ok: false, error: 'Unknown template section.' };
+    if (!allowedSlots(n.section).includes(slot)) return { ok: false, error: columnRule(n.section) };
     const from = n.slot || DEFAULT_SLOT;
+    const displaced = S.news.find((x) => x.id !== n.id && x.week_start === n.week_start && (x.slot || DEFAULT_SLOT) === slot && !allowedSlots(x.section).includes(from));
+    if (displaced) return { ok: false, error: `"${displaced.title}" cannot move to section ${from}: ${columnRule(displaced.section)}` };
     if (from !== slot) {
       // True section swap: whatever lives in the target section takes the
       // dragged article's old place.
@@ -1517,7 +1560,10 @@ window.DemoEditor = {
 document.addEventListener('change', (e) => {
   if (e.target && e.target.matches && e.target.matches('select[data-slot]')) {
     const n = S.news.find((x) => x.id === Number(e.target.dataset.slot));
-    if (n && isManager() && CONTENT_SLOTS.includes(e.target.value)) { n.slot = e.target.value; save(); render(); }
+    if (n && isManager() && allowedSlots(n.section).includes(e.target.value)) { n.slot = e.target.value; save(); render(); }
+  }
+  if (e.target && e.target.matches && e.target.matches('#news-form select[name=section]')) {
+    syncFormSlotChoices();
   }
   if (e.target && e.target.matches && e.target.matches('#news-form input[type=file]')) {
     readPhotos(e.target, (photos) => { formPreviewPhotos = photos.map((p) => p.src); updateFormPreview(); });

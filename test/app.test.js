@@ -157,14 +157,26 @@ test('admin can exclude an article from the issue and re-include it', async () =
   assert.match(preview, /Big Tennis Win/);
 });
 
-test('admin can move an article to another template section', async () => {
+test('placement follows the area: primary stays in the left column', async () => {
   const list = await get('/news');
-  const id = (await list.text()).match(/\/news\/(\d+)\/slot/)[1];
-  const res = await post(`/news/${id}/slot`, { slot: 'E' });
+  const id = (await list.text()).match(/\/news\/(\d+)\/slot/)[1]; // Big Tennis Win, primary
+  // moves within the left column are fine...
+  const res = await post(`/news/${id}/slot`, { slot: 'F' });
   assert.strictEqual(res.status, 302);
-  const bad = await post(`/news/${id}/slot`, { slot: 'Z' });
+  // ...the right column and unknown slots are refused
+  const bad = await post(`/news/${id}/slot`, { slot: 'E' });
   assert.strictEqual(bad.status, 400);
+  assert.match(await bad.text(), /left column/);
+  assert.strictEqual((await post(`/news/${id}/slot`, { slot: 'Z' })).status, 400);
   await post(`/news/${id}/slot`, { slot: 'D' });
+
+  // A wrong-column pick on the create form is coerced into the area's own
+  // column, and each area's default follows its dedicated section.
+  await post('/news', { title: 'Coerce Check', body: 'x', section: 'primary', slot: 'G' });
+  assert.strictEqual(db.prepare("SELECT slot FROM news WHERE title = 'Coerce Check'").get().slot, 'D');
+  await post('/news', { title: 'Band Check', body: 'x', section: 'sixth_form' });
+  assert.strictEqual(db.prepare("SELECT slot FROM news WHERE title = 'Band Check'").get().slot, 'X');
+  db.prepare("DELETE FROM news WHERE title IN ('Coerce Check', 'Band Check')").run();
 });
 
 test('preview shows placeholders for empty template sections; drafts do not', async () => {
@@ -497,7 +509,13 @@ test('demo fill populates every template section and is admin-only', async () =>
   assert.match(preview, /Inter-School Friendly Tennis Tournament Success/);
   assert.match(preview, /Duke of Edinburgh Expedition/);
   assert.match(preview, /PCA Meeting/);
-  assert.ok(!/SECTION [D-I]/.test(preview), 'all article slots are filled - no placeholders left');
+  assert.ok(!/SECTION [WDEXY]/.test(preview), 'every dedicated section shows demo content');
+  const bandSlots = db.prepare("SELECT slot, COUNT(*) AS c FROM news WHERE is_demo = 1 GROUP BY slot ORDER BY slot").all();
+  assert.deepStrictEqual(
+    bandSlots.map((r) => `${r.slot}:${r.c}`),
+    ['D:1', 'E:1', 'W:2', 'X:1', 'Y:1'],
+    'demo stories sit in their dedicated sections'
+  );
 
   // Demo photo files really exist and are served.
   const photo = db
@@ -508,7 +526,7 @@ test('demo fill populates every template section and is admin-only', async () =>
   assert.strictEqual(img.status, 200);
 
   const demoNews = db.prepare('SELECT COUNT(*) AS c FROM news WHERE is_demo = 1').get().c;
-  assert.strictEqual(demoNews, 6, 'one demo article per slot D-I');
+  assert.strictEqual(demoNews, 6, 'six demo articles across the dedicated sections');
 });
 
 test('demo fill is idempotent and never touches real content', async () => {
@@ -643,9 +661,9 @@ test('article form preview endpoint renders the draft with links and photos', as
   assert.ok([302, 403].includes(anon.status));
 });
 
-test('live editor API: drag-and-drop swaps two template sections', async () => {
-  await post('/news', { title: 'Drag Article A', body: 'aaa', section: 'whole_school', slot: 'D' });
-  await post('/news', { title: 'Drag Article B', body: 'bbb', section: 'primary', slot: 'E' });
+test('live editor API: drag-and-drop swaps sections within a column; the area rule guards drags', async () => {
+  await post('/news', { title: 'Drag Article A', body: 'aaa', section: 'primary', slot: 'D' });
+  await post('/news', { title: 'Drag Article B', body: 'bbb', section: 'primary', slot: 'F' });
   const idOf = (t) => db.prepare('SELECT id FROM news WHERE title = ?').get(t).id;
   const slotOf = (t) => db.prepare('SELECT slot FROM news WHERE title = ?').get(t).slot;
   const move = (id, slot) =>
@@ -655,17 +673,32 @@ test('live editor API: drag-and-drop swaps two template sections', async () => {
       body: JSON.stringify({ news_id: id, slot }),
     });
 
-  const res = await move(idOf('Drag Article A'), 'E');
+  const res = await move(idOf('Drag Article A'), 'F');
   assert.strictEqual((await res.json()).ok, true);
-  assert.strictEqual(slotOf('Drag Article A'), 'E', 'dragged article takes the target section');
+  assert.strictEqual(slotOf('Drag Article A'), 'F', 'dragged article takes the target section');
   assert.strictEqual(slotOf('Drag Article B'), 'D', 'displaced article takes the vacated section');
 
   // moving onto an empty section just moves, and bad slots are rejected
-  await move(idOf('Drag Article A'), 'I');
-  assert.strictEqual(slotOf('Drag Article A'), 'I');
+  await move(idOf('Drag Article A'), 'H');
+  assert.strictEqual(slotOf('Drag Article A'), 'H');
   assert.strictEqual(slotOf('Drag Article B'), 'D', 'unrelated article untouched');
   const bad = await move(idOf('Drag Article A'), 'Z');
   assert.strictEqual(bad.status, 400);
+
+  // A primary story cannot be dragged into the right column or a band...
+  const wrongCol = await move(idOf('Drag Article A'), 'E');
+  assert.strictEqual(wrongCol.status, 400);
+  assert.match((await wrongCol.json()).error, /left column/);
+  assert.strictEqual((await move(idOf('Drag Article A'), 'W')).status, 400);
+  // ...and a swap is refused when it would displace a story into a column its
+  // area forbids (a legacy secondary story parked in the left column).
+  db.prepare(
+    "INSERT INTO news (title, body, section, slot, review_status, created_by, week_start) VALUES ('Legacy Right', 'x', 'secondary', 'D', 'approved', 1, ?)"
+  ).run(db.prepare('SELECT week_start FROM news WHERE title = ?').get('Drag Article A').week_start);
+  const badSwap = await move(idOf('Drag Article A'), 'D');
+  assert.strictEqual(badSwap.status, 400);
+  assert.match((await badSwap.json()).error, /right column/);
+  db.prepare("DELETE FROM news WHERE title = 'Legacy Right'").run();
 
   // not available without a manager session
   const anon = await fetch(base + '/api/edit/slot', {
@@ -889,7 +922,7 @@ test('marketing lays the issue out but cannot approve it; the principal can', as
   // Layout actions are open to marketing.
   assert.strictEqual((await marketing.post(`/news/${id}/include`, { included: '0' })).status, 302);
   assert.strictEqual((await marketing.post(`/news/${id}/include`, { included: '1' })).status, 302);
-  assert.strictEqual((await marketing.post(`/news/${id}/slot`, { slot: 'F' })).status, 302);
+  assert.strictEqual((await marketing.post(`/news/${id}/slot`, { slot: 'W' })).status, 302);
   assert.match((await (await marketing.get('/newsletter/preview.html?edit=1')).text()), /preview-editor\.js/);
 
   const report = await marketing.post('/newsletter/generate', {});

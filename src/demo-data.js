@@ -60,7 +60,7 @@ function clearDemoData() {
 
 const DEMO_ARTICLES = [
   {
-    slot: 'D',
+    slot: 'W',
     section: 'whole_school',
     title: 'Key Stage 3 Sports Day Brings the Whole School Together',
     body:
@@ -68,7 +68,7 @@ const DEMO_ARTICLES = [
     photos: [],
   },
   {
-    slot: 'E',
+    slot: 'W',
     section: 'whole_school',
     title: 'Inter-School Friendly Tennis Tournament Success',
     body:
@@ -76,7 +76,7 @@ const DEMO_ARTICLES = [
     photos: ['tennis1.png', 'tennis2.png', 'tennis3.png'],
   },
   {
-    slot: 'F',
+    slot: 'E',
     section: 'secondary',
     title: 'Maths Chessboard Challenge',
     body:
@@ -84,7 +84,7 @@ const DEMO_ARTICLES = [
     photos: ['chess1.png'],
   },
   {
-    slot: 'G',
+    slot: 'D',
     section: 'primary',
     title: 'Foundation Students Bake Traditional Adjarian Khachapuri',
     body:
@@ -92,7 +92,7 @@ const DEMO_ARTICLES = [
     photos: ['khachapuri1.png', 'khachapuri2.png'],
   },
   {
-    slot: 'H',
+    slot: 'Y',
     section: 'co_curricular',
     title: 'Reading Challenge: 1,000 Books and Counting',
     body:
@@ -100,7 +100,7 @@ const DEMO_ARTICLES = [
     photos: [],
   },
   {
-    slot: 'I',
+    slot: 'X',
     section: 'sixth_form',
     title: 'Duke of Edinburgh Expedition Reaches the Kazbegi Foothills',
     body:

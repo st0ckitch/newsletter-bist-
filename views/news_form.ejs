@@ -9,9 +9,9 @@
       <input type="text" name="title" value="<%= item ? item.title : '' %>" required maxlength="200" placeholder="e.g. Inter-School Friendly Tennis Tournament Success">
     </label>
     <label>Area *
-      <select name="section" required>
+      <select name="section" required data-slots-control>
         <% sections.forEach(function(s) { %>
-          <option value="<%= s %>" <%= item && item.section === s ? 'selected' : '' %>><%= sectionLabels[s] || s.replace('_', ' ') %></option>
+          <option value="<%= s %>" data-slots="<%= (sectionSlots[s] || contentSlots).join(',') %>" <%= item && item.section === s ? 'selected' : '' %>><%= sectionLabels[s] || s.replace('_', ' ') %></option>
         <% }) %>
       </select>
     </label>
@@ -29,7 +29,9 @@
         <% }) %>
       </select>
     </label>
-    <p class="muted">Sections A-C are fixed (header &amp; quote, upcoming events, principal's message). D/F/H fill the left column, E/G/I the right.</p>
+    <p class="muted">The area decides where the story can go: Whole School runs full width under the header (W),
+    Primary fills the left column (D/F/H), Secondary the right (E/G/I), and Sixth Form (X) and Co-Curricular (Y)
+    run full width below the columns. Pick the area first - the list here only offers its positions.</p>
     <% } else if (item && item.slot) { %>
       <p class="muted">Template section: <strong><%= slotLabels[item.slot] || item.slot %></strong> - placement is set by the admin.</p>
     <% } %>
