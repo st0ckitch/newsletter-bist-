@@ -3,6 +3,15 @@
   <h1>Upcoming events</h1>
   <div class="page-actions"><a class="btn btn-primary" href="/events/new">+ Add event</a></div>
 </div>
+<% if (locals.importReport) { %>
+  <div class="alert alert-ok">
+    <strong>Calendar import:</strong> <%= importReport.created %> event(s) added,
+    <%= importReport.existing %> already existed (skipped).
+  </div>
+  <% if (importReport.invalid.length) { %>
+    <div class="alert alert-warn"><strong>Skipped lines:</strong> <%= importReport.invalid.join(' · ') %></div>
+  <% } %>
+<% } %>
 <div class="card">
   <table class="table">
     <thead><tr><th>Date</th><th>Title</th><th>Location</th><th>Time</th><th>Added by</th><th></th></tr></thead>
@@ -28,6 +37,19 @@
       <% if (!upcoming.length) { %><tr><td colspan="6" class="muted">No upcoming events yet.</td></tr><% } %>
     </tbody>
   </table>
+</div>
+<div class="card">
+  <h2>Add many events at once</h2>
+  <p class="muted">One event per line: <code>YYYY-MM-DD | Title | Location | Time</code> - location and time are
+  optional, and a date range like <code>2026-10-05..2026-10-07</code> covers multi-day events. Pasting the same
+  list twice is safe: events already in the calendar (same date and title) are skipped.</p>
+  <form method="post" action="/events/import">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Events to add
+      <textarea name="lines" rows="6" placeholder="2026-09-08 | Welcome to Early Years coffee morning | Primary Canteen | 08:45-09:30"></textarea>
+    </label>
+    <button class="btn btn-primary">Add events</button>
+  </form>
 </div>
 <% if (past.length) { %>
 <div class="card">

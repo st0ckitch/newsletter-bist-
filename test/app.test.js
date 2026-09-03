@@ -126,6 +126,34 @@ test('event validation rejects a bad date', async () => {
   assert.strictEqual(res.status, 400);
 });
 
+test('bulk event paste adds a whole calendar, skips duplicates and bad lines', async () => {
+  const lines = [
+    '2030-09-08 | Welcome to Early Years coffee morning, with Mrs Hughes | Primary Canteen | 08:45-09:30',
+    '2030-09-22 | Welcome to Primary - virtual meeting | Online | 2:30-3:25',
+    '2030-10-05..2030-10-07 | Autumn Camp | Kazbegi | All day',
+    'not-a-date | Broken line',
+    '2030-09-08 | Welcome to Early Years coffee morning, with Mrs Hughes | Primary Canteen | 08:45-09:30',
+  ].join('\n');
+  const res = await post('/events/import', { lines });
+  assert.strictEqual(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /3 event\(s\) added/);
+  assert.match(html, /1 already existed/);
+  assert.match(html, /Skipped lines:.*not-a-date/);
+  const camp = db.prepare("SELECT * FROM events WHERE title = 'Autumn Camp'").get();
+  assert.strictEqual(camp.event_date, '2030-10-05');
+  assert.strictEqual(camp.end_date, '2030-10-07');
+  assert.strictEqual(camp.location, 'Kazbegi');
+  // titles keep their commas - the separator is the pipe
+  const coffee = db.prepare("SELECT * FROM events WHERE event_date = '2030-09-08'").get();
+  assert.strictEqual(coffee.title, 'Welcome to Early Years coffee morning, with Mrs Hughes');
+  assert.strictEqual(coffee.time_note, '08:45-09:30');
+  // re-pasting the same list adds nothing
+  const again = await post('/events/import', { lines });
+  assert.match(await again.text(), /0 event\(s\) added/);
+  db.prepare("DELETE FROM events WHERE event_date LIKE '2030-09%' OR title = 'Autumn Camp'").run();
+});
+
 test('admin can create a news article without photos', async () => {
   const res = await post('/news', {
     title: 'Big Tennis Win',
