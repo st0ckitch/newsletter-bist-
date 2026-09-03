@@ -21,11 +21,23 @@ router.post('/news/preview.html', requireLogin, (req, res) => {
 // Parses the multipart body (multer), then verifies the CSRF token from it
 // and that every uploaded file really is an image. On any failure the files
 // already written to disk are removed.
+const MAX_ARTICLE_PHOTOS = 4;
+
 function photosUpload(req, res, next) {
-  upload.array('photos', 12)(req, res, (err) => {
-    const cleanup = () => removeFiles((req.files || []).map((f) => f.filename));
+  upload.fields([
+    { name: 'photos', maxCount: MAX_ARTICLE_PHOTOS },
+    { name: 'lead_photo', maxCount: 1 },
+  ])(req, res, (err) => {
+    req.contentPhotos = (req.files && req.files.photos) || [];
+    req.leadPhotoFile = ((req.files && req.files.lead_photo) || [])[0] || null;
+    const all = [...req.contentPhotos, ...(req.leadPhotoFile ? [req.leadPhotoFile] : [])];
+    const cleanup = () => removeFiles(all.map((f) => f.filename));
+    req.cleanupUploads = cleanup;
     if (err) {
       cleanup();
+      if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        err.message = `You can attach at most ${MAX_ARTICLE_PHOTOS} photos (plus one section-head portrait).`;
+      }
       err.status = 400;
       err.expose = true;
       return next(err);
@@ -34,7 +46,7 @@ function photosUpload(req, res, next) {
       cleanup();
       return res.status(403).send('Invalid CSRF token. Go back, reload the page and try again.');
     }
-    const fake = (req.files || []).find((f) => !isRealImage(f));
+    const fake = all.find((f) => !isRealImage(f));
     if (fake) {
       cleanup();
       const e = new Error(`"${fake.originalname}" is not a valid image file.`);
@@ -130,7 +142,7 @@ router.get('/news/new', requireLogin, (req, res) => {
 router.post('/news', requireLogin, photosUpload, async (req, res) => {
   const { errors, values } = validate(req.body, req.user);
   if (errors.length) {
-    removeFiles((req.files || []).map((f) => f.filename));
+    req.cleanupUploads();
     return res.status(400).render('news_form', formLocals(req, { item: values, photos: [], errors }));
   }
   // A story written by the person who would check it needs no second look.
@@ -150,8 +162,11 @@ router.post('/news', requireLogin, photosUpload, async (req, res) => {
       req.user.id,
       submissionWeekStart()
     );
-  await normalizeFiles(req.files);
-  savePhotos(info.lastInsertRowid, req.files);
+  await normalizeFiles(req.contentPhotos);
+  savePhotos(info.lastInsertRowid, req.contentPhotos);
+  if (req.leadPhotoFile) {
+    db.prepare('UPDATE news SET lead_photo = ? WHERE id = ?').run(req.leadPhotoFile.filename, info.lastInsertRowid);
+  }
   res.redirect('/news');
 });
 
@@ -162,8 +177,16 @@ router.get('/news/:id/edit', requireLogin, loadNews, (req, res) => {
 
 router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) => {
   const { errors, values } = validate(req.body, req.user);
+  const existingCount = db.prepare('SELECT COUNT(*) AS c FROM photos WHERE news_id = ?').get(req.newsItem.id).c;
+  // Only when NEW photos arrive: an article that exceeded the cap before the
+  // cap existed can still have its text edited freely.
+  if (req.contentPhotos.length && existingCount + req.contentPhotos.length > MAX_ARTICLE_PHOTOS) {
+    errors.push(
+      `An article can hold at most ${MAX_ARTICLE_PHOTOS} photos - it already has ${existingCount}. Remove some below before adding more.`
+    );
+  }
   if (errors.length) {
-    removeFiles((req.files || []).map((f) => f.filename));
+    req.cleanupUploads();
     const photos = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id').all(req.newsItem.id);
     return res
       .status(400)
@@ -185,8 +208,20 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) 
     values.slot || (allowedSlots(values.section).includes(req.newsItem.slot) ? req.newsItem.slot : defaultSlot(values.section)),
     req.newsItem.id
   );
-  await normalizeFiles(req.files);
-  savePhotos(req.newsItem.id, req.files);
+  await normalizeFiles(req.contentPhotos);
+  savePhotos(req.newsItem.id, req.contentPhotos);
+  if (req.leadPhotoFile) {
+    // A new head-of-grade portrait replaces the old one; the CDN copy is
+    // refreshed on the next generation.
+    removeFiles([req.newsItem.lead_photo]);
+    db.prepare('UPDATE news SET lead_photo = ?, lead_photo_mailchimp_url = NULL WHERE id = ?').run(
+      req.leadPhotoFile.filename,
+      req.newsItem.id
+    );
+  } else if (req.body.remove_lead_photo === '1' && req.newsItem.lead_photo) {
+    removeFiles([req.newsItem.lead_photo]);
+    db.prepare('UPDATE news SET lead_photo = NULL, lead_photo_mailchimp_url = NULL WHERE id = ?').run(req.newsItem.id);
+  }
   res.redirect(`/news/${req.newsItem.id}/edit`);
 });
 
@@ -234,7 +269,7 @@ router.post('/news/:id/slot', requireLayout, (req, res) => {
 router.post('/news/:id/delete', requireLogin, loadNews, (req, res) => {
   const files = db.prepare('SELECT filename FROM photos WHERE news_id = ?').all(req.newsItem.id);
   db.prepare('DELETE FROM news WHERE id = ?').run(req.newsItem.id);
-  removeFiles(files.map((f) => f.filename));
+  removeFiles(files.map((f) => f.filename).concat(req.newsItem.lead_photo || []));
   res.redirect('/news');
 });
 

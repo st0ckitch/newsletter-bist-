@@ -35,10 +35,22 @@
     <% } else if (item && item.slot) { %>
       <p class="muted">Template section: <strong><%= slotLabels[item.slot] || item.slot %></strong> - placement is set by the admin.</p>
     <% } %>
-    <label>Photos (JPEG/PNG/WebP/GIF, up to 12, max 10&nbsp;MB each)
+    <label>Photo of the section head (optional)
+      <input type="file" name="lead_photo" accept="image/jpeg,image/png,image/webp,image/gif">
+    </label>
+    <p class="muted">A small portrait shown at the <strong>top of the article, beside the text</strong> - the same
+    treatment as the principal&#39;s photo. Use this for the head of the grade, not the photo grid below.</p>
+    <% if (item && item.id && item.lead_photo) { %>
+      <div class="photo-tile photo-tile-inline">
+        <img src="/uploads/<%= item.lead_photo %>" alt="Section head photo" style="max-width:96px;">
+        <label class="muted"><input type="checkbox" name="remove_lead_photo" value="1"> remove this photo on save</label>
+      </div>
+    <% } %>
+    <label>Photos (JPEG/PNG/WebP/GIF, up to 4, max 10&nbsp;MB each)
       <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
     </label>
-    <p class="muted">The first photo becomes the large hero image in the newsletter; the rest appear in a two-column grid.<br>
+    <p class="muted">These appear <strong>after the article text</strong>: the first becomes the large hero image,
+    the rest pair up in a two-column grid. Every photo is auto-cropped to the same 4:3 shape so rows line up.<br>
     <strong>Recommended:</strong> landscape photos around <strong>1200 × 800 px</strong> (minimum 800 px wide), JPEG, under <strong>2 MB</strong> each - that is sharp on retina screens (photos run full-width on phones) and keeps the email fast to load. Phone photos work fine; avoid tiny thumbnails and heavy 10 MB originals.</p>
     <div class="btn-row">
       <button type="submit" class="btn btn-primary"><%= item && item.id ? 'Save changes' : 'Add article' %></button>

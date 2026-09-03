@@ -66,6 +66,23 @@ async function ensurePhotosUploaded(photos, warnings) {
   return counts;
 }
 
+// Head-of-grade portraits live on the news row itself; push any that are
+// not on the CDN yet, mirroring ensurePhotosUploaded.
+async function ensureLeadPhotosUploaded(news, warnings) {
+  if (!mailchimp.isConfigured()) return;
+  for (const n of news) {
+    if (!n.lead_photo || n.lead_photo_mailchimp_url) continue;
+    try {
+      const buffer = fs.readFileSync(path.join(config.uploadDir, n.lead_photo));
+      const url = await mailchimp.uploadFile(n.lead_photo, buffer);
+      db.prepare('UPDATE news SET lead_photo_mailchimp_url = ? WHERE id = ?').run(url, n.id);
+      n.lead_photo_mailchimp_url = url;
+    } catch (err) {
+      warnings.push(`The section-head photo on "${n.title}" could not be uploaded to Mailchimp: ${err.message}`);
+    }
+  }
+}
+
 // baseUrl: absolute (config.appBaseUrl) for the Mailchimp draft - email
 // clients need full URLs - and '' for the in-panel preview, so preview
 // images and fonts resolve relative to the panel itself and work on any
@@ -77,6 +94,7 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
     body: n.body,
     slot: n.slot,
     sectionLabel: SECTION_LABELS[n.section] || '',
+    leadPhotoUrl: n.lead_photo ? n.lead_photo_mailchimp_url || `${baseUrl}/uploads/${n.lead_photo}` : null,
     photos: (data.photosByNews[n.id] || []).map((p) => ({ id: p.id, url: photoPublicUrl(p, baseUrl) })),
   }));
 
@@ -184,6 +202,7 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
 
   const allPhotos = Object.values(data.photosByNews).flat();
   const photoCounts = await ensurePhotosUploaded(allPhotos, warnings);
+  await ensureLeadPhotosUploaded(data.news, warnings);
   if (allPhotos.length || (data.principalMessage && data.principalMessage.photo)) {
     step(
       photoCounts.failed === 0,

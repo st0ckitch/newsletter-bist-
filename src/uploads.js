@@ -12,7 +12,7 @@ const upload = multer({
     destination: config.uploadDir,
     filename: (req, file, cb) => cb(null, crypto.randomBytes(16).toString('hex') + MIME_EXT[file.mimetype]),
   }),
-  limits: { fileSize: 10 * 1024 * 1024, files: 12 },
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
   fileFilter: (req, file, cb) => {
     if (MIME_EXT[file.mimetype]) return cb(null, true);
     cb(new Error('Only JPEG, PNG, WebP or GIF images can be uploaded.'));

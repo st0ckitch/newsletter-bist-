@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function readFiles(input, cb) {
-    var files = Array.prototype.slice.call(input.files || []).slice(0, 12);
+    var files = Array.prototype.slice.call(input.files || []).slice(0, 4);
     if (!files.length) return cb([]);
     var out = [];
     var left = files.length;
@@ -95,7 +95,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   form.addEventListener('input', refresh);
   form.addEventListener('change', function (e) {
-    if (e.target && e.target.matches && e.target.matches('input[type=file]')) {
+    // Only the content-photo picker feeds the preview grid - the section-head
+    // portrait has its own single-file input and renders separately.
+    if (e.target && e.target.matches && e.target.matches('input[name=photos]')) {
       readFiles(e.target, function (uris) {
         filePhotos = uris;
         refresh();

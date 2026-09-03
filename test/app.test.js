@@ -694,26 +694,138 @@ test('article form preview endpoint renders the draft with links and photos', as
   assert.ok([302, 403].includes(anon.status));
 });
 
-test('Foundation is a full area: in the menu, locked to its own template section', async () => {
-  // The area appears in the news form dropdown...
+test('Foundation stories are single-column, in the right column beside Primary', async () => {
+  // The area appears in the news form dropdown and maps to the right column.
   const form = await (await get('/news/new')).text();
   assert.match(form, /<option value="foundation"[^>]*>Foundation<\/option>/);
-  assert.match(form, /data-slots="V"/, 'the form knows Foundation maps to section V');
-  // ...a Foundation story lands in its dedicated section by default...
+  assert.match(form, /data-slots="E,G,I"/, 'the form knows Foundation shares the right column');
+  // ...a Foundation story lands at the top of the right column by default...
   await post('/news', { title: 'Foundation Sandpit News', body: 'Little ones had fun.', section: 'foundation' });
   const row = db.prepare("SELECT * FROM news WHERE title = 'Foundation Sandpit News'").get();
-  assert.strictEqual(row.slot, 'V');
-  // ...cannot be moved into a column...
-  const bad = await post(`/news/${row.id}/slot`, { slot: 'D' });
-  assert.strictEqual(bad.status, 400);
-  assert.match(await bad.text(), /full-width section \(V\)/);
-  // ...and renders as a full-width band between the columns and Sixth Form.
+  assert.strictEqual(row.slot, 'E');
+  // ...cannot be moved into the left column or a band, but can move within
+  // the right column...
+  assert.strictEqual((await post(`/news/${row.id}/slot`, { slot: 'D' })).status, 400);
+  assert.strictEqual((await post(`/news/${row.id}/slot`, { slot: 'W' })).status, 400);
+  assert.strictEqual((await post(`/news/${row.id}/slot`, { slot: 'G' })).status, 302);
+  // ...and renders inside the columns area, above the Whole School band.
   const preview = await (await get('/newsletter/preview.html')).text();
   const idx = preview.indexOf('Foundation Sandpit News');
   assert.ok(idx > -1, 'foundation story renders');
-  assert.match(preview, /SECTION X/, 'empty Sixth Form band still shows its placeholder');
-  assert.ok(preview.indexOf('SECTION X') > idx, 'Foundation band sits above the Sixth Form band');
+  assert.ok(!preview.includes('SECTION V'), 'the old full-width V band is gone');
+  // The W band holds 'Real Photo Article' (whole_school) from an earlier
+  // test - the Foundation story must render before it in the source.
+  const wIdx = preview.indexOf('Real Photo Article');
+  assert.ok(wIdx > -1 && wIdx > idx, 'the Foundation story sits above the Whole School band');
   db.prepare("DELETE FROM news WHERE title = 'Foundation Sandpit News'").run();
+});
+
+test('band articles get wide photos; head-of-grade portrait sits at the top; 4-photo cap', async () => {
+  const sharp = require('sharp');
+  const png = (w, h, bg) => sharp({ create: { width: w, height: h, channels: 3, background: bg } }).png().toBuffer();
+  const mp = async (url, fields, files) => {
+    const form = new FormData();
+    form.append('_csrf', csrf);
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+    for (const [name, buf, fname] of files) form.append(name, new Blob([buf], { type: 'image/png' }), fname);
+    const res = await fetch(base + url, { method: 'POST', headers: { cookie: cookies }, body: form, redirect: 'manual' });
+    return res;
+  };
+
+  // A Whole School story (band W) with a head photo and three content photos.
+  const img = await png(800, 600, '#336699');
+  const res = await mp(
+    '/news',
+    { title: 'Band Photo Story', body: 'Wide photos please.', section: 'whole_school' },
+    [
+      ['lead_photo', await png(300, 400, '#993333'), 'head.png'],
+      ['photos', img, 'a.png'],
+      ['photos', img, 'b.png'],
+      ['photos', img, 'c.png'],
+    ]
+  );
+  assert.strictEqual(res.status, 302);
+  const story = db.prepare("SELECT * FROM news WHERE title = 'Band Photo Story'").get();
+  assert.ok(story.lead_photo, 'head-of-grade photo stored');
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM photos WHERE news_id = ?').get(story.id).c, 3);
+
+  const preview = await (await get('/newsletter/preview.html')).text();
+  const cardStart = preview.indexOf('Band Photo Story');
+  const card = preview.slice(cardStart, cardStart + 6000);
+  // The portrait renders before the body text, small like the principal's.
+  const headIdx = card.indexOf('alt="Section head"');
+  assert.ok(headIdx > -1, 'section head portrait renders');
+  assert.ok(headIdx < card.indexOf('Wide photos please.'), 'portrait sits above the text');
+  assert.match(card, /alt="Section head" width="96"/);
+  // Band photos use the wide sizes: hero 622, pairs 306 (not 288/139).
+  assert.match(card, /class="ph-hero" width="622"/);
+  assert.match(card, /class="ph-pair" width="306"/);
+  // A column story keeps the narrow sizes.
+  const imgN = await png(800, 600, '#224422');
+  await mp('/news', { title: 'Column Photo Story', body: 'Narrow photos.', section: 'primary' }, [
+    ['photos', imgN, 'p1.png'],
+    ['photos', imgN, 'p2.png'],
+    ['photos', imgN, 'p3.png'],
+  ]);
+  const preview2 = await (await get('/newsletter/preview.html')).text();
+  const colStart = preview2.indexOf('Column Photo Story');
+  const colCard = preview2.slice(colStart, colStart + 6000);
+  assert.match(colCard, /class="ph-hero" width="288"/);
+  assert.match(colCard, /class="ph-pair" width="139"/);
+  // 3 photos = hero + one complete pair - no dangling half-empty rows, and a
+  // 2-photo article renders both full width instead of one lonely half.
+  assert.strictEqual((colCard.match(/class="ph-pair"/g) || []).length, 2);
+  const imgT = await png(800, 600, '#553311');
+  await mp('/news', { title: 'Two Photo Story', body: 'Two.', section: 'primary' }, [
+    ['photos', imgT, 't1.png'],
+    ['photos', imgT, 't2.png'],
+  ]);
+  const preview3 = await (await get('/newsletter/preview.html')).text();
+  const twoStart = preview3.indexOf('Two Photo Story');
+  const twoCard = preview3.slice(twoStart, twoStart + 6000);
+  assert.strictEqual((twoCard.match(/class="ph-hero"/g) || []).length, 2, 'odd trailing photo runs full width');
+  assert.strictEqual((twoCard.match(/class="ph-pair"/g) || []).length, 0);
+  db.prepare("DELETE FROM news WHERE title = 'Two Photo Story'").run();
+
+  // Content photos are capped at 4: a fifth is refused outright by the form...
+  const five = await mp('/news', { title: 'Too Many', body: 'x', section: 'primary' },
+    [1, 2, 3, 4, 5].map((i) => ['photos', imgN, `f${i}.png`]));
+  assert.strictEqual(five.status, 400);
+  assert.ok(!db.prepare("SELECT 1 FROM news WHERE title = 'Too Many'").get(), 'nothing stored');
+  // ...topping up an article past 4 is refused with a clear message...
+  const colStory = db.prepare("SELECT * FROM news WHERE title = 'Column Photo Story'").get();
+  const topUp = await mp(`/news/${colStory.id}`, { title: 'Column Photo Story', body: 'Narrow photos.', section: 'primary' },
+    [['photos', imgN, 'x1.png'], ['photos', imgN, 'x2.png']]);
+  assert.strictEqual(topUp.status, 400);
+  assert.match(await topUp.text(), /at most 4 photos/);
+  // ...and the live editor refuses the fifth too.
+  db.prepare('INSERT INTO photos (news_id, filename, original_name, mime, normalized) VALUES (?, ?, ?, ?, 1)').run(
+    colStory.id, 'pad.jpg', 'pad.jpg', 'image/jpeg');
+  const form5 = new FormData();
+  form5.append('news_id', String(colStory.id));
+  form5.append('photo', new Blob([imgN], { type: 'image/png' }), 'fifth.png');
+  const live = await fetch(base + '/api/edit/photo/add', {
+    method: 'POST', headers: { cookie: cookies, 'x-csrf-token': csrf }, body: form5,
+  });
+  assert.strictEqual(live.status, 400);
+  assert.match((await live.json()).error, /at most 4 photos/);
+
+  // A legacy article already over the cap can still save text-only edits.
+  const legacy = db.prepare("SELECT * FROM news WHERE title = 'Column Photo Story'").get();
+  for (let i = 0; i < 3; i++) {
+    db.prepare('INSERT INTO photos (news_id, filename, original_name, mime, normalized) VALUES (?, ?, ?, ?, 1)').run(
+      legacy.id, `legacy${i}.jpg`, `legacy${i}.jpg`, 'image/jpeg');
+  }
+  const textOnly = await mp(`/news/${legacy.id}`, { title: 'Column Photo Story', body: 'Edited text only.', section: 'primary' }, []);
+  assert.strictEqual(textOnly.status, 302, 'over-cap legacy article still saves text edits');
+
+  // Removing the head photo through the edit form works.
+  const removed = await mp(`/news/${story.id}`,
+    { title: 'Band Photo Story', body: 'Wide photos please.', section: 'whole_school', remove_lead_photo: '1' }, []);
+  assert.strictEqual(removed.status, 302);
+  assert.strictEqual(db.prepare('SELECT lead_photo FROM news WHERE id = ?').get(story.id).lead_photo, null);
+
+  db.prepare("DELETE FROM news WHERE title IN ('Band Photo Story', 'Column Photo Story', 'Two Photo Story')").run();
 });
 
 test('uploaded photos are cropped to a uniform 4:3 so pairs line up', async () => {

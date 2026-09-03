@@ -129,9 +129,9 @@ router.post('/api/edit/photo/add', manager, photoUpload, async (req, res) => {
     return bad(res, 'That article no longer exists.', 404);
   }
   const count = db.prepare('SELECT COUNT(*) AS c FROM photos WHERE news_id = ?').get(item.id).c;
-  if (count >= 12) {
+  if (count >= 4) {
     removeFiles([req.file.filename]);
-    return bad(res, 'An article can hold at most 12 photos.');
+    return bad(res, 'An article can hold at most 4 photos.');
   }
   const filename = await normalizePhoto(req.file.filename);
   db.prepare('INSERT INTO photos (news_id, filename, original_name, mime, normalized) VALUES (?, ?, ?, ?, 1)').run(

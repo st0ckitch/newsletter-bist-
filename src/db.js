@@ -202,6 +202,10 @@ ensureColumn('users', 'invite_sent_at', 'invite_sent_at TEXT');
 ensureColumn('users', 'activated_at', 'activated_at TEXT');
 ensureColumn('users', 'last_login_at', 'last_login_at TEXT');
 ensureColumn('photos', 'normalized', 'normalized INTEGER NOT NULL DEFAULT 0');
+ensureColumn('news', 'lead_photo', 'lead_photo TEXT');
+ensureColumn('news', 'lead_photo_mailchimp_url', 'lead_photo_mailchimp_url TEXT');
+// Foundation moved from its own full-width band (V) into the right column.
+db.exec("UPDATE news SET slot = 'E' WHERE slot = 'V'");
 ensureColumn('news', 'reviewed_by', 'reviewed_by INTEGER');
 ensureColumn('news', 'reviewed_at', 'reviewed_at TEXT');
 ensureColumn('news', 'review_note', 'review_note TEXT');

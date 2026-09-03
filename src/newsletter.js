@@ -8,7 +8,7 @@
 //   columns, each article under a colored header bar with its photos
 //   Footer - staff directory grid + branding.
 const { formatIssueDate } = require('./week');
-const { LEFT_SLOTS, RIGHT_SLOTS, CONTENT_SLOTS, DEFAULT_SLOT, MAX_ARTICLE_WORDS } = require('./slots');
+const { LEFT_SLOTS, RIGHT_SLOTS, CONTENT_SLOTS, WIDE_SLOTS, DEFAULT_SLOT, MAX_ARTICLE_WORDS } = require('./slots');
 
 // Palette matched to the school's letter template: deep navy #0d1b3e with a
 // royal-navy companion, bright gold #f5b921 accents (#b08409 for gold text on
@@ -53,6 +53,12 @@ function fontFaceCss(base) {
 const COL_W = 318;
 const CARD_TEXT_W = COL_W - 2 - 28; // 1px borders + 14px card padding => 288
 const PAIR_W = Math.floor((CARD_TEXT_W - 10) / 2); // two-up photo => 139
+// Full-width band articles (W/X/Y) span both columns plus the gutter, so
+// their photos need their own, wider sizes - the column-based caps above
+// would leave small photos floating in half-empty cells.
+const FULL_W = COL_W * 2 + 16; // both columns + gutter => 652
+const FULL_CARD_TEXT_W = FULL_W - 2 - 28; // => 622
+const FULL_PAIR_W = Math.floor((FULL_CARD_TEXT_W - 10) / 2); // => 306
 
 // Responsive rules for phones (<=640px): the two columns stack into one,
 // photos stretch to the full screen width, running text steps up a size and
@@ -73,7 +79,9 @@ const MOBILE_CSS = `
     .ph-hero, .ph-pair { width: 100% !important; max-width: 100% !important; }
     .mob-principal { display: block !important; max-height: none !important; overflow: visible !important; }
     .desk-principal { display: none !important; }
+    .dir-table, .dir-table tbody, .dir-table tr { display: block !important; width: 100% !important; }
     .dir-cell { display: block !important; width: 100% !important; text-align: center !important; padding: 5px 0 !important; }
+    .dir-fill { display: none !important; }
     .foot-pad { padding: 22px 16px 20px 16px !important; }
   }`;
 
@@ -293,8 +301,10 @@ function renderPrincipalBlock(principalMessage, editable) {
 const photoUrl = (p) => (typeof p === 'string' ? p : p.url);
 const photoAttr = (p, editable) => (editable && typeof p !== 'string' && p.id ? ` data-photo="${p.id}"` : '');
 
-function renderPhotos(photos, editable) {
+function renderPhotos(photos, editable, wide) {
   if (!photos || !photos.length) return '';
+  const heroW = wide ? FULL_CARD_TEXT_W : CARD_TEXT_W;
+  const pairW = wide ? FULL_PAIR_W : PAIR_W;
   // First photo runs the full card width as a hero; the rest pair up.
   const [hero, ...rest] = photos;
   let html = `
@@ -303,11 +313,15 @@ function renderPhotos(photos, editable) {
         <img src="${escapeHtml(photoUrl(hero))}"${photoAttr(
     hero,
     editable
-  )} alt="Newsletter photo" class="ph-hero" width="${CARD_TEXT_W}" style="width:100%; max-width:${CARD_TEXT_W}px; height:auto; display:block; border-radius:9px;">
+  )} alt="Newsletter photo" class="ph-hero" width="${heroW}" style="width:100%; max-width:${heroW}px; height:auto; display:block; border-radius:9px;">
       </td></tr>
     </table>`;
-  for (let i = 0; i < rest.length; i += 2) {
-    const pair = rest.slice(i, i + 2);
+  // Pairs fill complete rows; an odd photo at the end runs full width like
+  // the hero, so no row is ever left with an empty half.
+  const tail = rest.length % 2 ? rest[rest.length - 1] : null;
+  const paired = tail ? rest.slice(0, -1) : rest;
+  for (let i = 0; i < paired.length; i += 2) {
+    const pair = paired.slice(i, i + 2);
     html += `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;">
       <tr>
@@ -318,12 +332,22 @@ function renderPhotos(photos, editable) {
           <img src="${escapeHtml(photoUrl(p))}"${photoAttr(
               p,
               editable
-            )} alt="Newsletter photo" class="ph-pair" width="${PAIR_W}" style="width:100%; max-width:${PAIR_W}px; height:auto; display:block; border-radius:8px;">
+            )} alt="Newsletter photo" class="ph-pair" width="${pairW}" style="width:100%; max-width:${pairW}px; height:auto; display:block; border-radius:8px;">
         </td>`
           )
           .join('')}
-        ${pair.length === 1 ? '<td width="50%" style="padding:0 4px;">&nbsp;</td>' : ''}
       </tr>
+    </table>`;
+  }
+  if (tail) {
+    html += `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;">
+      <tr><td style="padding:0;">
+        <img src="${escapeHtml(photoUrl(tail))}"${photoAttr(
+      tail,
+      editable
+    )} alt="Newsletter photo" class="ph-hero" width="${heroW}" style="width:100%; max-width:${heroW}px; height:auto; display:block; border-radius:9px;">
+      </td></tr>
     </table>`;
   }
   return html;
@@ -331,6 +355,13 @@ function renderPhotos(photos, editable) {
 
 function renderArticle(article, barColor, slotLetter, editable) {
   const ed = (field) => (editable && article.id ? ` data-edit="news:${article.id}:${field}"` : '');
+  // Band articles span the full sheet; their photos get the wide sizes.
+  const wide = WIDE_SLOTS.includes(article.slot || DEFAULT_SLOT);
+  // Optional head-of-grade portrait: small, top-right beside the text - the
+  // same treatment as the principal's photo. Content photos stay below.
+  const leadPhoto = article.leadPhotoUrl
+    ? `<img src="${escapeHtml(article.leadPhotoUrl)}" alt="Section head" width="96" align="right" style="width:96px; height:auto; border-radius:8px; margin:0 0 8px 12px;">`
+    : '';
   const slotChip = slotLetter
     ? `<span style="display:inline-block; background:rgba(255,255,255,0.28); border-radius:4px; padding:1px 7px; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:1px; margin-right:8px;">${escapeHtml(
         slotLetter
@@ -363,8 +394,8 @@ function renderArticle(article, barColor, slotLetter, editable) {
         <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:14px 14px 8px 14px;"${
     editable && article.id ? ` data-add-photo="${article.id}"` : ''
   }>
-          <div class="atext"${ed('body')}>${textToHtml(article.body, INK, 13.5)}</div>
-          ${renderPhotos(article.photos, editable)}
+          ${leadPhoto}<div class="atext"${ed('body')}>${textToHtml(article.body, INK, 13.5)}</div>
+          ${renderPhotos(article.photos, editable, wide)}
         </td>
       </tr>
     </table>
@@ -387,7 +418,7 @@ function columnHtml(letters, articles, articleHtml, placeholders, strays = []) {
       const pos = ['top', 'middle', 'bottom'][(left ? LEFT_SLOTS : RIGHT_SLOTS).indexOf(letter)];
       html += placeholderBox(
         letter,
-        `${left ? 'Primary' : 'Secondary'} - ${left ? 'left' : 'right'} column, ${pos}`,
+        `${left ? 'Primary' : 'Secondary/Foundation'} - ${left ? 'left' : 'right'} column, ${pos}`,
         'Assign an article to this section in the News list.'
       );
     }
@@ -454,7 +485,7 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
       rows += `<tr>${triple
         .map(
           (e) => `
-        <td class="dir-cell" width="33%" valign="top" style="padding:7px 10px;">
+        <td class="dir-cell" width="33%" valign="top" align="center" style="padding:7px 10px; text-align:center;">
           <p style="margin:0; font-family:${SANS}; font-size:12px; font-weight:600; color:#ffffff;">${escapeHtml(
             e.name
           )}</p>
@@ -467,10 +498,10 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
           }
         </td>`
         )
-        .join('')}${triple.length < 3 ? `<td width="${(3 - triple.length) * 33}%">&nbsp;</td>` : ''}</tr>`;
+        .join('')}${triple.length < 3 ? `<td class="dir-fill" width="${(3 - triple.length) * 33}%">&nbsp;</td>` : ''}</tr>`;
     }
     directoryHtml = `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-bottom:16px;">${rows}</table>
+      <table role="presentation" class="dir-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-bottom:16px;">${rows}</table>
       <div style="margin:0 auto 16px auto;">${goldDivider(42, 'center')}</div>`;
   } else if (footerNote) {
     directoryHtml = `<div style="margin-bottom:12px;">${textToHtml(footerNote, '#8b97b8', 12)}</div>`;
@@ -561,9 +592,8 @@ function renderNewsletter(data) {
   // Primary/Secondary news leads; the full-width sections follow, with
   // Whole School first among them.
   const lowerBands =
-    bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the Primary and Secondary columns.') +
-    bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below Whole School.') +
-    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below Foundation.') +
+    bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the news columns.') +
+    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below Whole School.') +
     bandHtml('Y', 'Co-Curricular - full width', 'Co-Curricular stories run full width here, at the bottom.');
   const lowerBandsRow = lowerBands
     ? `

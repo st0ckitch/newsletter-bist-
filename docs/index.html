@@ -280,16 +280,17 @@ const SLOT_LABELS = {
   X: 'X - Sixth Form \u00b7 full width, below the columns',
   Y: 'Y - Co-Curricular \u00b7 full width, at the bottom',
 };
-const CONTENT_SLOTS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'V', 'X', 'Y'];
+const CONTENT_SLOTS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
 const LEFT_SLOTS = ['D', 'F', 'H'];
 const RIGHT_SLOTS = ['E', 'G', 'I'];
+const WIDE_SLOTS = CONTENT_SLOTS.filter((sl) => !LEFT_SLOTS.includes(sl) && !RIGHT_SLOTS.includes(sl));
 const DEFAULT_SLOT = 'D';
-const SECTION_SLOTS = { whole_school: ['W'], foundation: ['V'], primary: LEFT_SLOTS, secondary: RIGHT_SLOTS, sixth_form: ['X'], co_curricular: ['Y'] };
+const SECTION_SLOTS = { whole_school: ['W'], foundation: RIGHT_SLOTS, primary: LEFT_SLOTS, secondary: RIGHT_SLOTS, sixth_form: ['X'], co_curricular: ['Y'] };
 const allowedSlots = (section) => SECTION_SLOTS[section] || CONTENT_SLOTS;
 const defaultSlot = (section) => allowedSlots(section)[0];
 function columnRule(section) {
-  if (section === 'whole_school') return 'Whole School stories live in their own full-width section (W) under the Primary/Secondary columns.';
-  if (section === 'foundation') return 'Foundation stories live in their own full-width section (V) below the columns.';
+  if (section === 'whole_school') return 'Whole School stories live in their own full-width section (W) under the columns.';
+  if (section === 'foundation') return 'Foundation stories go in the right column (E/G/I), alongside Secondary.';
   if (section === 'primary') return 'Primary stories always go in the left column (D/F/H).';
   if (section === 'secondary') return 'Secondary stories always go in the right column (E/G/I).';
   if (section === 'sixth_form') return 'Sixth Form stories live in their own full-width section (X) below the columns.';
@@ -302,6 +303,9 @@ const wordCountOf = (t) => String(t || '').split(/\s+/).filter(Boolean).length;
 const COL_W = 318;
 const CARD_TEXT_W = COL_W - 2 - 28;
 const PAIR_W = Math.floor((CARD_TEXT_W - 10) / 2);
+const FULL_W = COL_W * 2 + 16;
+const FULL_CARD_TEXT_W = FULL_W - 2 - 28;
+const FULL_PAIR_W = Math.floor((FULL_CARD_TEXT_W - 10) / 2);
 
 /* Phones (<=640px): one column, full-width photos, bigger running text.
    Desktop/tablet keep the fixed two-column sheet. Same rules as the server. */
@@ -320,7 +324,9 @@ const MOBILE_CSS = `
     .ph-hero, .ph-pair { width: 100% !important; max-width: 100% !important; }
     .mob-principal { display: block !important; max-height: none !important; overflow: visible !important; }
     .desk-principal { display: none !important; }
+    .dir-table, .dir-table tbody, .dir-table tr { display: block !important; width: 100% !important; }
     .dir-cell { display: block !important; width: 100% !important; text-align: center !important; padding: 5px 0 !important; }
+    .dir-fill { display: none !important; }
     .foot-pad { padding: 22px 16px 20px 16px !important; }
   }`;
 
@@ -434,21 +440,31 @@ function renderPrincipalBlock(principalMessage, editable) {
 }
 const photoUrlOf = (p) => (typeof p === 'string' ? p : p.url);
 const photoAttrOf = (p, editable) => (editable && typeof p !== 'string' && p.id ? ` data-photo="${p.id}"` : '');
-function renderPhotos(photos, editable) {
+function renderPhotos(photos, editable, wide) {
   if (!photos || !photos.length) return '';
+  const heroW = wide ? FULL_CARD_TEXT_W : CARD_TEXT_W;
+  const pairW = wide ? FULL_PAIR_W : PAIR_W;
   const [hero, ...rest] = photos;
-  let html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:10px;"><tr><td style="padding:0;">
-    <img src="${escapeHtml(photoUrlOf(hero))}"${photoAttrOf(hero, editable)} alt="Newsletter photo" class="ph-hero" width="${CARD_TEXT_W}" style="width:100%; max-width:${CARD_TEXT_W}px; height:auto; display:block; border-radius:9px;"></td></tr></table>`;
-  for (let i = 0; i < rest.length; i += 2) {
-    const pair = rest.slice(i, i + 2);
+  const fullImg = (p) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;"><tr><td style="padding:0;">
+    <img src="${escapeHtml(photoUrlOf(p))}"${photoAttrOf(p, editable)} alt="Newsletter photo" class="ph-hero" width="${heroW}" style="width:100%; max-width:${heroW}px; height:auto; display:block; border-radius:9px;"></td></tr></table>`;
+  let html = fullImg(hero);
+  const tail = rest.length % 2 ? rest[rest.length - 1] : null;
+  const paired = tail ? rest.slice(0, -1) : rest;
+  for (let i = 0; i < paired.length; i += 2) {
+    const pair = paired.slice(i, i + 2);
     html += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;"><tr>
-      ${pair.map((p) => `<td width="50%" valign="top" style="padding:0 4px;"><img src="${escapeHtml(photoUrlOf(p))}"${photoAttrOf(p, editable)} alt="Newsletter photo" class="ph-pair" width="${PAIR_W}" style="width:100%; max-width:${PAIR_W}px; height:auto; display:block; border-radius:8px;"></td>`).join('')}
-      ${pair.length === 1 ? '<td width="50%" style="padding:0 4px;">&nbsp;</td>' : ''}</tr></table>`;
+      ${pair.map((p) => `<td width="50%" valign="top" style="padding:0 4px;"><img src="${escapeHtml(photoUrlOf(p))}"${photoAttrOf(p, editable)} alt="Newsletter photo" class="ph-pair" width="${pairW}" style="width:100%; max-width:${pairW}px; height:auto; display:block; border-radius:8px;"></td>`).join('')}
+      </tr></table>`;
   }
+  if (tail) html += fullImg(tail);
   return html;
 }
 function renderArticleBlock(article, barColor, slotLetter, editable) {
   const ed = (field) => (editable && article.id ? ` data-edit="news:${article.id}:${field}"` : '');
+  const wide = WIDE_SLOTS.includes(article.slot || DEFAULT_SLOT);
+  const leadPhoto = article.leadPhotoUrl
+    ? `<img src="${escapeHtml(article.leadPhotoUrl)}" alt="Section head" width="96" align="right" style="width:96px; height:auto; border-radius:8px; margin:0 0 8px 12px;">`
+    : '';
   const slotChip = slotLetter
     ? `<span style="display:inline-block; background:rgba(255,255,255,0.28); border-radius:4px; padding:1px 7px; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:1px; margin-right:8px;">${escapeHtml(slotLetter)}</span>` : '';
   const dragBlock = editable && slotLetter && article.id ? ` data-slot-block="${escapeHtml(slotLetter)}"` : '';
@@ -461,7 +477,7 @@ function renderArticleBlock(article, barColor, slotLetter, editable) {
           ${article.sectionLabel ? `<td align="right" valign="top" style="font-family:${SANS}; font-size:8px; font-weight:600; letter-spacing:2px; color:#ffffff; opacity:0.75; padding-left:8px; white-space:nowrap;">${escapeHtml(article.sectionLabel.toUpperCase())}</td>` : ''}
         </tr></table></td></tr>
       <tr><td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:14px 14px 8px 14px;"${editable && article.id ? ` data-add-photo="${article.id}"` : ''}>
-        <div class="atext"${ed('body')}>${textToHtml(article.body, INK, 13.5)}</div>${renderPhotos(article.photos, editable)}</td></tr>
+        ${leadPhoto}<div class="atext"${ed('body')}>${textToHtml(article.body, INK, 13.5)}</div>${renderPhotos(article.photos, editable, wide)}</td></tr>
     </table></div>`;
 }
 function slotColumnHtml(letters, articles, articleHtml, placeholders, strays = []) {
@@ -474,7 +490,7 @@ function slotColumnHtml(letters, articles, articleHtml, placeholders, strays = [
     } else if (placeholders) {
       const left = LEFT_SLOTS.includes(letter);
       const pos = ['top', 'middle', 'bottom'][(left ? LEFT_SLOTS : RIGHT_SLOTS).indexOf(letter)];
-      html += placeholderBox(letter, `${left ? 'Primary' : 'Secondary'} - ${left ? 'left' : 'right'} column, ${pos}`, 'Assign an article to this section in the News list.');
+      html += placeholderBox(letter, `${left ? 'Primary' : 'Secondary/Foundation'} - ${left ? 'left' : 'right'} column, ${pos}`, 'Assign an article to this section in the News list.');
     }
   }
   html += strays.filter((a) => !known.has(a.slot || DEFAULT_SLOT)).map((a) => articleHtml(a, DEFAULT_SLOT)).join('');
@@ -499,11 +515,11 @@ function renderFooter(footerNote, newsletterName, schoolName, issueDateLabel) {
     let rows = '';
     for (let i = 0; i < entries.length; i += 3) {
       const triple = entries.slice(i, i + 3);
-      rows += `<tr>${triple.map((e) => `<td class="dir-cell" width="33%" valign="top" style="padding:7px 10px;">
+      rows += `<tr>${triple.map((e) => `<td class="dir-cell" width="33%" valign="top" align="center" style="padding:7px 10px; text-align:center;">
         <p style="margin:0; font-family:${SANS}; font-size:12px; font-weight:600; color:#ffffff;">${escapeHtml(e.name)}</p>
-        ${e.title ? `<p style="margin:2px 0 0 0; font-family:${SANS}; font-size:10px; letter-spacing:1px; color:${GOLD};">${escapeHtml(e.title)}</p>` : ''}</td>`).join('')}${triple.length < 3 ? `<td width="${(3 - triple.length) * 33}%">&nbsp;</td>` : ''}</tr>`;
+        ${e.title ? `<p style="margin:2px 0 0 0; font-family:${SANS}; font-size:10px; letter-spacing:1px; color:${GOLD};">${escapeHtml(e.title)}</p>` : ''}</td>`).join('')}${triple.length < 3 ? `<td class="dir-fill" width="${(3 - triple.length) * 33}%">&nbsp;</td>` : ''}</tr>`;
     }
-    directoryHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-bottom:16px;">${rows}</table><div style="margin:0 auto 16px auto;">${goldDivider(42, 'center')}</div>`;
+    directoryHtml = `<table role="presentation" class="dir-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-bottom:16px;">${rows}</table><div style="margin:0 auto 16px auto;">${goldDivider(42, 'center')}</div>`;
   } else if (footerNote) {
     directoryHtml = `<div style="margin-bottom:12px;">${textToHtml(footerNote, '#8b97b8', 12)}</div>`;
   }
@@ -545,9 +561,8 @@ function renderNewsletter(data) {
     return placeholders ? placeholderBox(letter, label, hint) : '';
   };
   const lowerBands =
-    bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the Primary and Secondary columns.') +
-    bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below Whole School.') +
-    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below Foundation.') +
+    bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the news columns.') +
+    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below Whole School.') +
     bandHtml('Y', 'Co-Curricular - full width', 'Co-Curricular stories run full width here, at the bottom.');
   const lowerBandsRow = lowerBands ? `<tr><td class="wrap-pad" style="padding:0 14px 6px 14px;">${lowerBands}</td></tr>` : '';
   const quoteBlock = quote && quote.text
@@ -605,7 +620,7 @@ function renderReminderEmail({ heading, headingColor, bodyHtml, buttonUrl, butto
 }
 
 /* ================= state ================= */
-const STORAGE_KEY = 'roar-demo-v7';
+const STORAGE_KEY = 'roar-demo-v8';
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi', monday_reminder_cron: '0 9 * * 1', thursday_reminder_cron: '0 9 * * 4',
   friday_generate_cron: '0 18 * * 4', auto_reminders: '0', editor_email: '', newsletter_name: 'The Roar',
@@ -717,7 +732,7 @@ function buildIssueData(week, placeholders = false, editable = false) {
   const articles = S.news
     .filter((n) => n.week_start === week && n.included !== 0 && (n.review_status || 'approved') === 'approved')
     .sort((a, b) => a.created_at - b.created_at)
-    .map((n) => ({ id: n.id, title: n.title, body: n.body, slot: n.slot || DEFAULT_SLOT, sectionLabel: labels[n.section] || '', photos: n.photos.map((p) => ({ id: p.id, url: resolvePhoto(p.src) })) }));
+    .map((n) => ({ id: n.id, title: n.title, body: n.body, slot: n.slot || DEFAULT_SLOT, sectionLabel: labels[n.section] || '', leadPhotoUrl: n.lead_photo_src ? resolvePhoto(n.lead_photo_src) : null, photos: n.photos.map((p) => ({ id: p.id, url: resolvePhoto(p.src) })) }));
   const pm = S.principalMessages[week] || null;
   return {
     newsletterName: S.settings.newsletter_name, schoolName: S.settings.school_name, issueDate,
@@ -951,10 +966,13 @@ function vNewsForm(item) {
     <p class="muted"><span data-word-count></span></p>
     <p class="muted"><strong>Links:</strong> paste a URL (https://\u2026) or write <code>[link text](https://\u2026)</code> - both become clickable links in the newsletter.</p>
     ${isManager() ? `<label>Template section <select name="slot">${CONTENT_SLOTS.map((sl) => `<option value="${sl}" ${item && item.slot === sl ? 'selected' : ''}>${SLOT_LABELS[sl]}</option>`).join('')}</select></label>
-    <p class="muted">The area decides where the story can go: Whole School runs full width under the header (W), Primary fills the left column (D/F/H), Secondary the right (E/G/I), and Sixth Form (X) and Co-Curricular (Y) run full width below the columns. Pick the area first - the list here only offers its positions.</p>`
+    <p class="muted">The area decides where the story can go: Primary fills the left column (D/F/H), Secondary and Foundation share the right (E/G/I), and Whole School (W), Sixth Form (X) and Co-Curricular (Y) run full width below the columns. Pick the area first - the list here only offers its positions.</p>`
     : item && item.slot ? `<p class="muted">Template section: <strong>${SLOT_LABELS[item.slot] || esc(item.slot)}</strong> - placement is set by the admin.</p>` : ''}
-    <label>Photos (JPEG/PNG/WebP/GIF) <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple></label>
-    <p class="muted">The first photo becomes the large hero image in the newsletter; the rest appear in a two-column grid. In the real app files are checked by content and uploaded to the Mailchimp CDN at generation time.<br><strong>Recommended:</strong> landscape photos around <strong>1200 \u00d7 800 px</strong> (minimum 800 px wide), JPEG, under <strong>2 MB</strong> each - sharp on retina screens and fast to load.</p>
+    <label>Photo of the section head (optional) <input type="file" name="lead_photo" accept="image/jpeg,image/png,image/webp,image/gif"></label>
+    <p class="muted">A small portrait shown at the <strong>top of the article, beside the text</strong> - the same treatment as the principal\u2019s photo.</p>
+    ${item && item.lead_photo_src ? `<div class="photo-tile photo-tile-inline"><img src="${esc(resolvePhoto(item.lead_photo_src))}" alt="Section head photo" style="max-width:96px;"><label class="muted"><input type="checkbox" name="remove_lead_photo" value="1"> remove this photo on save</label></div>` : ''}
+    <label>Photos (JPEG/PNG/WebP/GIF, up to 4) <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple></label>
+    <p class="muted">These appear <strong>after the article text</strong>: the first becomes the large hero image, the rest pair up in a two-column grid. In the real app files are checked by content, auto-cropped to 4:3 and uploaded to the Mailchimp CDN at generation time.<br><strong>Recommended:</strong> landscape photos around <strong>1200 \u00d7 800 px</strong> (minimum 800 px wide), JPEG, under <strong>2 MB</strong> each - sharp on retina screens and fast to load.</p>
     <div class="btn-row"><button type="submit" class="btn btn-primary">${item ? 'Save changes' : 'Add article'}</button>
     <button type="button" class="btn btn-secondary" data-nav="news">Cancel</button></div>
   </form>
@@ -977,7 +995,7 @@ function articlePreviewHtml(title, body, sectionLabel, photoUrls) {
     title: String(title || '').slice(0, 200) || 'Untitled article',
     body: String(body || '').slice(0, 20000) || 'Start typing the article text\u2026',
     sectionLabel: String(sectionLabel || ''),
-    photos: photoUrls.slice(0, 12).map((u) => ({ id: null, url: u })),
+    photos: photoUrls.slice(0, 4).map((u) => ({ id: null, url: u })),
   };
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Article preview</title>
 <style>${window.FIRAGO_FONT_CSS || ''}</style></head>
@@ -1205,7 +1223,7 @@ function generateIssue() {
 }
 
 function readPhotos(input, cb) {
-  const files = [...(input.files || [])].slice(0, 12);
+  const files = [...(input.files || [])].slice(0, 4);
   if (!files.length) return cb([]);
   const out = [];
   let left = files.length;
@@ -1391,21 +1409,27 @@ document.addEventListener('submit', (e) => {
     const words = wordCountOf(body);
     if (words > MAX_ARTICLE_WORDS) { notify('Article too long', `Article text is limited to ${MAX_ARTICLE_WORDS} words - currently ${words}. Please shorten it.`); return; }
     const slot = isManager() && allowedSlots(val('section')).includes(val('slot')) ? val('slot') : null;
-    readPhotos(form.querySelector('input[type=file]'), (photos) => {
+    readPhotos(form.querySelector('input[name=lead_photo]'), (leadPhotos) => {
+    readPhotos(form.querySelector('input[name=photos]'), (photos) => {
       if (S.view === 'news-edit') {
         const n = S.news.find((x) => x.id === Number(S.viewParam));
         const recheck = (n.review_status || 'approved') === 'approved' && !canReviewSection(section);
         Object.assign(n, { title, body, section, slot: slot || (allowedSlots(section).includes(n.slot) ? n.slot : defaultSlot(section)) });
         if (recheck) Object.assign(n, { review_status: 'pending', reviewed_by: null, review_note: null });
+        if (n.photos.length + photos.length > 4) { notify('Too many photos', 'An article can hold at most 4 photos.'); return; }
         n.photos.push(...photos);
+        if (leadPhotos.length) n.lead_photo_src = leadPhotos[0].src;
+        else if (val('remove_lead_photo') === '1') n.lead_photo_src = null;
         save(); go('news-edit', String(n.id));
       } else {
         const selfChecked = canReviewSection(section);
         S.news.push({ id: nid(), title, body, section, slot: slot || defaultSlot(section), included: 1, photos,
+          lead_photo_src: leadPhotos.length ? leadPhotos[0].src : null,
           review_status: selfChecked ? 'approved' : 'pending', reviewed_by: selfChecked ? me().id : null, review_note: null,
           created_by: me().id, week_start: subWeekStart(), created_at: Date.now() });
         save(); go('news');
       }
+    });
     });
   } else if (form.id === 'principal-form') {
     const body = val('body');
@@ -1489,7 +1513,7 @@ window.DemoEditor = {
   addPhoto(newsId, dataUri) {
     const n = S.news.find((x) => x.id === Number(newsId));
     if (!n) return { ok: false, error: 'That article no longer exists.' };
-    if (n.photos.length >= 12) return { ok: false, error: 'An article can hold at most 12 photos.' };
+    if (n.photos.length >= 4) return { ok: false, error: 'An article can hold at most 4 photos.' };
     n.photos.push({ id: nid(), src: dataUri, name: 'inline-upload.jpg' });
     save();
     return { ok: true };
@@ -1573,7 +1597,7 @@ document.addEventListener('change', (e) => {
   if (e.target && e.target.matches && e.target.matches('#news-form select[name=section]')) {
     syncFormSlotChoices();
   }
-  if (e.target && e.target.matches && e.target.matches('#news-form input[type=file]')) {
+  if (e.target && e.target.matches && e.target.matches('#news-form input[name=photos]')) {
     readPhotos(e.target, (photos) => { formPreviewPhotos = photos.map((p) => p.src); updateFormPreview(); });
   }
 });
