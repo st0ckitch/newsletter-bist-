@@ -8,7 +8,7 @@
 //   columns, each article under a colored header bar with its photos
 //   Footer - staff directory grid + branding.
 const { formatIssueDate } = require('./week');
-const { LEFT_SLOTS, RIGHT_SLOTS, DEFAULT_SLOT } = require('./slots');
+const { LEFT_SLOTS, RIGHT_SLOTS, DEFAULT_SLOT, MAX_ARTICLE_WORDS } = require('./slots');
 
 // Palette matched to the school's letter template: deep navy #0d1b3e with a
 // royal-navy companion, bright gold #f5b921 accents (#b08409 for gold text on
@@ -558,7 +558,7 @@ ${fontFaceCss(fontBase)}
 </style>
 </head>
 <body style="margin:0; padding:0; background:${PAGE_BG}; -webkit-text-size-adjust:100%;"${
-    editable ? ` data-csrf="${escapeHtml(data.csrf || '')}"` : ''
+    editable ? ` data-csrf="${escapeHtml(data.csrf || '')}" data-max-words="${MAX_ARTICLE_WORDS}"` : ''
   }>
   <center>
   <table role="presentation" class="sheet" width="680" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:680px; max-width:100%; background:${IVORY};">

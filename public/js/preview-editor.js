@@ -7,7 +7,8 @@
 (function () {
   'use strict';
 
-  var MAX_WORDS = 200;
+  var MAX_WORDS =
+    parseInt((document.body && document.body.getAttribute('data-max-words')) || '', 10) || 100;
   var demo = null;
   try {
     demo = window.parent && window.parent !== window && window.parent.DemoEditor ? window.parent.DemoEditor : null;

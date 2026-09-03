@@ -137,8 +137,8 @@ test('admin can create a news article without photos', async () => {
   assert.match(await list.text(), /Big Tennis Win/);
 });
 
-test('article text over 200 words is rejected', async () => {
-  const longBody = Array.from({ length: 201 }, (_, i) => `word${i}`).join(' ');
+test('article text over 100 words is rejected', async () => {
+  const longBody = Array.from({ length: 101 }, (_, i) => `word${i}`).join(' ');
   const res = await post('/news', { title: 'Too Long', body: longBody, section: 'primary' });
   assert.strictEqual(res.status, 400);
   const list = await get('/news');
@@ -179,6 +179,7 @@ test('live editor: edit mode annotates the preview; drafts and plain previews st
   const edit = await (await get('/newsletter/preview.html?edit=1')).text();
   assert.match(edit, /data-edit="news:\d+:title"/);
   assert.match(edit, /preview-editor\.js/);
+  assert.match(edit, /data-max-words="100"/, 'the live editor is told the current word limit');
   const plain = await (await get('/newsletter/preview.html')).text();
   assert.ok(!plain.includes('data-edit='), 'plain preview must not carry editor markup');
   const result = await generateIssue({ trigger: 'test-editor-clean' });
@@ -208,10 +209,10 @@ test('live editor API: inline text edits persist and are validated', async () =>
 
   const long = await apiJson('/api/edit/text', {
     target: `news:${newsId}:body`,
-    value: Array.from({ length: 201 }, (_, i) => `w${i}`).join(' '),
+    value: Array.from({ length: 101 }, (_, i) => `w${i}`).join(' '),
   });
   assert.strictEqual(long.status, 400);
-  assert.match(long.body.error, /200 words/);
+  assert.match(long.body.error, /100 words/);
 
   const unknown = await apiJson('/api/edit/text', { target: 'news:999999:title', value: 'x' });
   assert.strictEqual(unknown.status, 404);

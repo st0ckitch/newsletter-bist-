@@ -18,7 +18,8 @@ const LEFT_SLOTS = ['D', 'F', 'H'];
 const RIGHT_SLOTS = ['E', 'G', 'I'];
 const DEFAULT_SLOT = 'D';
 
-const MAX_ARTICLE_WORDS = 200;
+// Keep stories short and scannable for parents.
+const MAX_ARTICLE_WORDS = 100;
 
 function wordCount(text) {
   return String(text || '')
