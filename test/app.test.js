@@ -16,7 +16,7 @@ process.env.MAILCHIMP_TEACHERS_AUDIENCE_ID = '';
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { seedAdmin, db } = require('../src/db');
+const { seedAdmin, db, setSetting } = require('../src/db');
 const { createApp } = require('../src/app');
 const { generateIssue } = require('../src/generate');
 
@@ -59,6 +59,11 @@ async function extractCsrf(html) {
 
 test.before(async () => {
   seedAdmin();
+  // Pin the generation cutoff to Sunday 23:59 so the submission week and the
+  // generation week agree throughout the run - with the real Thursday-18:00
+  // default, a suite run on a Thursday evening or weekend would post stories
+  // into next week while previews/generation target this week.
+  setSetting('friday_generate_cron', '59 23 * * 7');
   const app = createApp();
   await new Promise((resolve) => {
     server = app.listen(0, () => resolve());
@@ -730,11 +735,27 @@ test('uploaded photos are cropped to a uniform 4:3 so pairs line up', async () =
   const photo = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id DESC').get(newsId);
   assert.match(photo.filename, /\.jpg$/);
   assert.strictEqual(photo.normalized, 1);
-  const meta = await sharp(require('path').join(process.env.DATA_DIR, 'uploads', photo.filename)).metadata();
+  const stored = require('path').join(process.env.DATA_DIR, 'uploads', photo.filename);
+  const meta = await sharp(stored).metadata();
   assert.strictEqual(meta.format, 'jpeg');
   assert.strictEqual(meta.width, 120);
-  assert.strictEqual(meta.height, 90, 'portrait upload is center-cropped to 4:3');
+  assert.strictEqual(meta.height, 90, 'portrait upload is cropped to 4:3');
   db.prepare('DELETE FROM photos WHERE id = ?').run(photo.id);
+
+  // The crop is anchored to the TOP of a portrait photo - the "head end" -
+  // never the busy middle. Red band on top, blue below: the crop keeps red.
+  const headshot = await sharp({ create: { width: 120, height: 480, channels: 3, background: '#0000ff' } })
+    .composite([{ input: { create: { width: 120, height: 120, channels: 3, background: '#ff0000' } }, top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+  const form2 = new FormData();
+  form2.append('news_id', newsId);
+  form2.append('photo', new Blob([headshot], { type: 'image/png' }), 'headshot.png');
+  await fetch(base + '/api/edit/photo/add', { method: 'POST', headers: { cookie: cookies, 'x-csrf-token': csrf }, body: form2 });
+  const photo2 = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id DESC').get(newsId);
+  const stats = await sharp(require('path').join(process.env.DATA_DIR, 'uploads', photo2.filename)).stats();
+  assert.ok(stats.channels[0].mean > 200 && stats.channels[2].mean < 60, 'the top of the photo survives the crop');
+  db.prepare('DELETE FROM photos WHERE id = ?').run(photo2.id);
 });
 
 test('live editor API: drag-and-drop swaps sections within a column; the area rule guards drags', async () => {
@@ -849,13 +870,14 @@ test('editor review notification: needs an editor email, then Mailchimp', async 
 });
 
 test('settings save the reminder toggle, editor email and the new generation schedule', async () => {
-  const { getSetting } = require('../src/db');
-  assert.strictEqual(getSetting('friday_generate_cron'), '0 18 * * 4', 'generation defaults to Thursday 18:00');
+  const { getSetting, SETTING_DEFAULTS } = require('../src/db');
+  // The product default (the live row is pinned to Sunday for the suite).
+  assert.strictEqual(SETTING_DEFAULTS.friday_generate_cron, '0 18 * * 4', 'generation defaults to Thursday 18:00');
   const res = await post('/settings', {
     timezone: 'Asia/Tbilisi',
     monday_reminder_cron: '0 9 * * 1',
     thursday_reminder_cron: '0 9 * * 4',
-    friday_generate_cron: '0 18 * * 4',
+    friday_generate_cron: '59 23 * * 7',
     auto_reminders: '1',
     editor_email: 'editor@test.local, second@test.local',
     newsletter_name: 'The Roar',
@@ -1039,7 +1061,9 @@ test('staff cannot review, lay out or approve', async () => {
 test('the generation report names stories still waiting for their SLT check', async () => {
   const teacher = await loginAs('caradoc@test.local', 'workflow-pass-1');
   await teacher.post('/news', { title: 'Unchecked Story', body: 'Waiting for a decision.', section: 'primary' });
-  const result = await generateIssue({ trigger: 'test' });
+  // Pin the week the story just landed in: run on a Thursday evening the
+  // submission week has already rolled past the generation week.
+  const result = await generateIssue({ weekStart: require('../src/appweek').submissionWeekStart(), trigger: 'test' });
   const step = result.steps.find((s) => s.label.includes('SLT check'));
   assert.ok(step && !step.ok, 'the report flags the outstanding check');
   assert.match(step.detail, /Unchecked Story/);

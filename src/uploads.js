@@ -50,8 +50,8 @@ function removeFiles(filenames) {
   }
 }
 
-// Article photos are center-cropped to a uniform 4:3 (attention-based crop
-// keeps faces/subjects in frame) and capped at 1200px wide, so the hero and
+// Article photos are cropped to a uniform 4:3 and capped at 1200px wide, so
+// the hero and
 // every two-up pair in the newsletter line up at the same height whatever
 // people upload. Email clients cannot crop (no object-fit in Outlook/Gmail),
 // so the crop has to happen here. Returns the new filename (a JPEG); on any
@@ -65,8 +65,13 @@ async function normalizePhoto(filename) {
     const meta = await sharp(buf).metadata();
     const cw = Math.max(1, Math.min(meta.width, Math.floor((meta.height * 4) / 3), 1200));
     const ch = Math.max(1, Math.floor((cw * 3) / 4));
+    // A crop that removes height keeps the TOP of the photo: in people shots
+    // the face is up there, and a top-anchored crop can never cut a head off
+    // (saliency-based cropping sometimes locks onto clothing instead of the
+    // face). A crop that removes width stays centred.
+    const cropsVertically = Math.floor((meta.height * 4) / 3) >= meta.width;
     const out = await sharp(buf)
-      .resize(cw, ch, { fit: 'cover', position: 'attention' })
+      .resize(cw, ch, { fit: 'cover', position: cropsVertically ? 'top' : 'centre' })
       .jpeg({ quality: 82, mozjpeg: true })
       .toBuffer();
     const newName = `${crypto.randomBytes(16).toString('hex')}.jpg`;
