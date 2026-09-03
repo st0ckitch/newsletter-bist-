@@ -558,10 +558,12 @@ function renderNewsletter(data) {
     if (inSlot.length) return inSlot.map((a) => articleHtml(a, letter)).join('');
     return placeholders ? placeholderBox(letter, label, hint) : '';
   };
-  const wholeSchoolBand = bandHtml('W', 'Whole School - full width', "Whole School stories run full width here, right under the calendar and principal's message.");
+  // Primary/Secondary news leads; the full-width sections follow, with
+  // Whole School first among them.
   const lowerBands =
-    bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below the two columns.') +
-    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below the two columns.') +
+    bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the Primary and Secondary columns.') +
+    bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below Whole School.') +
+    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below Foundation.') +
     bandHtml('Y', 'Co-Curricular - full width', 'Co-Curricular stories run full width here, at the bottom.');
   const lowerBandsRow = lowerBands
     ? `
@@ -657,7 +659,6 @@ ${fontFaceCss(fontBase)}
           </tr>
         </table>
         ${renderMenusBlock(data.menus, placeholders)}
-        ${wholeSchoolBand}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
             <td class="col" width="${COL_W}" valign="top">${leftColumn || '&nbsp;'}</td>

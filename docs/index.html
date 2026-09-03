@@ -288,7 +288,7 @@ const SECTION_SLOTS = { whole_school: ['W'], foundation: ['V'], primary: LEFT_SL
 const allowedSlots = (section) => SECTION_SLOTS[section] || CONTENT_SLOTS;
 const defaultSlot = (section) => allowedSlots(section)[0];
 function columnRule(section) {
-  if (section === 'whole_school') return "Whole School stories live in their own full-width section (W) under the calendar and principal's message.";
+  if (section === 'whole_school') return 'Whole School stories live in their own full-width section (W) under the Primary/Secondary columns.';
   if (section === 'foundation') return 'Foundation stories live in their own full-width section (V) below the columns.';
   if (section === 'primary') return 'Primary stories always go in the left column (D/F/H).';
   if (section === 'secondary') return 'Secondary stories always go in the right column (E/G/I).';
@@ -544,10 +544,10 @@ function renderNewsletter(data) {
     if (inSlot.length) return inSlot.map((a) => articleHtml(a, letter)).join('');
     return placeholders ? placeholderBox(letter, label, hint) : '';
   };
-  const wholeSchoolBand = bandHtml('W', 'Whole School - full width', "Whole School stories run full width here, right under the calendar and principal's message.");
   const lowerBands =
-    bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below the two columns.') +
-    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below the two columns.') +
+    bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the Primary and Secondary columns.') +
+    bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below Whole School.') +
+    bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below Foundation.') +
     bandHtml('Y', 'Co-Curricular - full width', 'Co-Curricular stories run full width here, at the bottom.');
   const lowerBandsRow = lowerBands ? `<tr><td class="wrap-pad" style="padding:0 14px 6px 14px;">${lowerBands}</td></tr>` : '';
   const quoteBlock = quote && quote.text
@@ -581,7 +581,6 @@ ${quoteBlock}
     <td class="gutter" width="16" style="font-size:0; line-height:0;">&nbsp;</td>
     <td class="col" width="${COL_W}" valign="top">${principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '&nbsp;'}</td>
   </tr></table>
-  ${wholeSchoolBand}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
     <td class="col" width="${COL_W}" valign="top">${leftColumn || '&nbsp;'}</td>
     <td class="gutter" width="16" style="font-size:0; line-height:0;">&nbsp;</td>
