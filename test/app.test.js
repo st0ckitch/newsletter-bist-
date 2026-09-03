@@ -1378,6 +1378,17 @@ test('bulk role fix updates existing accounts; bulk delete prunes old staff safe
   db.prepare("DELETE FROM users WHERE email = 'tom.slt@import.local'").run();
 });
 
+test('email export lists every account as plain text, site admin only', async () => {
+  const res = await get('/users/export.txt');
+  assert.strictEqual(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/plain/);
+  const body = await res.text();
+  assert.ok(body.includes('admin@test.local'));
+  assert.ok(!body.includes('<'), 'plain emails only, no markup');
+  const slt = await loginAs('slt.primary@test.local', 'workflow-pass-1');
+  assert.strictEqual((await slt.get('/users/export.txt')).status, 403);
+});
+
 test('school menus: managers curate titled links; the newsletter shows them as buttons', async () => {
   // validation: a bare word is not a link
   const bad = await post('/menus', { title: 'Foundation', url: 'not-a-url' });

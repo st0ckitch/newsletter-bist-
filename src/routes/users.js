@@ -206,6 +206,14 @@ router.post('/users/bulk-delete', requireSiteAdmin, (req, res) => {
   res.render('users', usersLocals(req, { deleteReport: report }));
 });
 
+// Plain-text list of every account's email (one per line) - made for
+// pasting into Mailchimp's "add subscribers" box, always reflecting the
+// live database rather than the original import files.
+router.get('/users/export.txt', requireSiteAdmin, (req, res) => {
+  const emails = db.prepare('SELECT email FROM users ORDER BY email').all().map((r) => r.email);
+  res.type('text/plain').send(emails.join('\n') + '\n');
+});
+
 router.get('/users/new', requireAdmin, (req, res) => {
   res.render('user_form', userFormLocals({ values: { email: '', name: '', role: 'staff', section: '' }, errors: [] }));
 });
