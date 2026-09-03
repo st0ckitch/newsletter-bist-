@@ -1216,6 +1216,42 @@ test('bulk role fix updates existing accounts; bulk delete prunes old staff safe
   db.prepare("DELETE FROM users WHERE email = 'tom.slt@import.local'").run();
 });
 
+test('school menus: managers curate titled links; the newsletter shows them as buttons', async () => {
+  // validation: a bare word is not a link
+  const bad = await post('/menus', { title: 'Foundation', url: 'not-a-url' });
+  assert.strictEqual(bad.status, 400);
+
+  await post('/menus', { title: 'Foundation', url: 'https://bist.ge/menus/foundation.pdf' });
+  await post('/menus', { title: 'Year 6-13', url: 'https://bist.ge/menus/year-6-13.pdf' });
+  const page = await (await get('/menus')).text();
+  assert.match(page, /Foundation/);
+  assert.match(page, /year-6-13\.pdf/);
+
+  // the section renders between the principal's message and Whole School,
+  // with each title as a clickable button
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /SCHOOL MENUS/);
+  assert.match(preview, /href="https:\/\/bist\.ge\/menus\/foundation\.pdf"/);
+  assert.match(preview, /Year 6-13 &rarr;/);
+  assert.ok(preview.indexOf('SCHOOL MENUS') > preview.indexOf('Upcoming Events'), 'menus sit below the top block');
+
+  // editing a link in place
+  const id = db.prepare("SELECT id FROM menus WHERE title = 'Foundation'").get().id;
+  await post(`/menus/${id}`, { title: 'Foundation (EYFS)', url: 'https://bist.ge/menus/foundation-v2.pdf' });
+  assert.match(await (await get('/newsletter/preview.html')).text(), /Foundation \(EYFS\)/);
+
+  // staff cannot manage menus
+  const teacher = await loginAs('caradoc@test.local', 'workflow-pass-1');
+  assert.strictEqual((await teacher.get('/menus')).status, 403);
+  assert.strictEqual((await teacher.post('/menus', { title: 'X', url: 'https://x.example' })).status, 403);
+
+  // no links: the sent draft has no menus section, the preview shows the hint
+  db.prepare('DELETE FROM menus').run();
+  const result = await generateIssue({ trigger: 'test-menus' });
+  assert.ok(!result.html.includes('SCHOOL MENUS'), 'empty menus stay out of the draft');
+  assert.match(await (await get('/newsletter/preview.html')).text(), /School menus/);
+});
+
 test('the users page shows who activated their account and when they last signed in', async () => {
   // c.peters activated via the invite link earlier - both stamps recorded.
   const caradoc = db.prepare("SELECT * FROM users WHERE email = 'c.peters@import.local'").get();

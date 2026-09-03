@@ -32,7 +32,8 @@ function collectWeekData(weekStart) {
   const awaitingReview = db
     .prepare("SELECT id, title, section FROM news WHERE week_start = ? AND review_status = 'pending' ORDER BY created_at")
     .all(weekStart);
-  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview };
+  const menus = db.prepare('SELECT * FROM menus ORDER BY id').all();
+  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview, menus };
 }
 
 function photoPublicUrl(photo, baseUrl = publicBaseUrl()) {
@@ -91,6 +92,7 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
       data.principalMessage && data.principalMessage.quote
         ? { text: data.principalMessage.quote, author: data.principalMessage.quote_author, weekStart: data.weekStart }
         : null,
+    menus: data.menus || [],
     events: data.events,
     principalMessage: data.principalMessage
       ? {

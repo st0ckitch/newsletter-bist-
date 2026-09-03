@@ -1,0 +1,55 @@
+<%- include('partials/head', { title: 'School menus' }) %>
+<div class="page-head">
+  <h1>School menus</h1>
+</div>
+<% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+<div class="grid-2">
+  <div class="card">
+    <h2>Add a menu link</h2>
+    <p class="muted">Each link appears as a button in the newsletter's <strong>School Menus</strong> section,
+    right under the calendar and the principal's message. Give it the title parents should see
+    (e.g. <em>Foundation</em>, <em>Year 1-5</em>, <em>Year 6-13</em>) and paste the address of the menu -
+    make sure the link is <strong>publicly viewable</strong> (a shared Drive link or a page on bist.ge),
+    or parents will hit a permission wall.</p>
+    <form method="post" action="/menus">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field-row">
+        <label>Title <input type="text" name="title" maxlength="80" required placeholder="Year 1-5" list="menu-titles"></label>
+        <label>Link <input type="url" name="url" required placeholder="https://…"></label>
+      </div>
+      <datalist id="menu-titles">
+        <option value="Foundation"><option value="Year 1-5"><option value="Year 6-13">
+      </datalist>
+      <button class="btn btn-primary">Add link</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Current links</h2>
+    <% if (!menus.length) { %><p class="muted">No menu links yet - the School Menus section stays out of the
+    newsletter until you add one.</p><% } %>
+    <table class="table">
+      <tbody>
+        <% menus.forEach(function(m) { %>
+          <tr>
+            <td>
+              <form method="post" action="/menus/<%= m.id %>" class="inline-form">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <input type="text" name="title" value="<%= m.title %>" maxlength="80" required>
+                <input type="url" name="url" value="<%= m.url %>" required>
+                <button class="btn btn-ghost btn-sm">Save</button>
+              </form>
+            </td>
+            <td class="row-actions">
+              <a class="btn btn-ghost btn-sm" href="<%= m.url %>" target="_blank" rel="noopener">Open</a>
+              <form method="post" action="/menus/<%= m.id %>/delete" data-confirm="Remove this menu link from the newsletter?">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <button class="btn btn-danger btn-sm">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('partials/foot') %>

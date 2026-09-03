@@ -396,6 +396,38 @@ function columnHtml(letters, articles, articleHtml, placeholders, strays = []) {
   return html;
 }
 
+/* ---------- School menus ---------- */
+
+// Titled links curated on the Menus page ("Foundation", "Year 1-5", ...)
+// rendered as gold buttons in a navy strip. No links = no section in the
+// sent email; the preview shows a labelled placeholder instead.
+function renderMenusBlock(menus, placeholders) {
+  if (!menus || !menus.length) {
+    return placeholders
+      ? placeholderBox('M', 'School menus', 'Add the menu links (title + web address) on the Menus page.')
+      : '';
+  }
+  const buttons = menus
+    .map(
+      (m) => `<a href="${escapeHtml(m.url)}" target="_blank" style="display:inline-block; background:${GOLD}; color:${NAVY_DEEP}; font-family:${SANS}; font-size:12px; font-weight:700; letter-spacing:0.5px; text-decoration:none; padding:9px 16px; border-radius:6px; margin:10px 8px 0 0;">${escapeHtml(
+        m.title
+      )} &rarr;</a>`
+    )
+    .join('');
+  return `
+  <div style="padding:0 0 18px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
+      <tr>
+        <td style="background:${NAVY}; border-radius:10px; padding:14px 16px 16px 16px;">
+          <p style="margin:0; font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:3px; color:${GOLD};">SCHOOL MENUS</p>
+          <p style="margin:6px 0 0 0; font-family:${SANS}; font-size:12.5px; color:${GOLD_SOFT};">What&rsquo;s on the table this week &mdash; pick your year group:</p>
+          ${buttons}
+        </td>
+      </tr>
+    </table>
+  </div>`;
+}
+
 /* ---------- Footer ---------- */
 
 // Lines like "Robert Snowden - Principal" become a staff directory grid;
@@ -624,6 +656,7 @@ ${fontFaceCss(fontBase)}
             <td class="col" width="${COL_W}" valign="top">${principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '&nbsp;'}</td>
           </tr>
         </table>
+        ${renderMenusBlock(data.menus, placeholders)}
         ${wholeSchoolBand}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
