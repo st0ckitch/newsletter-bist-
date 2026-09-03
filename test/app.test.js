@@ -1150,6 +1150,50 @@ test('a newly added person is the only "new" invitee; single-person invites work
   assert.match(await single.text(), /No invitations were sent:.*Mailchimp is not configured/);
 });
 
+test('bulk role fix updates existing accounts; bulk delete prunes old staff safely', async () => {
+  await post('/users/import', { csv: 'Old Timer,old.timer@import.local\nMis Roled,tom.slt@import.local' });
+  const misroled = db.prepare("SELECT * FROM users WHERE email = 'tom.slt@import.local'").get();
+  assert.strictEqual(misroled.role, 'staff', 'imported without a role = staff');
+
+  // Paste both formats: bare "email, role, area" and full import lines.
+  const res = await post('/users/set-roles', {
+    lines: [
+      'Name,Email,Role,Area', // header is skipped
+      'tom.slt@import.local, slt, secondary',
+      'Mis Roled,tom.slt@import.local,slt,secondary', // full line form also accepted
+      'ghost@import.local, slt',
+      'broken line without email',
+    ].join('\n'),
+  });
+  assert.strictEqual(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Roles updated:/);
+  assert.match(html, /Not found[^<]*ghost@import\.local/);
+  assert.match(html, /Skipped lines:.*broken line/);
+  const fixed = db.prepare("SELECT * FROM users WHERE email = 'tom.slt@import.local'").get();
+  assert.strictEqual(fixed.role, 'slt');
+  assert.strictEqual(fixed.section, 'secondary');
+
+  // Bulk delete: ticked accounts go; admin/principal and self never do.
+  const oldId = db.prepare("SELECT id FROM users WHERE email = 'old.timer@import.local'").get().id;
+  const principalId = db.prepare("SELECT id FROM users WHERE email = 'principal@test.local'").get().id;
+  const meId = db.prepare("SELECT id FROM users WHERE email = 'admin@test.local'").get().id;
+  const del = await post('/users/bulk-delete', { ids: `${oldId},${principalId},${meId}` });
+  assert.strictEqual(del.status, 200);
+  const delHtml = await del.text();
+  assert.match(delHtml, /1 account\(s\) deleted/);
+  assert.match(delHtml, /Skipped[^<]*Head Teacher/);
+  assert.ok(!db.prepare("SELECT 1 FROM users WHERE email = 'old.timer@import.local'").get(), 'old staff removed');
+  assert.ok(db.prepare("SELECT 1 FROM users WHERE email = 'principal@test.local'").get(), 'principal survives bulk delete');
+  assert.ok(db.prepare("SELECT 1 FROM users WHERE email = 'admin@test.local'").get(), 'own account survives');
+
+  // Both tools are for the site admin only.
+  const slt = await loginAs('slt.primary@test.local', 'workflow-pass-1');
+  assert.strictEqual((await slt.post('/users/set-roles', { lines: 'x@x.x, admin' })).status, 403);
+  assert.strictEqual((await slt.post('/users/bulk-delete', { ids: '1' })).status, 403);
+  db.prepare("DELETE FROM users WHERE email = 'tom.slt@import.local'").run();
+});
+
 test('the users page shows who activated their account and when they last signed in', async () => {
   // c.peters activated via the invite link earlier - both stamps recorded.
   const caradoc = db.prepare("SELECT * FROM users WHERE email = 'c.peters@import.local'").get();

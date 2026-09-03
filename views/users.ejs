@@ -39,6 +39,25 @@
   <% } %>
 <% } %>
 
+<% if (locals.roleReport) { %>
+  <div class="alert alert-ok">
+    <strong>Roles updated:</strong> <%= roleReport.updated.length %> account(s) changed<%= roleReport.updated.length ? ' (' + roleReport.updated.join(', ') + ')' : '' %>.
+    <% if (roleReport.missing.length) { %><br>Not found (no account with this email): <%= roleReport.missing.join(', ') %><% } %>
+  </div>
+  <% if (roleReport.invalid.length) { %>
+    <div class="alert alert-warn"><strong>Skipped lines:</strong> <%= roleReport.invalid.join(' · ') %></div>
+  <% } %>
+<% } %>
+
+<% if (locals.deleteReport) { %>
+  <div class="alert alert-ok">
+    <strong><%= deleteReport.deleted %> account(s) deleted.</strong>
+    <% if (deleteReport.skipped.length) { %>
+      Skipped (admin/principal accounts and your own row are never bulk-deleted): <%= deleteReport.skipped.join(', ') %>
+    <% } %>
+  </div>
+<% } %>
+
 <% if (locals.isSiteAdmin) { %>
 <div class="grid-2">
   <div class="card">
@@ -75,6 +94,31 @@
       <button class="btn btn-ghost" <%= pendingInvites ? '' : 'disabled' %>>Re-send reminders to all <%= pendingInvites %> not activated</button>
     </form>
   </div>
+  <div class="card">
+    <h2>Fix roles in bulk</h2>
+    <p class="muted">Importing never changes existing accounts, so a person created as <code>staff</code> by an
+    earlier list stays staff even if a later list says <code>slt</code>. Paste <code>email, role, area</code>
+    lines here (full <code>Name, email, role, area</code> import lines work too) and the listed accounts get
+    exactly that role - e.g. <code>t.thurston@bist.ge, slt, secondary</code>. An SLT member with no area checks
+    every area.</p>
+    <form method="post" action="/users/set-roles">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label>Role list
+        <textarea name="lines" rows="5" placeholder="t.browningstamp@bist.ge, slt&#10;Samuel Murray, s.murray@bist.ge, slt, secondary"></textarea>
+      </label>
+      <button class="btn btn-primary">Update roles</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Remove old staff</h2>
+    <p class="muted">Tick the rows of people who have left in the table below, then delete them all at once.
+    Admin and principal accounts (and your own) are never bulk-deleted. Deleting an account does not delete
+    the stories that person wrote.</p>
+    <form method="post" action="/users/bulk-delete" id="bulk-delete-form" data-confirm="Delete every ticked account? This cannot be undone.">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="btn btn-danger">Delete ticked accounts</button>
+    </form>
+  </div>
 </div>
 <% } %>
 <div class="card">
@@ -82,10 +126,13 @@
   (<strong><%= users.filter(function(u){ return !u.invited; }).length %></strong> of <%= users.length %>);
   <span class="tag tag-pending">✉</span> = still waiting on them. Times are Georgian time.</p>
   <table class="table">
-    <thead><tr><th>Name</th><th>Email</th><th>Role &amp; area</th><th>Reset password</th><th></th></tr></thead>
+    <thead><tr><% if (locals.isSiteAdmin) { %><th></th><% } %><th>Name</th><th>Email</th><th>Role &amp; area</th><th>Reset password</th><th></th></tr></thead>
     <tbody>
       <% users.forEach(function(u) { %>
         <tr>
+          <% if (locals.isSiteAdmin) { %>
+          <td><% if (u.id !== currentUser.id && !['admin','principal'].includes(u.role)) { %><input type="checkbox" name="ids" value="<%= u.id %>" form="bulk-delete-form" aria-label="select <%= u.name %>"><% } %></td>
+          <% } %>
           <td><%= u.name %>
             <% if (u.invited) { %>
               <br><span class="tag tag-pending">✉ <%= u.invite_sent_at ? 'invited ' + fmtWhen(u.invite_sent_at) + ' - waiting' : 'no invite emailed yet' %></span>

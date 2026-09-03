@@ -71,6 +71,8 @@ function usersLocals(req, extra = {}) {
     newInvites: invites.neverInvited().length,
     importReport: null,
     inviteResult: null,
+    roleReport: null,
+    deleteReport: null,
     ...extra,
   };
 }
@@ -147,6 +149,61 @@ router.post('/users/:id/invite', requireSiteAdmin, async (req, res) => {
     inviteResult = { sent: false, reason: err.message };
   }
   res.render('users', usersLocals(req, { inviteResult }));
+});
+
+// Fix roles in bulk: paste "email, role[, area]" or full import lines
+// ("Name, email, role[, area]") - existing accounts get the listed role and
+// area. The import itself never modifies existing accounts, so this is how a
+// mis-imported person (e.g. an SLT member created as staff by an earlier
+// list) is corrected without clicking through every row.
+router.post('/users/set-roles', requireSiteAdmin, (req, res) => {
+  const report = { updated: [], missing: [], invalid: [] };
+  for (const raw of String(req.body.lines || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    let cols = line.split(',').map((c) => c.trim());
+    if (!cols[0].includes('@') && (cols[1] || '').includes('@')) cols = cols.slice(1); // "Name,email,..." form
+    const email = (cols[0] || '').toLowerCase();
+    const role = (cols[1] || '').toLowerCase();
+    const section = (cols[2] || '').toLowerCase();
+    if (/^(member\s*)?e-?mail$/.test(email)) continue; // header row
+    if (!EMAIL_RE.test(email) || !ALL_ROLES.includes(role)) {
+      report.invalid.push(line.slice(0, 120));
+      continue;
+    }
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    if (!user) {
+      report.missing.push(email);
+      continue;
+    }
+    const managers = db.prepare("SELECT COUNT(*) AS c FROM users WHERE role IN ('admin','principal')").get().c;
+    if (['admin', 'principal'].includes(user.role) && !['admin', 'principal'].includes(role) && managers <= 1) {
+      report.invalid.push(`${email} (cannot demote the last admin/principal)`);
+      continue;
+    }
+    db.prepare('UPDATE users SET role = ?, section = ? WHERE id = ?').run(role, areaFor(role, section), user.id);
+    report.updated.push(`${email} → ${role}${role === 'slt' && SECTION_KEYS.includes(section) ? ' / ' + section : ''}`);
+  }
+  res.render('users', usersLocals(req, { roleReport: report }));
+});
+
+// Prune old staff in bulk: ticked rows are deleted. Admin/principal accounts
+// and the admin's own row are never bulk-deleted - those need the per-row
+// button, keeping the "last admin" guard meaningful.
+router.post('/users/bulk-delete', requireSiteAdmin, (req, res) => {
+  const ids = [].concat(req.body.ids || []).flatMap((v) => String(v).split(',')).map(Number).filter(Boolean);
+  const report = { deleted: 0, skipped: [] };
+  for (const id of ids) {
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    if (!target) continue;
+    if (target.id === req.user.id || ['admin', 'principal'].includes(target.role)) {
+      report.skipped.push(target.name);
+      continue;
+    }
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    report.deleted += 1;
+  }
+  res.render('users', usersLocals(req, { deleteReport: report }));
 });
 
 router.get('/users/new', requireAdmin, (req, res) => {
