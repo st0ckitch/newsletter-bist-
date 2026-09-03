@@ -1,13 +1,15 @@
-// Named template sections. A-C are fixed parts of the layout. Each area of
-// school life has its own dedicated place: Whole School runs full width under
-// the header (W), Primary fills the left column (D/F/H), Secondary the right
-// (E/G/I), and Sixth Form (X) and Co-Curricular (Y) run full width below the
-// columns.
+// Named template sections. A-C are fixed parts of the layout: the header &
+// quote, then always the events calendar (B, left) beside the principal's
+// message (C, right). Each area of school life has its own dedicated place
+// below them: Whole School runs full width right after the calendar/message
+// block (W), Primary fills the left column (D/F/H), Secondary the right
+// (E/G/I), and Foundation (V), Sixth Form (X) and Co-Curricular (Y) run full
+// width below the columns.
 const SLOT_LABELS = {
   A: 'A - Header & quote of the week (fixed)',
   B: 'B - Upcoming events · left column (fixed)',
   C: "C - Principal's message · right column (fixed)",
-  W: 'W - Whole School · full width, under the header',
+  W: "W - Whole School · full width, under the calendar & principal's message",
   D: 'D - Primary · left column, top',
   E: 'E - Secondary · right column, top',
   F: 'F - Primary · left column, middle',
@@ -56,7 +58,7 @@ function defaultSlot(section) {
 
 // The human-readable rule behind a refused placement (null = no restriction).
 function columnRule(section) {
-  if (section === 'whole_school') return 'Whole School stories live in their own full-width section (W) under the header.';
+  if (section === 'whole_school') return "Whole School stories live in their own full-width section (W) under the calendar and principal's message.";
   if (section === 'foundation') return 'Foundation stories live in their own full-width section (V) below the columns.';
   if (section === 'primary') return 'Primary stories always go in the left column (D/F/H).';
   if (section === 'secondary') return 'Secondary stories always go in the right column (E/G/I).';

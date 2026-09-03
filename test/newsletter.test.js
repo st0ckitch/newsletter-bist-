@@ -43,18 +43,18 @@ test('renderNewsletter includes all template sections', () => {
   assert.match(html, /bist\.ge\/calendar/);
 });
 
-test('slots map onto the two columns: left column (events, D) before right column (principal, E)', () => {
+test('layout order: calendar and principal fixed on top, then the article columns', () => {
   const html = renderNewsletter(baseData);
   const events = html.indexOf('Upcoming Events');
-  const slotD = html.indexOf('Tennis &lt;win&gt;');
   // The desktop copy of the principal block (the mobile-only copy legitimately
-  // renders earlier in the source, above the columns).
+  // renders earlier in the source, before the fixed top block).
   const principal = html.indexOf('PRINCIPAL&#39;S MESSAGE', html.indexOf('class="desk-principal"'));
+  const slotD = html.indexOf('Tennis &lt;win&gt;');
   const slotE = html.indexOf('Khachapuri Baking');
   assert.ok(events !== -1 && slotD !== -1 && principal !== -1 && slotE !== -1);
-  assert.ok(events < slotD, 'events open the left column');
-  assert.ok(slotD < principal, 'left column renders before the right column');
-  assert.ok(principal < slotE, "principal's message opens the right column");
+  assert.ok(events < principal, 'the calendar sits beside (before) the principal in the top block');
+  assert.ok(principal < slotD, 'the fixed top block renders before any article column');
+  assert.ok(slotD < slotE, 'left column (D) renders before the right column (E)');
 });
 
 test('principal portrait renders beside the message when provided', () => {

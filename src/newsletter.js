@@ -515,10 +515,8 @@ function renderNewsletter(data) {
   const mobilePrincipal = principalHtml
     ? `<div class="mob-principal" style="display:none; max-height:0; overflow:hidden; mso-hide:all;">${principalHtml}</div>`
     : '';
-  const leftColumn = eventsHtml + columnHtml(LEFT_SLOTS, articles, articleHtml, placeholders, articles);
-  const rightColumn =
-    (principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '') +
-    columnHtml(RIGHT_SLOTS, articles, articleHtml, placeholders);
+  const leftColumn = columnHtml(LEFT_SLOTS, articles, articleHtml, placeholders, articles);
+  const rightColumn = columnHtml(RIGHT_SLOTS, articles, articleHtml, placeholders);
 
   // Dedicated full-width sections: Whole School (W) above the two columns,
   // Sixth Form (X) and Co-Curricular (Y) below them. An empty band collapses
@@ -528,7 +526,7 @@ function renderNewsletter(data) {
     if (inSlot.length) return inSlot.map((a) => articleHtml(a, letter)).join('');
     return placeholders ? placeholderBox(letter, label, hint) : '';
   };
-  const wholeSchoolBand = bandHtml('W', 'Whole School - full width', 'Whole School stories run full width here, right under the header.');
+  const wholeSchoolBand = bandHtml('W', 'Whole School - full width', "Whole School stories run full width here, right under the calendar and principal's message.");
   const lowerBands =
     bandHtml('V', 'Foundation - full width', 'Foundation stories run full width here, below the two columns.') +
     bandHtml('X', 'Sixth Form - full width', 'Sixth Form stories run full width here, below the two columns.') +
@@ -617,6 +615,15 @@ ${fontFaceCss(fontBase)}
     <tr>
       <td class="wrap-pad" style="padding:20px 14px 6px 14px;">
         ${mobilePrincipal}
+        <!-- Fixed top block: the events calendar and the principal's message
+             always come first, whatever the week's stories are. -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr>
+            <td class="col" width="${COL_W}" valign="top">${eventsHtml || '&nbsp;'}</td>
+            <td class="gutter" width="16" style="font-size:0; line-height:0;">&nbsp;</td>
+            <td class="col" width="${COL_W}" valign="top">${principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '&nbsp;'}</td>
+          </tr>
+        </table>
         ${wholeSchoolBand}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
