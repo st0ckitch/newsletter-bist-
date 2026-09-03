@@ -201,6 +201,7 @@ ensureColumn('users', 'invite_sent_at', 'invite_sent_at TEXT');
 // their invite link, and when they last signed in.
 ensureColumn('users', 'activated_at', 'activated_at TEXT');
 ensureColumn('users', 'last_login_at', 'last_login_at TEXT');
+ensureColumn('photos', 'normalized', 'normalized INTEGER NOT NULL DEFAULT 0');
 ensureColumn('news', 'reviewed_by', 'reviewed_by INTEGER');
 ensureColumn('news', 'reviewed_at', 'reviewed_at TEXT');
 ensureColumn('news', 'review_note', 'review_note TEXT');

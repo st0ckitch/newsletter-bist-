@@ -6,7 +6,7 @@ const path = require('path');
 const config = require('../config');
 const { db, getSetting, setSetting } = require('../db');
 const { requireLayout, csrfOk } = require('../auth');
-const { upload, isRealImage, removeFiles } = require('../uploads');
+const { upload, isRealImage, removeFiles, normalizePhoto } = require('../uploads');
 const { MAX_ARTICLE_WORDS, wordCount, CONTENT_SLOTS, DEFAULT_SLOT, allowedSlots, columnRule } = require('../slots');
 const { isValidDateStr } = require('../week');
 
@@ -122,7 +122,7 @@ router.post('/api/edit/slot', manager, (req, res) => {
 
 /* ---------------- photos ---------------- */
 
-router.post('/api/edit/photo/add', manager, photoUpload, (req, res) => {
+router.post('/api/edit/photo/add', manager, photoUpload, async (req, res) => {
   const item = db.prepare('SELECT * FROM news WHERE id = ?').get(req.body.news_id);
   if (!item) {
     removeFiles([req.file.filename]);
@@ -133,16 +133,17 @@ router.post('/api/edit/photo/add', manager, photoUpload, (req, res) => {
     removeFiles([req.file.filename]);
     return bad(res, 'An article can hold at most 12 photos.');
   }
-  db.prepare('INSERT INTO photos (news_id, filename, original_name, mime) VALUES (?, ?, ?, ?)').run(
+  const filename = await normalizePhoto(req.file.filename);
+  db.prepare('INSERT INTO photos (news_id, filename, original_name, mime, normalized) VALUES (?, ?, ?, ?, 1)').run(
     item.id,
-    req.file.filename,
+    filename,
     req.file.originalname,
-    req.file.mimetype
+    'image/jpeg'
   );
   res.json({ ok: true });
 });
 
-router.post('/api/edit/photo/replace', manager, photoUpload, (req, res) => {
+router.post('/api/edit/photo/replace', manager, photoUpload, async (req, res) => {
   const photo = db.prepare('SELECT * FROM photos WHERE id = ?').get(req.body.photo_id);
   if (!photo) {
     removeFiles([req.file.filename]);
@@ -150,10 +151,10 @@ router.post('/api/edit/photo/replace', manager, photoUpload, (req, res) => {
   }
   // Same row keeps its position in the article; the CDN copy is re-uploaded
   // on the next generation.
-  db.prepare('UPDATE photos SET filename = ?, original_name = ?, mime = ?, mailchimp_url = NULL WHERE id = ?').run(
-    req.file.filename,
+  const filename = await normalizePhoto(req.file.filename);
+  db.prepare("UPDATE photos SET filename = ?, original_name = ?, mime = 'image/jpeg', normalized = 1, mailchimp_url = NULL WHERE id = ?").run(
+    filename,
     req.file.originalname,
-    req.file.mimetype,
     photo.id
   );
   removeFiles([photo.filename]);

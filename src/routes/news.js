@@ -5,7 +5,7 @@ const { canReviewSection, isReviewer, canLayout } = require('../roles');
 const { SECTION_KEYS, SECTIONS, isSection } = require('../sections');
 const { submissionWeekStart } = require('../appweek');
 const { CONTENT_SLOTS, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount, allowedSlots, defaultSlot, columnRule } = require('../slots');
-const { upload, isRealImage, removeFiles } = require('../uploads');
+const { upload, isRealImage, removeFiles, normalizeFiles } = require('../uploads');
 const { renderArticlePreview } = require('../newsletter');
 
 const router = express.Router();
@@ -81,7 +81,7 @@ function validate(body, user) {
 }
 
 function savePhotos(newsId, files) {
-  const insert = db.prepare('INSERT INTO photos (news_id, filename, original_name, mime) VALUES (?, ?, ?, ?)');
+  const insert = db.prepare('INSERT INTO photos (news_id, filename, original_name, mime, normalized) VALUES (?, ?, ?, ?, 1)');
   for (const f of files || []) insert.run(newsId, f.filename, f.originalname, f.mimetype);
 }
 
@@ -127,7 +127,7 @@ router.get('/news/new', requireLogin, (req, res) => {
   res.render('news_form', formLocals(req, { item: null, photos: [], errors: [] }));
 });
 
-router.post('/news', requireLogin, photosUpload, (req, res) => {
+router.post('/news', requireLogin, photosUpload, async (req, res) => {
   const { errors, values } = validate(req.body, req.user);
   if (errors.length) {
     removeFiles((req.files || []).map((f) => f.filename));
@@ -150,6 +150,7 @@ router.post('/news', requireLogin, photosUpload, (req, res) => {
       req.user.id,
       submissionWeekStart()
     );
+  await normalizeFiles(req.files);
   savePhotos(info.lastInsertRowid, req.files);
   res.redirect('/news');
 });
@@ -159,7 +160,7 @@ router.get('/news/:id/edit', requireLogin, loadNews, (req, res) => {
   res.render('news_form', formLocals(req, { item: req.newsItem, photos, errors: [] }));
 });
 
-router.post('/news/:id', requireLogin, loadNews, photosUpload, (req, res) => {
+router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) => {
   const { errors, values } = validate(req.body, req.user);
   if (errors.length) {
     removeFiles((req.files || []).map((f) => f.filename));
@@ -184,6 +185,7 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, (req, res) => {
     values.slot || (allowedSlots(values.section).includes(req.newsItem.slot) ? req.newsItem.slot : defaultSlot(values.section)),
     req.newsItem.id
   );
+  await normalizeFiles(req.files);
   savePhotos(req.newsItem.id, req.files);
   res.redirect(`/news/${req.newsItem.id}/edit`);
 });

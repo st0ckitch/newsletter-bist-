@@ -1,4 +1,5 @@
-# The Roar newsletter admin - plain Node server, no native modules.
+# The Roar newsletter admin. sharp (photo cropping) ships prebuilt binaries,
+# including musl builds for this alpine base - no build tools needed.
 # The database (SQLite) and uploaded photos live under DATA_DIR - mount a
 # persistent volume there or everything resets on redeploy.
 FROM node:22-alpine

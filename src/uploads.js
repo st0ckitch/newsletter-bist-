@@ -50,4 +50,45 @@ function removeFiles(filenames) {
   }
 }
 
-module.exports = { upload, isRealImage, removeFiles, MIME_EXT };
+// Article photos are center-cropped to a uniform 4:3 (attention-based crop
+// keeps faces/subjects in frame) and capped at 1200px wide, so the hero and
+// every two-up pair in the newsletter line up at the same height whatever
+// people upload. Email clients cannot crop (no object-fit in Outlook/Gmail),
+// so the crop has to happen here. Returns the new filename (a JPEG); on any
+// processing error the original file is kept untouched.
+const sharp = require('sharp');
+
+async function normalizePhoto(filename) {
+  const src = path.join(config.uploadDir, filename);
+  try {
+    const buf = await sharp(src).rotate().toBuffer(); // bake in EXIF orientation
+    const meta = await sharp(buf).metadata();
+    const cw = Math.max(1, Math.min(meta.width, Math.floor((meta.height * 4) / 3), 1200));
+    const ch = Math.max(1, Math.floor((cw * 3) / 4));
+    const out = await sharp(buf)
+      .resize(cw, ch, { fit: 'cover', position: 'attention' })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
+    const newName = `${crypto.randomBytes(16).toString('hex')}.jpg`;
+    fs.writeFileSync(path.join(config.uploadDir, newName), out);
+    removeFiles([filename]);
+    return newName;
+  } catch (err) {
+    console.error('[uploads] Photo normalization failed, keeping original:', err.message);
+    return filename;
+  }
+}
+
+// Multer file objects in, same objects out with filename/mimetype updated.
+async function normalizeFiles(files) {
+  for (const f of files || []) {
+    const newName = await normalizePhoto(f.filename);
+    if (newName !== f.filename) {
+      f.filename = newName;
+      f.mimetype = 'image/jpeg';
+    }
+  }
+  return files;
+}
+
+module.exports = { upload, isRealImage, removeFiles, MIME_EXT, normalizePhoto, normalizeFiles };

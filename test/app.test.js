@@ -711,6 +711,32 @@ test('Foundation is a full area: in the menu, locked to its own template section
   db.prepare("DELETE FROM news WHERE title = 'Foundation Sandpit News'").run();
 });
 
+test('uploaded photos are cropped to a uniform 4:3 so pairs line up', async () => {
+  const sharp = require('sharp');
+  const edit = await (await get('/newsletter/preview.html?edit=1')).text();
+  const newsId = edit.match(/data-edit="news:(\d+):title"/)[1];
+  const tall = await sharp({ create: { width: 120, height: 480, channels: 3, background: '#123456' } })
+    .png()
+    .toBuffer();
+  const form = new FormData();
+  form.append('news_id', newsId);
+  form.append('photo', new Blob([tall], { type: 'image/png' }), 'tall.png');
+  const res = await fetch(base + '/api/edit/photo/add', {
+    method: 'POST',
+    headers: { cookie: cookies, 'x-csrf-token': csrf },
+    body: form,
+  });
+  assert.strictEqual((await res.json()).ok, true);
+  const photo = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id DESC').get(newsId);
+  assert.match(photo.filename, /\.jpg$/);
+  assert.strictEqual(photo.normalized, 1);
+  const meta = await sharp(require('path').join(process.env.DATA_DIR, 'uploads', photo.filename)).metadata();
+  assert.strictEqual(meta.format, 'jpeg');
+  assert.strictEqual(meta.width, 120);
+  assert.strictEqual(meta.height, 90, 'portrait upload is center-cropped to 4:3');
+  db.prepare('DELETE FROM photos WHERE id = ?').run(photo.id);
+});
+
 test('live editor API: drag-and-drop swaps sections within a column; the area rule guards drags', async () => {
   await post('/news', { title: 'Drag Article A', body: 'aaa', section: 'primary', slot: 'D' });
   await post('/news', { title: 'Drag Article B', body: 'bbb', section: 'primary', slot: 'F' });
