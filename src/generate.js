@@ -247,6 +247,21 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
 
   const html = renderNewsletter(buildRenderData(data));
 
+  // Every image in the sent email should live on the Mailchimp CDN - a
+  // self-hosted straggler (a failed upload) renders differently across email
+  // clients and can show as a blocked/downloadable file instead of a photo.
+  // Regenerating retries the uploads, so surface leftovers loudly.
+  if (mailchimp.isConfigured()) {
+    const selfHosted = (html.match(/src="[^"]*\/uploads\//g) || []).length;
+    step(
+      selfHosted === 0,
+      'All images on the Mailchimp CDN',
+      selfHosted === 0
+        ? 'every image in the draft is CDN-hosted'
+        : `${selfHosted} image(s) still link to ${publicBaseUrl()}/uploads/… - the upload failed (see warnings). Generate the draft again to retry.`
+    );
+  }
+
   let campaignId = null;
   let campaignWebUrl = null;
   let status = 'local_only';
@@ -280,7 +295,7 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
           subject,
           title,
           fromName: getSetting('from_name'),
-          replyTo: getSetting('reply_to') || config.admin.email,
+          replyTo: getSetting('reply_to') || 'office@bist.ge',
         });
         await mailchimp.setCampaignContent(campaign.id, html);
         campaignId = campaign.id;

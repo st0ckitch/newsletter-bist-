@@ -206,6 +206,8 @@ ensureColumn('news', 'lead_photo', 'lead_photo TEXT');
 ensureColumn('news', 'lead_photo_mailchimp_url', 'lead_photo_mailchimp_url TEXT');
 // Foundation moved from its own full-width band (V) into the right column.
 db.exec("UPDATE news SET slot = 'E' WHERE slot = 'V'");
+// Replies go to the school office, not the personal admin address.
+db.exec("UPDATE settings SET value = 'office@bist.ge' WHERE key = 'reply_to' AND value = ''");
 ensureColumn('news', 'reviewed_by', 'reviewed_by INTEGER');
 ensureColumn('news', 'reviewed_at', 'reviewed_at TEXT');
 ensureColumn('news', 'review_note', 'review_note TEXT');
@@ -254,7 +256,7 @@ const SETTING_DEFAULTS = {
   newsletter_name: 'The Roar',
   school_name: 'British International School of Tbilisi',
   from_name: 'British International School of Tbilisi',
-  reply_to: '',
+  reply_to: 'office@bist.ge',
   calendar_url: '',
   footer_note: '',
 };

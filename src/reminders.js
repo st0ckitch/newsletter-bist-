@@ -82,7 +82,7 @@ async function sendReminder({ type, users, subject, heading, headingColor, bodyH
       title: `${type} reminder ${weekStart} (${new Date().toISOString().slice(0, 16)})`,
       html,
       fromName: getSetting('from_name'),
-      replyTo: getSetting('reply_to') || config.admin.email,
+      replyTo: getSetting('reply_to') || 'office@bist.ge',
       memberNames,
       tags: ['newsletter-staff'],
     });

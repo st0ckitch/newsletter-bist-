@@ -120,7 +120,7 @@ async function sendStaffInvites(users = neverInvited()) {
     title: `Staff invites ${new Date().toISOString().slice(0, 16)}`,
     html: inviteEmailHtml(baseUrl),
     fromName: getSetting('from_name'),
-    replyTo: getSetting('reply_to') || config.admin.email,
+    replyTo: getSetting('reply_to') || 'office@bist.ge',
     memberNames: Object.fromEntries(issued.map(({ user }) => [user.email, user.name])),
     mergeFieldsByEmail,
     tags: ['newsletter-staff'],

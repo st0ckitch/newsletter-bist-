@@ -985,6 +985,7 @@ test('settings save the reminder toggle, editor email and the new generation sch
   const { getSetting, SETTING_DEFAULTS } = require('../src/db');
   // The product default (the live row is pinned to Sunday for the suite).
   assert.strictEqual(SETTING_DEFAULTS.friday_generate_cron, '0 18 * * 4', 'generation defaults to Thursday 18:00');
+  assert.strictEqual(SETTING_DEFAULTS.reply_to, 'office@bist.ge', 'replies default to the school office');
   const res = await post('/settings', {
     timezone: 'Asia/Tbilisi',
     monday_reminder_cron: '0 9 * * 1',
@@ -995,7 +996,7 @@ test('settings save the reminder toggle, editor email and the new generation sch
     newsletter_name: 'The Roar',
     school_name: 'BIST',
     from_name: 'BIST',
-    reply_to: '',
+    reply_to: 'office@bist.ge',
     calendar_url: '',
     footer_note: '',
   });
