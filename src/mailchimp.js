@@ -177,7 +177,18 @@ async function sendToEmails({ listId, emails, subject, title, html, fromName, re
       0
     );
   }
-  const segmentId = await createStaticSegment(listId, title, reachable);
+  // Mailchimp refuses a segment whose name matches ANY existing tag/segment
+  // ("Sorry, that tag already exists"), and these names are internal
+  // bookkeeping nobody sees - so make them unique, and retry once with a
+  // fresh suffix if a collision still slips through.
+  const segmentName = () => `${title}`.slice(0, 90) + ` #${crypto.randomBytes(3).toString('hex')}`;
+  let segmentId;
+  try {
+    segmentId = await createStaticSegment(listId, segmentName(), reachable);
+  } catch (err) {
+    if (!/already exists/i.test(err.message)) throw err;
+    segmentId = await createStaticSegment(listId, segmentName(), reachable);
+  }
   const campaign = await createCampaign({ listId, segmentId, subject, title, fromName, replyTo });
   await setCampaignContent(campaign.id, html);
   await sendCampaign(campaign.id);
