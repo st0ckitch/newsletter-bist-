@@ -3,6 +3,17 @@
   <h1>News articles</h1>
   <div class="page-actions"><a class="btn btn-primary" href="/news/new">+ Add news</a></div>
 </div>
+<% if (olderCount > 0 || showAll) { %>
+  <p class="muted">
+    <% if (showAll) { %>
+      Showing <strong>all stories, including past weeks</strong>.
+      <a href="/news">Hide older stories</a>
+    <% } else { %>
+      Showing the <strong>current issue and upcoming stories</strong> - <%= olderCount %> older stor<%= olderCount === 1 ? 'y is' : 'ies are' %> hidden.
+      <a href="/news?all=1">Show older stories</a>
+    <% } %>
+  </p>
+<% } %>
 <p class="muted">Anyone on the staff can write a story for any area. The <strong>SLT member responsible for that area</strong> checks it, and only checked stories go into the newsletter.<% if (isManager) { %> Marketing then decides what makes this week's issue (<strong>Included</strong>) and where it sits in the template (D/F/H = left column, E/G/I = right column). Sections A-C are fixed: header &amp; quote, upcoming events, principal's message.<% } %></p>
 <div class="card">
   <table class="table">
@@ -69,7 +80,17 @@
             <% } %>
           </td>
           <td><%= n.photo_count %> 📷</td>
-          <td><%= n.week_start %><%= n.week_start === weekStart ? ' (this week)' : '' %></td>
+          <td>
+            <% if (n.week_start === issueWeek) { %>
+              <span class="tag tag-approved">this week's issue</span>
+            <% } else if (n.week_start === weekStart) { %>
+              <span class="tag tag-pending">next week's issue</span>
+            <% } else if (n.week_start > issueWeek) { %>
+              <span class="tag tag-pending">upcoming · <%= n.week_start %></span>
+            <% } else { %>
+              <span class="tag tag-admin">past · week of <%= n.week_start %></span>
+            <% } %>
+          </td>
           <td class="muted"><%= n.author || '-' %></td>
           <td class="row-actions">
             <% if ((locals.can && can.manage) || n.created_by === currentUser.id) { %>

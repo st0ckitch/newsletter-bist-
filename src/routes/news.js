@@ -3,7 +3,7 @@ const { db } = require('../db');
 const { requireLogin, requireLayout, requireReviewer, csrfOk, canEditRecord, canManage } = require('../auth');
 const { canReviewSection, isReviewer, canLayout } = require('../roles');
 const { SECTION_KEYS, SECTIONS, isSection } = require('../sections');
-const { submissionWeekStart } = require('../appweek');
+const { submissionWeekStart, generationWeekStart } = require('../appweek');
 const { CONTENT_SLOTS, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount, allowedSlots, defaultSlot, columnRule } = require('../slots');
 const { upload, isRealImage, removeFiles, normalizeFiles } = require('../uploads');
 const { renderArticlePreview } = require('../newsletter');
@@ -112,20 +112,29 @@ function formLocals(req, extra) {
 
 router.get('/news', requireLogin, (req, res) => {
   const weekStart = submissionWeekStart();
-  const rows = db
+  const issueWeek = generationWeekStart();
+  const showAll = req.query.all === '1';
+  const all = db
     .prepare(
       `SELECT n.*, u.name AS author, r.name AS reviewer,
               (SELECT COUNT(*) FROM photos p WHERE p.news_id = n.id) AS photo_count
        FROM news n
        LEFT JOIN users u ON u.id = n.created_by
        LEFT JOIN users r ON r.id = n.reviewed_by
-       ORDER BY n.created_at DESC LIMIT 100`
+       ORDER BY n.created_at DESC LIMIT 300`
     )
     .all()
     .map((n) => ({ ...n, canReview: canReviewSection(req.user, n.section) }));
+  // By default only the current issue and upcoming submissions show; older
+  // weeks stay one click away so last year's stories never clutter the list.
+  const rows = showAll ? all : all.filter((n) => n.week_start >= issueWeek);
+  const olderCount = all.filter((n) => n.week_start < issueWeek).length;
   res.render('news', {
     rows,
     weekStart,
+    issueWeek,
+    showAll,
+    olderCount,
     isManager: canLayout(req.user),
     isReviewer: isReviewer(req.user),
     sectionLabels: SECTIONS,

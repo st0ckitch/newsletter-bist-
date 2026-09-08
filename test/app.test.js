@@ -1379,6 +1379,23 @@ test('bulk role fix updates existing accounts; bulk delete prunes old staff safe
   db.prepare("DELETE FROM users WHERE email = 'tom.slt@import.local'").run();
 });
 
+test('news list labels weeks and hides past stories behind a toggle', async () => {
+  // A story from a long-gone week (e.g. last school year).
+  db.prepare(
+    "INSERT INTO news (title, body, section, slot, included, review_status, created_by, week_start) VALUES ('Ancient Story', 'old', 'primary', 'D', 1, 'approved', 1, '2025-09-01')"
+  ).run();
+  const page = await (await get('/news')).text();
+  assert.ok(!page.includes('Ancient Story'), 'past weeks are hidden by default');
+  assert.match(page, /older stor(y is|ies are) hidden/);
+  assert.match(page, /this week&#39;s issue|this week's issue/);
+
+  const allPage = await (await get('/news?all=1')).text();
+  assert.ok(allPage.includes('Ancient Story'), 'the toggle reveals past stories');
+  assert.match(allPage, /past · week of 2025-09-01/);
+  assert.match(allPage, /Hide older stories/);
+  db.prepare("DELETE FROM news WHERE title = 'Ancient Story'").run();
+});
+
 test('email export lists every account as plain text, site admin only', async () => {
   const res = await get('/users/export.txt');
   assert.strictEqual(res.status, 200);
