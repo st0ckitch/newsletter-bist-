@@ -148,3 +148,29 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); bord
 .row-excluded td { opacity: 0.55; }
 .tag-slot { background: #f6ecd9; color: #8a6210; font-weight: 800; }
 .slot-select { max-width: 210px; padding: 5px 8px; font-size: 12.5px; margin: 0; display: inline-block; width: auto; }
+
+/* ---------------- phones ----------------
+   The panel is used from phones between lessons: the menu collapses into one
+   swipeable row instead of a screen-high stack, and wide tables scroll
+   sideways inside their card instead of cutting off at the screen edge. */
+@media (max-width: 720px) {
+  .topbar-inner { padding: 10px 12px; gap: 6px 10px; min-height: 0; }
+  .brand { font-size: 16px; letter-spacing: 2px; margin-right: auto; }
+  .topbar-user { font-size: 12px; gap: 8px; min-width: 0; }
+  .topbar-user span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 38vw; }
+  .topbar nav { order: 3; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; gap: 0; padding-bottom: 6px; scrollbar-width: none; }
+  .topbar nav::-webkit-scrollbar { display: none; }
+  .topbar nav a { white-space: nowrap; font-size: 13px; padding: 6px 9px; }
+
+  .container { margin: 16px auto 44px auto; padding: 0 12px; }
+  .card { padding: 16px 14px; border-radius: 12px; }
+  .page-head h1 { font-size: 23px; }
+
+  .table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table th, .table td { padding: 8px; }
+  .row-actions, .inline-form { flex-wrap: wrap; }
+
+  /* 16px inputs stop iOS Safari zooming the page on every focused field. */
+  input[type="text"], input[type="email"], input[type="password"], input[type="date"],
+  input[type="number"], input[type="url"], select, textarea { font-size: 16px; }
+}
