@@ -101,6 +101,28 @@ function anchorHtml(url, label) {
   return `<a href="${url}" style="color:${GOLD_DEEP}; font-weight:600; text-decoration:underline;">${label}</a>`;
 }
 
+// A raw pasted URL reads as three lines of token soup in the email, so a
+// bare link shows a short friendly label instead of its address. Writers
+// who want their own wording use [their words](url).
+function linkLabel(href) {
+  let host;
+  let pathname;
+  try {
+    const u = new URL(href.replace(/&amp;/g, '&'));
+    host = u.hostname.replace(/^www\./, '');
+    pathname = u.pathname;
+  } catch {
+    return href;
+  }
+  if (host === 'forms.gle' || (host === 'docs.google.com' && pathname.startsWith('/forms'))) return 'Open the form';
+  if (host === 'docs.google.com' && pathname.startsWith('/document')) return 'Open in Google Docs';
+  if (host === 'docs.google.com' && pathname.startsWith('/spreadsheets')) return 'Open in Google Sheets';
+  if (host === 'docs.google.com' && pathname.startsWith('/presentation')) return 'Open in Google Slides';
+  if (host === 'drive.google.com' || host === 'docs.google.com') return 'Open in Google Drive';
+  if (host === 'youtube.com' || host === 'youtu.be') return 'Watch on YouTube';
+  return host;
+}
+
 function linkify(escaped) {
   return escaped.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+|\b(?:www\.|drive\.google\.com\/|docs\.google\.com\/|forms\.gle\/)[^\s<]+)/g,
@@ -111,7 +133,7 @@ function linkify(escaped) {
         let trimmed = bare.replace(/[.,;:!?]+$/, '');
         if (trimmed.endsWith(')') && !trimmed.includes('(')) trimmed = trimmed.slice(0, -1).replace(/[.,;:!?]+$/, '');
         const href = /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
-        return anchorHtml(href, trimmed) + bare.slice(trimmed.length);
+        return anchorHtml(href, `${linkLabel(href)}&nbsp;&rsaquo;`) + bare.slice(trimmed.length);
       }
       return anchorHtml(url, label);
     }

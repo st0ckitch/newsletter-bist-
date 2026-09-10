@@ -707,9 +707,10 @@ test('pasted links become hyperlinks: Google Drive without https, and in event n
     }),
   });
   const html = await res.text();
-  assert.match(html, /<a href="https:\/\/drive\.google\.com\/drive\/folders\/abc123\?usp=sharing"/);
-  assert.match(html, /<a href="https:\/\/forms\.gle\/xyz"/, 'trailing ")." stays out of the URL');
+  assert.match(html, /<a href="https:\/\/drive\.google\.com\/drive\/folders\/abc123\?usp=sharing"[^>]*>Open in Google Drive&nbsp;&rsaquo;<\/a>/);
+  assert.match(html, /<a href="https:\/\/forms\.gle\/xyz"[^>]*>Open the form&nbsp;&rsaquo;<\/a>/, 'trailing ")." stays out of the URL');
   assert.ok(!html.includes('href="https://forms.gle/xyz)'));
+  assert.ok(!html.includes('>https://drive.google.com'), 'raw URL text never shows in the article');
 
   // A Drive link pasted into an event's note is clickable in the newsletter.
   await post('/events', {
