@@ -96,4 +96,17 @@ async function normalizeFiles(files) {
   return files;
 }
 
-module.exports = { upload, isRealImage, removeFiles, MIME_EXT, normalizePhoto, normalizeFiles };
+// Copy an uploaded file to a fresh random name (same extension). Used when
+// an article reuses a person's saved headshot: the article gets its own copy,
+// so deleting the article never removes the shared headshot (and later
+// headshot updates do not rewrite already-sent issues).
+function copyUpload(filename) {
+  const src = path.join(config.uploadDir, filename);
+  if (!fs.existsSync(src)) return null;
+  const ext = path.extname(filename) || '.jpg';
+  const newName = crypto.randomBytes(16).toString('hex') + ext;
+  fs.copyFileSync(src, path.join(config.uploadDir, newName));
+  return newName;
+}
+
+module.exports = { upload, isRealImage, removeFiles, MIME_EXT, normalizePhoto, normalizeFiles, copyUpload };

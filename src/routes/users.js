@@ -1,10 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { db } = require('../db');
-const { requireAdmin, requireLogin } = require('../auth');
+const { requireAdmin, requireLogin, csrfOk } = require('../auth');
 const { ASSIGNABLE_ROLES, ALL_ROLES, ROLE_LABELS } = require('../roles');
 const { SECTIONS, SECTION_KEYS } = require('../sections');
 const invites = require('../invites');
+const { upload, isRealImage, removeFiles } = require('../uploads');
 
 // The staff-import and invitation email actions belong to the site admin
 // alone (the marketing owner's account) - SLT keep the ordinary account
@@ -54,7 +55,7 @@ function usersLocals(req, extra = {}) {
   const users = db
     .prepare(
       `SELECT id, email, name, role, section, created_at, invite_sent_at,
-              activated_at, last_login_at, (password_hash = '') AS invited
+              activated_at, last_login_at, headshot, (password_hash = '') AS invited
        FROM users ORDER BY role, name`
     )
     .all();
@@ -201,6 +202,7 @@ router.post('/users/bulk-delete', requireSiteAdmin, (req, res) => {
       continue;
     }
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    removeFiles([target.headshot]);
     report.deleted += 1;
   }
   res.render('users', usersLocals(req, { deleteReport: report }));
@@ -212,6 +214,41 @@ router.post('/users/bulk-delete', requireSiteAdmin, (req, res) => {
 router.get('/users/export.txt', requireSiteAdmin, (req, res) => {
   const emails = db.prepare('SELECT email FROM users ORDER BY email').all().map((r) => r.email);
   res.type('text/plain').send(emails.join('\n') + '\n');
+});
+
+// Saved headshot per person: uploaded once here, then reusable from the
+// news form's "Photo of the section head" picker so nobody re-uploads the
+// same portrait every week. Admins and SLT manage these.
+router.post('/users/:id/headshot', requireAdmin, (req, res) => {
+  upload.single('headshot')(req, res, (err) => {
+    const cleanup = () => removeFiles(req.file ? [req.file.filename] : []);
+    if (err) {
+      cleanup();
+      return res.status(400).render('error', { message: err.message });
+    }
+    if (!csrfOk(req)) {
+      cleanup();
+      return res.status(403).send('Invalid CSRF token. Go back, reload the page and try again.');
+    }
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    if (!user) {
+      cleanup();
+      return res.status(404).render('error', { message: 'User not found.' });
+    }
+    if (req.body.remove_headshot === '1') {
+      cleanup();
+      removeFiles([user.headshot]);
+      db.prepare('UPDATE users SET headshot = NULL WHERE id = ?').run(user.id);
+      return res.redirect('/users');
+    }
+    if (!req.file || !isRealImage(req.file)) {
+      cleanup();
+      return res.status(400).render('error', { message: 'Choose a valid image file for the headshot.' });
+    }
+    removeFiles([user.headshot]);
+    db.prepare('UPDATE users SET headshot = ? WHERE id = ?').run(req.file.filename, user.id);
+    res.redirect('/users');
+  });
 });
 
 router.get('/users/new', requireAdmin, (req, res) => {
@@ -288,6 +325,7 @@ router.post('/users/:id/delete', requireAdmin, (req, res) => {
     return res.status(400).render('error', { message: 'Cannot delete the last admin/principal account.' });
   }
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  removeFiles([target.headshot]);
   res.redirect('/users');
 });
 

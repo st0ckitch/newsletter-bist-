@@ -5,7 +5,7 @@ const { canReviewSection, isReviewer, canLayout } = require('../roles');
 const { SECTION_KEYS, SECTIONS, isSection } = require('../sections');
 const { submissionWeekStart, generationWeekStart } = require('../appweek');
 const { CONTENT_SLOTS, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount, allowedSlots, defaultSlot, columnRule } = require('../slots');
-const { upload, isRealImage, removeFiles, normalizeFiles } = require('../uploads');
+const { upload, isRealImage, removeFiles, normalizeFiles, copyUpload } = require('../uploads');
 const { renderArticlePreview } = require('../newsletter');
 
 const router = express.Router();
@@ -97,9 +97,20 @@ function savePhotos(newsId, files) {
   for (const f of files || []) insert.run(newsId, f.filename, f.originalname, f.mimetype);
 }
 
+// A saved staff headshot (Users page) picked from the form's dropdown. The
+// article gets its OWN copy of the file, so deleting the article - or later
+// replacing the person's headshot - never touches other articles.
+function headshotCopy(leadUserId) {
+  const id = parseInt(leadUserId, 10);
+  if (!id) return null;
+  const person = db.prepare('SELECT headshot FROM users WHERE id = ? AND headshot IS NOT NULL').get(id);
+  return person ? copyUpload(person.headshot) : null;
+}
+
 function formLocals(req, extra) {
   return {
     sections: allowedSections(),
+    savedHeadshots: db.prepare('SELECT id, name, headshot FROM users WHERE headshot IS NOT NULL ORDER BY name').all(),
     sectionLabels: SECTIONS,
     isManager: canLayout(req.user),
     slotLabels: SLOT_LABELS,
@@ -173,8 +184,11 @@ router.post('/news', requireLogin, photosUpload, async (req, res) => {
     );
   await normalizeFiles(req.contentPhotos);
   savePhotos(info.lastInsertRowid, req.contentPhotos);
-  if (req.leadPhotoFile) {
-    db.prepare('UPDATE news SET lead_photo = ? WHERE id = ?').run(req.leadPhotoFile.filename, info.lastInsertRowid);
+  // An uploaded portrait wins; otherwise a saved staff headshot picked from
+  // the dropdown is copied in as this article's own lead photo.
+  const newLead = req.leadPhotoFile ? req.leadPhotoFile.filename : headshotCopy(req.body.lead_user_id);
+  if (newLead) {
+    db.prepare('UPDATE news SET lead_photo = ? WHERE id = ?').run(newLead, info.lastInsertRowid);
   }
   res.redirect('/news');
 });
@@ -219,12 +233,13 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) 
   );
   await normalizeFiles(req.contentPhotos);
   savePhotos(req.newsItem.id, req.contentPhotos);
-  if (req.leadPhotoFile) {
-    // A new head-of-grade portrait replaces the old one; the CDN copy is
-    // refreshed on the next generation.
+  const newLead = req.leadPhotoFile ? req.leadPhotoFile.filename : headshotCopy(req.body.lead_user_id);
+  if (newLead) {
+    // A new head-of-grade portrait (uploaded, or a saved staff headshot)
+    // replaces the old one; the CDN copy is refreshed on the next generation.
     removeFiles([req.newsItem.lead_photo]);
     db.prepare('UPDATE news SET lead_photo = ?, lead_photo_mailchimp_url = NULL WHERE id = ?').run(
-      req.leadPhotoFile.filename,
+      newLead,
       req.newsItem.id
     );
   } else if (req.body.remove_lead_photo === '1' && req.newsItem.lead_photo) {

@@ -201,6 +201,7 @@ ensureColumn('users', 'invite_sent_at', 'invite_sent_at TEXT');
 // their invite link, and when they last signed in.
 ensureColumn('users', 'activated_at', 'activated_at TEXT');
 ensureColumn('users', 'last_login_at', 'last_login_at TEXT');
+ensureColumn('users', 'headshot', 'headshot TEXT');
 ensureColumn('photos', 'normalized', 'normalized INTEGER NOT NULL DEFAULT 0');
 ensureColumn('news', 'lead_photo', 'lead_photo TEXT');
 ensureColumn('news', 'lead_photo_mailchimp_url', 'lead_photo_mailchimp_url TEXT');

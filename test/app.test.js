@@ -1495,6 +1495,73 @@ test('emailed links use the learned public address, never localhost', async () =
   }
 });
 
+test('saved staff headshots: upload once on the Users page, reuse from the news form', async () => {
+  const sharp = require('sharp');
+  const config = require('../src/config');
+  const png = (w, h, bg) => sharp({ create: { width: w, height: h, channels: 3, background: bg } }).png().toBuffer();
+  const onDisk = (name) => fs.existsSync(path.join(config.uploadDir, name));
+  const mp = async (url, fields, files) => {
+    const form = new FormData();
+    form.append('_csrf', csrf);
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+    for (const [name, buf, fname] of files) form.append(name, new Blob([buf], { type: 'image/png' }), fname);
+    return fetch(base + url, { method: 'POST', headers: { cookie: cookies }, body: form, redirect: 'manual' });
+  };
+
+  db.prepare("INSERT INTO users (email, name, password_hash, role) VALUES ('head.of.year@test.local', 'Head Of Year', '', 'staff')").run();
+  const person = db.prepare("SELECT * FROM users WHERE email = 'head.of.year@test.local'").get();
+
+  // Upload the portrait once on the Users page...
+  const up = await mp(`/users/${person.id}/headshot`, {}, [['headshot', await png(300, 400, '#446688'), 'hd.png']]);
+  assert.strictEqual(up.status, 302);
+  const saved = db.prepare('SELECT headshot FROM users WHERE id = ?').get(person.id).headshot;
+  assert.ok(saved && onDisk(saved), 'headshot stored and on disk');
+  assert.match(await (await get('/users')).text(), new RegExp(`/uploads/${saved}`));
+
+  // ...the news form now offers the saved-headshot picker...
+  const form = await (await get('/news/new')).text();
+  assert.match(form, /name="lead_user_id"/);
+  assert.ok(form.includes(`<option value="${person.id}">Head Of Year</option>`), 'the person is pickable');
+
+  // ...an article created with the picker gets its OWN copy of the file...
+  const created = await mp('/news', { title: 'Headshot Reuse Story', body: 'Reusing.', section: 'primary', lead_user_id: String(person.id) }, []);
+  assert.strictEqual(created.status, 302);
+  const story = db.prepare("SELECT * FROM news WHERE title = 'Headshot Reuse Story'").get();
+  assert.ok(story.lead_photo, 'lead photo set from the saved headshot');
+  assert.notStrictEqual(story.lead_photo, saved, 'the article owns a copy, not the shared file');
+  assert.ok(onDisk(story.lead_photo));
+
+  // ...and deleting the article removes the copy, never the shared headshot.
+  assert.strictEqual((await post(`/news/${story.id}/delete`, {})).status, 302);
+  assert.ok(onDisk(saved), 'shared headshot survives article deletion');
+  assert.ok(!onDisk(story.lead_photo), "the article's own copy is cleaned up");
+
+  // An uploaded file wins over the dropdown; editing with the dropdown later
+  // swaps in a fresh copy and removes the superseded lead photo.
+  const both = await mp('/news', { title: 'Uploaded Wins', body: 'x', section: 'primary', lead_user_id: String(person.id) },
+    [['lead_photo', await png(300, 400, '#884422'), 'up.png']]);
+  assert.strictEqual(both.status, 302);
+  const uploaded = db.prepare("SELECT * FROM news WHERE title = 'Uploaded Wins'").get();
+  const uploadedBytes = fs.readFileSync(path.join(config.uploadDir, uploaded.lead_photo));
+  assert.ok(!uploadedBytes.equals(fs.readFileSync(path.join(config.uploadDir, saved))), 'the uploaded file was used, not the headshot');
+  const edited = await mp(`/news/${uploaded.id}`, { title: 'Uploaded Wins', body: 'x', section: 'primary', lead_user_id: String(person.id) }, []);
+  assert.strictEqual(edited.status, 302);
+  const after = db.prepare('SELECT * FROM news WHERE id = ?').get(uploaded.id);
+  assert.notStrictEqual(after.lead_photo, uploaded.lead_photo, 'edit swapped in a headshot copy');
+  assert.ok(!onDisk(uploaded.lead_photo), 'the replaced lead photo file is removed');
+
+  // Removing the headshot on the Users page deletes the shared file but
+  // leaves every article's own copy untouched.
+  const rm = await mp(`/users/${person.id}/headshot`, { remove_headshot: '1' }, []);
+  assert.strictEqual(rm.status, 302);
+  assert.strictEqual(db.prepare('SELECT headshot FROM users WHERE id = ?').get(person.id).headshot, null);
+  assert.ok(!onDisk(saved), 'shared headshot file deleted');
+  assert.ok(onDisk(after.lead_photo), "the article's copy still renders");
+
+  db.prepare("DELETE FROM news WHERE title = 'Uploaded Wins'").run();
+  db.prepare('DELETE FROM users WHERE id = ?').run(person.id);
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');
