@@ -20,10 +20,11 @@
       <textarea name="body" rows="10" required data-word-limit="<%= maxWords %>" placeholder="Write the article. Leave an empty line between paragraphs."><%= item ? item.body : '' %></textarea>
     </label>
     <p class="muted"><span data-word-count></span></p>
-    <p class="muted"><strong>Links:</strong> a pasted URL shows as a short clickable label instead of the long
-    address (a Google Drive link becomes <strong>Open in Google Drive ›</strong>, a form link
-    <strong>Open the form ›</strong>). To choose the wording yourself, write
-    <code>[your words](https://…)</code> - e.g. <code>[the attached guide](https://drive.google.com/…)</code>.</p>
+    <p class="muted"><strong>Links:</strong> just paste the URL - the words the sentence already uses become the
+    link and the long address disappears: <em>&quot;please complete this form: https://…&quot;</em> makes
+    <strong>this form</strong> clickable. With no such words nearby, the link shows as a short label
+    (<strong>Open in Google Drive ›</strong>). To pick the wording yourself, write
+    <code>[your words](https://…)</code>.</p>
     <% if (isManager) { %>
     <label>Template section
       <select name="slot">

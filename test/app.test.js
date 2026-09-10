@@ -702,15 +702,19 @@ test('pasted links become hyperlinks: Google Drive without https, and in event n
     headers: { cookie: cookies, 'content-type': 'application/json', 'x-csrf-token': csrf },
     body: JSON.stringify({
       title: 'Drive Links',
-      body: 'Photos: drive.google.com/drive/folders/abc123?usp=sharing\nSign up (see https://forms.gle/xyz).',
+      body: 'Please see the attached guide for helpful sleeping tips at home.\n\ndrive.google.com/file/d/abc123/view?usp=sharing\nIf you have not ordered yet, please complete this form: https://forms.gle/frm1.\nSign up (see https://forms.gle/xyz).',
       sectionLabel: 'whole school',
     }),
   });
   const html = await res.text();
-  assert.match(html, /<a href="https:\/\/drive\.google\.com\/drive\/folders\/abc123\?usp=sharing"[^>]*>Open in Google Drive&nbsp;&rsaquo;<\/a>/);
-  assert.match(html, /<a href="https:\/\/forms\.gle\/xyz"[^>]*>Open the form&nbsp;&rsaquo;<\/a>/, 'trailing ")." stays out of the URL');
+  // The link moves INTO the words the sentence already uses...
+  assert.match(html, /<a href="https:\/\/drive\.google\.com\/file\/d\/abc123\/view\?usp=sharing"[^>]*>the attached guide<\/a>/);
+  assert.match(html, /<a href="https:\/\/forms\.gle\/frm1"[^>]*>this form<\/a>/);
+  // ...with no nearby phrase it falls back to a short service label, and the
+  // trailing ")." stays out of the URL.
+  assert.match(html, /<a href="https:\/\/forms\.gle\/xyz"[^>]*>Open the form&nbsp;&rsaquo;<\/a>/);
   assert.ok(!html.includes('href="https://forms.gle/xyz)'));
-  assert.ok(!html.includes('>https://drive.google.com'), 'raw URL text never shows in the article');
+  assert.ok(!/>https?:\/\//.test(html), 'raw URL text never shows in the article');
 
   // A Drive link pasted into an event's note is clickable in the newsletter.
   await post('/events', {
@@ -719,7 +723,7 @@ test('pasted links become hyperlinks: Google Drive without https, and in event n
     time_note: 'Album: https://drive.google.com/drive/folders/evnt42',
   });
   const preview = await (await get('/newsletter/preview.html')).text();
-  assert.match(preview, /<a href="https:\/\/drive\.google\.com\/drive\/folders\/evnt42"/);
+  assert.match(preview, /<a href="https:\/\/drive\.google\.com\/drive\/folders\/evnt42"[^>]*>Album<\/a>/);
   db.prepare("DELETE FROM events WHERE title = 'Trip Photos Day'").run();
 });
 

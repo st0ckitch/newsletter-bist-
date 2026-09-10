@@ -123,6 +123,61 @@ function linkLabel(href) {
   return host;
 }
 
+// A pasted URL almost always refers to words already in the sentence -
+// "please complete this form", "see the attached guide". When such a phrase
+// appears shortly before a bare URL, the link moves INTO those words and the
+// raw address disappears from the text. Works by rewriting to the same
+// [words](url) notation writers can type by hand; when no phrase is found
+// the URL falls back to linkify's short service label.
+const LINK_PHRASE_RE = new RegExp(
+  '(?:(?:the|this|that|these|a|an|our|your)\\s+)?' +
+    '(?:(?:attached|following|linked|online|short|google|registration|order|booking|consent|sign-?up)\\s+){0,2}' +
+    '(?:guidelines|guide|form|survey|questionnaire|link|page|document|letter|menu|flyer|poster|booklet|leaflet|brochure|presentation|slides|video|recording|album|photos|pictures|gallery|calendar|schedule|timetable|handbook|policy|invitation)\\b' +
+    '|\\bhere\\b',
+  'gi'
+);
+const BARE_URL_RE = /https?:\/\/[^\s<]+|\b(?:www\.|drive\.google\.com\/|docs\.google\.com\/|forms\.gle\/)[^\s<]+/g;
+
+function bindBareLinks(escaped) {
+  let out = '';
+  let cursor = 0;
+  let lastUrlEnd = 0;
+  let m;
+  BARE_URL_RE.lastIndex = 0;
+  while ((m = BARE_URL_RE.exec(escaped))) {
+    const urlStart = m.index;
+    const raw = m[0];
+    const urlEnd = urlStart + raw.length;
+    if (escaped.slice(urlStart - 2, urlStart) === '](') {
+      lastUrlEnd = urlEnd;
+      continue; // already [words](url)
+    }
+    // Same trimming linkify applies: sentence punctuation and a closing
+    // bracket belong to the text, not the address.
+    let url = raw.replace(/[.,;:!?]+$/, '');
+    if (url.endsWith(')') && !url.includes('(')) url = url.slice(0, -1).replace(/[.,;:!?]+$/, '');
+    const href = /^https?:\/\//.test(url) ? url : `https://${url}`;
+    // Look for the phrase within the sentence or two before the URL (never
+    // inside an earlier URL, whose slug can contain words like "forms").
+    const windowStart = Math.max(cursor, lastUrlEnd, urlStart - 250);
+    lastUrlEnd = urlEnd;
+    const win = escaped.slice(windowStart, urlStart);
+    let phrase = null;
+    let pm;
+    LINK_PHRASE_RE.lastIndex = 0;
+    while ((pm = LINK_PHRASE_RE.exec(win))) phrase = pm; // nearest to the URL wins
+    if (!phrase) continue;
+    const pStart = windowStart + phrase.index;
+    const pEnd = pStart + phrase[0].length;
+    // Text between the phrase and the URL survives; only trailing whitespace
+    // and a separator glued to the URL ("form: <url>") go with the address.
+    const between = escaped.slice(pEnd, urlStart).replace(/\s+$/, '').replace(/[:\-–—]$/, '');
+    out += escaped.slice(cursor, pStart) + `[${phrase[0]}](${href})` + between;
+    cursor = urlStart + url.length; // sentence punctuation after the URL stays
+  }
+  return out + escaped.slice(cursor);
+}
+
 function linkify(escaped) {
   return escaped.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+|\b(?:www\.|drive\.google\.com\/|docs\.google\.com\/|forms\.gle\/)[^\s<]+)/g,
@@ -142,7 +197,7 @@ function linkify(escaped) {
 
 // Plain text -> paragraphs. Blank line separates paragraphs, single newline = <br>.
 function textToHtml(text, color = INK, size = 15) {
-  return escapeHtml(text)
+  return bindBareLinks(escapeHtml(text))
     .split(/\r?\n\s*\r?\n/)
     .filter((p) => p.trim() !== '')
     .map(
@@ -233,8 +288,8 @@ function renderEventRow(ev, editable) {
       metaHtml.push(escapeHtml(`Until ${end.num} ${monthLabel(ev.end_date)}`));
     }
   }
-  if (ev.location) metaHtml.push(`<span${ed('location')}>${linkify(escapeHtml(ev.location))}</span>`);
-  if (ev.time_note) metaHtml.push(`<span${ed('time_note')}>${linkify(escapeHtml(ev.time_note))}</span>`);
+  if (ev.location) metaHtml.push(`<span${ed('location')}>${linkify(bindBareLinks(escapeHtml(ev.location)))}</span>`);
+  if (ev.time_note) metaHtml.push(`<span${ed('time_note')}>${linkify(bindBareLinks(escapeHtml(ev.time_note)))}</span>`);
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; background:#ffffff; border:1px solid ${CARD_BORDER}; border-radius:10px;">
     <tr>
