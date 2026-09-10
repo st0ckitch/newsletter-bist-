@@ -4,6 +4,7 @@
   <h1><%= canEdit ? 'Live editor' : 'Newsletter preview' %> - week of <%= weekStart %></h1>
   <div class="page-actions">
     <a class="btn btn-secondary" href="/newsletter/preview.html?week=<%= weekStart %><%= canEdit ? '&edit=1' : '' %>" target="_blank" rel="noopener">Open full size</a>
+    <button type="button" class="btn btn-secondary" data-copy-html="/newsletter/export.html?week=<%= weekStart %>">Copy HTML for Mailchimp</button>
     <% if (canEdit) { %>
     <form method="post" action="/demo-data/fill" data-confirm="Fill every template section with sample events, articles, photos and a principal&#39;s message? Content your staff wrote is kept - demo items are marked and can be removed again with one click.">
       <input type="hidden" name="_csrf" value="<%= csrf %>">

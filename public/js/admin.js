@@ -149,3 +149,72 @@ document.addEventListener('change', function (e) {
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('select[name=section][data-slots-control]').forEach(syncSlotChoices);
 });
+
+// "Copy HTML for Mailchimp" on the preview page: fetches the export version
+// of the issue (no placeholders, absolute image URLs) and puts it on the
+// clipboard for pasting into Mailchimp's code editor. iOS Safari only allows
+// clipboard writes inside the tap, so the ClipboardItem is handed the fetch
+// as a promise; browsers without that support copy after the fetch instead.
+document.addEventListener('click', function (e) {
+  var btn = e.target && e.target.closest && e.target.closest('[data-copy-html]');
+  if (!btn) return;
+  var url = btn.getAttribute('data-copy-html');
+  var original = btn.textContent;
+  btn.disabled = true;
+
+  function fetchHtml() {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    });
+  }
+  function viaClipboardItem() {
+    if (!navigator.clipboard || !navigator.clipboard.write || !window.ClipboardItem) {
+      return Promise.reject(new Error('no ClipboardItem'));
+    }
+    try {
+      return navigator.clipboard.write([
+        new window.ClipboardItem({
+          'text/plain': fetchHtml().then(function (t) {
+            return new Blob([t], { type: 'text/plain' });
+          }),
+        }),
+      ]);
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
+  function viaText() {
+    return fetchHtml().then(function (t) {
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t);
+      var ta = document.createElement('textarea');
+      ta.value = t;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (!ok) throw new Error('copy rejected');
+    });
+  }
+
+  viaClipboardItem()
+    .catch(viaText)
+    .then(
+      function () {
+        btn.textContent = '✓ Copied - paste into Mailchimp';
+      },
+      function () {
+        btn.textContent = original;
+        window.alert('Could not copy automatically. Open the preview full size and copy the page source instead.');
+      }
+    )
+    .then(function () {
+      btn.disabled = false;
+      setTimeout(function () {
+        btn.textContent = original;
+      }, 4000);
+    });
+});

@@ -32,6 +32,16 @@ router.get('/newsletter/preview.html', requireLogin, (req, res) => {
   res.type('html').send(html);
 });
 
+// The issue exactly as it should be pasted into Mailchimp's code editor:
+// no placeholders, no editor markup, absolute image URLs (the Mailchimp CDN
+// copies where the draft was already generated). Backs the preview page's
+// "Copy HTML for Mailchimp" button - the manual fallback when the automatic
+// draft cannot be used, e.g. working from a phone.
+router.get('/newsletter/export.html', requireLogin, (req, res) => {
+  const weekStart = isValidDateStr(req.query.week) ? req.query.week : generationWeekStart();
+  res.type('html').send(renderNewsletter(buildRenderData(collectWeekData(weekStart))));
+});
+
 router.get('/newsletter/preview', requireLogin, (req, res) => {
   const weekStart = isValidDateStr(req.query.week) ? req.query.week : generationWeekStart();
   res.render('preview', {

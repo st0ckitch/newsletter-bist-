@@ -1591,6 +1591,21 @@ test('saved staff headshots: upload once on the Users page, reuse from the news 
   db.prepare('DELETE FROM users WHERE id = ?').run(person.id);
 });
 
+test('export.html is the paste-into-Mailchimp version: no placeholders or editor markup', async () => {
+  const res = await get('/newsletter/export.html');
+  assert.strictEqual(res.status, 200);
+  const html = await res.text();
+  assert.ok(!html.includes('data-edit'), 'no live-editor markup');
+  assert.ok(!/SECTION [A-Z]/.test(html), 'no empty-slot placeholders');
+  // Preview keeps them (same week, placeholders on).
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /SECTION [A-Z]/);
+  // The preview page offers the copy button; the endpoint needs a login.
+  assert.match(await (await get('/newsletter/preview')).text(), /data-copy-html="\/newsletter\/export\.html/);
+  const anon = await fetch(base + '/newsletter/export.html', { redirect: 'manual' });
+  assert.strictEqual(anon.status, 302);
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');
