@@ -694,6 +694,34 @@ test('article form preview endpoint renders the draft with links and photos', as
   assert.ok([302, 403].includes(anon.status));
 });
 
+test('pasted links become hyperlinks: Google Drive without https, and in event notes', async () => {
+  // Protocol-less Drive/Docs/forms links and parenthesised URLs in article
+  // text all resolve to working anchors.
+  const res = await fetch(base + '/news/preview.html', {
+    method: 'POST',
+    headers: { cookie: cookies, 'content-type': 'application/json', 'x-csrf-token': csrf },
+    body: JSON.stringify({
+      title: 'Drive Links',
+      body: 'Photos: drive.google.com/drive/folders/abc123?usp=sharing\nSign up (see https://forms.gle/xyz).',
+      sectionLabel: 'whole school',
+    }),
+  });
+  const html = await res.text();
+  assert.match(html, /<a href="https:\/\/drive\.google\.com\/drive\/folders\/abc123\?usp=sharing"/);
+  assert.match(html, /<a href="https:\/\/forms\.gle\/xyz"/, 'trailing ")." stays out of the URL');
+  assert.ok(!html.includes('href="https://forms.gle/xyz)'));
+
+  // A Drive link pasted into an event's note is clickable in the newsletter.
+  await post('/events', {
+    title: 'Trip Photos Day',
+    event_date: '2026-09-14',
+    time_note: 'Album: https://drive.google.com/drive/folders/evnt42',
+  });
+  const preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /<a href="https:\/\/drive\.google\.com\/drive\/folders\/evnt42"/);
+  db.prepare("DELETE FROM events WHERE title = 'Trip Photos Day'").run();
+});
+
 test('Foundation stories are single-column, in the right column beside Primary', async () => {
   // The area appears in the news form dropdown and maps to the right column.
   const form = await (await get('/news/new')).text();

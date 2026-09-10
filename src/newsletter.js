@@ -103,12 +103,15 @@ function anchorHtml(url, label) {
 
 function linkify(escaped) {
   return escaped.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+)/g,
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<]+|\b(?:www\.|drive\.google\.com\/|docs\.google\.com\/|forms\.gle\/)[^\s<]+)/g,
     (match, label, url, bare) => {
       if (bare) {
-        // Trailing punctuation belongs to the sentence, not the URL.
-        const trimmed = bare.replace(/[.,;:!?]+$/, '');
-        return anchorHtml(trimmed, trimmed) + bare.slice(trimmed.length);
+        // Trailing punctuation belongs to the sentence, not the URL - and so
+        // does a closing bracket, as in "(see https://...)".
+        let trimmed = bare.replace(/[.,;:!?]+$/, '');
+        if (trimmed.endsWith(')') && !trimmed.includes('(')) trimmed = trimmed.slice(0, -1).replace(/[.,;:!?]+$/, '');
+        const href = /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+        return anchorHtml(href, trimmed) + bare.slice(trimmed.length);
       }
       return anchorHtml(url, label);
     }
@@ -208,8 +211,8 @@ function renderEventRow(ev, editable) {
       metaHtml.push(escapeHtml(`Until ${end.num} ${monthLabel(ev.end_date)}`));
     }
   }
-  if (ev.location) metaHtml.push(`<span${ed('location')}>${escapeHtml(ev.location)}</span>`);
-  if (ev.time_note) metaHtml.push(`<span${ed('time_note')}>${escapeHtml(ev.time_note)}</span>`);
+  if (ev.location) metaHtml.push(`<span${ed('location')}>${linkify(escapeHtml(ev.location))}</span>`);
+  if (ev.time_note) metaHtml.push(`<span${ed('time_note')}>${linkify(escapeHtml(ev.time_note))}</span>`);
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; background:#ffffff; border:1px solid ${CARD_BORDER}; border-radius:10px;">
     <tr>
