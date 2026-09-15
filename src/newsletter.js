@@ -544,76 +544,111 @@ function renderMenusBlock(menus, placeholders) {
 
 /* ---------- House points ---------- */
 
-// The running house standings: one card per house with its crest, name and
-// point total, leader first with a gold accent. Fixed right under the
-// events/principal top block in every issue; managers keep the numbers
-// current on the Houses page.
+// The running house standings, styled after the school's own graphic: each
+// house is a solid tile in its brand colour with the crest, the house name
+// and "N Points" inside, two tiles per row. Leader (most points) comes
+// first. Fixed right under the events/principal top block in every issue;
+// managers keep the numbers current on the Houses page.
+function houseTileText(color) {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color || '');
+  if (!m) return { name: '#ffffff', points: '#ffffff' };
+  const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16));
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  // The name is a darkened shade of the tile itself (dark green on green,
+  // maroon on red - as in the reference); on a dark tile it stays white.
+  const darken = `#${[r, g, b].map((v) => Math.round(v * 0.42).toString(16).padStart(2, '0')).join('')}`;
+  return { name: lum < 0.25 ? '#ffffff' : darken, points: '#ffffff' };
+}
+
 function renderHousePointsBlock(houses, placeholders) {
   if (!houses || !houses.length) {
     return placeholders
       ? placeholderBox('HP', 'House Points', 'Add the houses (name, logo, points) on the Houses page.')
       : '';
   }
-  const cells = houses
-    .map((h, i) => {
-      const leader = i === 0 && h.points > 0;
-      const logo = h.logoUrl
-        ? `<img src="${escapeHtml(h.logoUrl)}" alt="${escapeHtml(h.name)}" width="52" style="width:52px; height:52px; object-fit:contain; display:block; margin:0 auto 6px auto;">`
-        : `<div style="width:52px; height:52px; line-height:52px; margin:0 auto 6px auto; background:${NAVY}; border-radius:26px; font-family:${SERIF}; font-size:24px; font-weight:800; color:${GOLD}; text-align:center;">${escapeHtml(
-            (h.name || '?').charAt(0).toUpperCase()
-          )}</div>`;
-      return `
-      <td class="hp-cell" width="${Math.floor(100 / houses.length)}%" valign="top" style="padding:4px;">
-        <div style="background:${leader ? '#fdf6e4' : '#ffffff'}; border:1px solid ${leader ? GOLD : CARD_BORDER}; border-radius:10px; padding:12px 6px 10px 6px; text-align:center;">
+  const tile = (h, leader) => {
+    const color = h.color || NAVY;
+    const text = houseTileText(color);
+    const logo = h.logoUrl
+      ? `<img src="${escapeHtml(h.logoUrl)}" alt="" width="56" style="width:56px; height:56px; object-fit:contain; display:block; margin:0 auto 10px auto;">`
+      : `<p style="margin:0 0 8px 0; font-family:${SERIF}; font-size:34px; font-weight:800; line-height:1; color:${text.name};">${escapeHtml(
+          (h.name || '?').charAt(0).toUpperCase()
+        )}</p>`;
+    return `
+      <td class="hp-cell" width="50%" valign="top" style="padding:5px;">
+        <div style="background:${escapeHtml(color)}; border-radius:4px; ${leader ? `outline:3px solid ${GOLD}; ` : ''}padding:22px 10px 18px 10px; text-align:center;">
           ${logo}
-          <p style="margin:0; font-family:${SANS}; font-size:11px; font-weight:600; letter-spacing:1px; color:${NAVY}; text-transform:uppercase;">${escapeHtml(
-        h.name
-      )}</p>
-          <p style="margin:2px 0 0 0; font-family:${SERIF}; font-size:26px; font-weight:800; line-height:1.1; color:${leader ? GOLD_DEEP : NAVY};">${Number(h.points) || 0}</p>
-          <p style="margin:0; font-family:${SANS}; font-size:9px; letter-spacing:2px; color:${MUTED};">${leader ? 'LEADING' : 'POINTS'}</p>
+          <p style="margin:0; font-family:${SERIF}; font-size:19px; font-weight:800; letter-spacing:3px; color:${text.name}; text-transform:uppercase;">${escapeHtml(
+      h.name
+    )}</p>
+          <p style="margin:8px 0 0 0; font-family:${SANS}; font-size:17px; font-weight:700; color:${text.points};">${Number(h.points) || 0} Points</p>
+          ${leader ? `<p style="margin:4px 0 0 0; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:3px; color:${text.points};">&#9733; LEADING</p>` : ''}
         </div>
       </td>`;
-    })
-    .join('');
+  };
+  let rows = '';
+  for (let i = 0; i < houses.length; i += 2) {
+    const pair = [houses[i], houses[i + 1]];
+    rows += `<tr>${pair
+      .map((h, j) => (h ? tile(h, i + j === 0 && h.points > 0) : '<td class="hp-cell" width="50%" style="padding:5px;">&nbsp;</td>'))
+      .join('')}</tr>`;
+  }
   return `
   <div style="padding:0 0 18px 0;">
     ${columnHeading('House spirit', 'House Points')}
     <table role="presentation" class="hp-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;">
-      <tr>${cells}</tr>
+      ${rows}
     </table>
   </div>`;
 }
 
-/* ---------- Primary awards ---------- */
+/* ---------- Primary rewards ---------- */
 
-// The Primary Awards table, filled in by staff on the Awards page: one row
-// per student - award, grade/stage, name, what it was for.
-function renderAwardsBlock(awards, placeholders) {
+// The Primary Rewards block, styled after the school's own page: an orange
+// title band, the week's topic in gold ("Generosity of Spirit Certificate
+// Winners 12.12.25"), then a bordered table of class -> student names, two
+// class/students pairs per row, closed by a congratulations line.
+const REWARDS_ORANGE = '#d0562b';
+const REWARDS_BORDER = '#8a93a8';
+
+function renderAwardsBlock(awards, topic, placeholders) {
   if (!awards || !awards.length) {
     return placeholders
-      ? placeholderBox('PA', 'Primary Awards', 'Staff add students (award, grade, name, title) on the Awards page.')
+      ? placeholderBox('PR', 'Primary Rewards', 'Staff add the topic title and each class&#39;s winners on the Awards page.')
       : '';
   }
-  const th = (label, width) =>
-    `<th width="${width}" align="left" style="background:${NAVY}; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:2px; color:${GOLD}; text-transform:uppercase; padding:9px 10px;">${label}</th>`;
-  const td = (value, bold) =>
-    `<td valign="top" style="font-family:${SANS}; font-size:12.5px; font-weight:${bold ? 600 : 300}; color:${bold ? NAVY : INK}; padding:8px 10px; border-bottom:1px solid ${CARD_BORDER};">${escapeHtml(
-      value || '-'
+  const cell = (value, bold, width) =>
+    `<td width="${width}" valign="middle" style="font-family:${SANS}; font-size:12.5px; font-weight:${bold ? 600 : 300}; color:${bold ? '#1d47a4' : INK}; padding:9px 10px; border:1px solid ${REWARDS_BORDER};">${escapeHtml(
+      value || ''
     )}</td>`;
-  const rows = awards
-    .map(
-      (a, i) => `
-      <tr style="background:${i % 2 ? '#faf7f0' : '#ffffff'};">
-        ${td(a.award, true)}${td(a.grade_stage)}${td(a.student_name, true)}${td(a.award_title)}
-      </tr>`
-    )
-    .join('');
+  let rows = '';
+  for (let i = 0; i < awards.length; i += 2) {
+    const pair = [awards[i], awards[i + 1]];
+    rows += `<tr>${pair
+      .map((a) =>
+        a
+          ? cell(a.grade_stage, true, '22%') + cell(a.student_name, false, '28%')
+          : `<td width="22%" style="border:1px solid ${REWARDS_BORDER};">&nbsp;</td><td width="28%" style="border:1px solid ${REWARDS_BORDER};">&nbsp;</td>`
+      )
+      .join('')}</tr>`;
+  }
   return `
   <div style="padding:0 0 18px 0;">
-    ${columnHeading('Celebrating success', 'Primary Awards')}
-    <table role="presentation" class="awards-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; border-spacing:0; border:1px solid ${CARD_BORDER}; border-radius:10px; overflow:hidden; margin-top:8px;">
-      <tr>${th('Award', '26%')}${th('Grade / Stage', '18%')}${th('Student', '26%')}${th('Award title', '30%')}</tr>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+      <tr><td style="background:${REWARDS_ORANGE}; border-radius:6px; padding:10px 14px;">
+        <p style="margin:0; font-family:${SANS}; font-size:19px; font-weight:800; color:#ffffff;">Primary Rewards</p>
+      </td></tr>
+    </table>
+    ${
+      topic
+        ? `<p style="margin:10px 0 8px 0; font-family:${SANS}; font-size:16px; font-weight:700; line-height:1.35; color:${GOLD_DEEP};">${escapeHtml(
+            topic
+          )}</p>`
+        : '<div style="height:10px; font-size:0; line-height:0;">&nbsp;</div>'
+    }
+    <table role="presentation" class="awards-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; background:#ffffff;">
       ${rows}
+      <tr><td colspan="4" align="center" style="font-family:${SANS}; font-size:13px; font-weight:700; font-style:italic; color:#1d47a4; padding:10px; border:1px solid ${REWARDS_BORDER};">Congratulations to all our winners!</td></tr>
     </table>
   </div>`;
 }
@@ -856,7 +891,7 @@ ${fontFaceCss(fontBase)}
             <td class="col" width="${COL_W}" valign="top">${rightColumn || '&nbsp;'}</td>
           </tr>
         </table>
-        ${renderAwardsBlock(data.awards, placeholders)}
+        ${renderAwardsBlock(data.awards, data.awardTopic, placeholders)}
       </td>
     </tr>
     ${lowerBandsRow}

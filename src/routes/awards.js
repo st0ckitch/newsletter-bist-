@@ -3,24 +3,26 @@ const { db } = require('../db');
 const { requireLogin, canEditRecord } = require('../auth');
 const { submissionWeekStart, generationWeekStart } = require('../appweek');
 
-// The Primary Awards table: every member of staff can add students here and
-// fix their own rows (managers can fix anyone's). Rows belong to a week,
-// like news stories, so each issue starts with a fresh table.
+// The Primary Rewards table: a topic title for the week ("Generosity of
+// Spirit Certificate Winners 12.12.25") and one row per class with the
+// winning students' names. Every member of staff can add rows and fix their
+// own (managers can fix anyone's); rows belong to a week, like news stories,
+// so each issue starts with a fresh table. Class/students are stored in the
+// awards table's grade_stage/student_name columns.
 const router = express.Router();
 
-const FIELDS = ['award', 'grade_stage', 'student_name', 'award_title'];
-
 function clean(body) {
-  const values = {};
-  for (const f of FIELDS) values[f] = (body[f] || '').trim().slice(0, 120);
+  const className = (body.class_name || '').trim().slice(0, 120);
+  const students = (body.students || '').trim().slice(0, 200);
   const errors = [];
-  if (!values.award) errors.push('The award is required (e.g. "Star of the Week").');
-  if (!values.student_name) errors.push("The student's name is required.");
-  return { values, errors };
+  if (!className) errors.push('The class is required (e.g. "Year 3W").');
+  if (!students) errors.push("The students' names are required (e.g. \"Marta, Renee\").");
+  return { className, students, errors };
 }
 
 function awardsLocals(req, extra = {}) {
   const issueWeek = generationWeekStart();
+  const submissionWeek = submissionWeekStart();
   const rows = db
     .prepare(
       `SELECT a.*, u.name AS author FROM awards a
@@ -29,10 +31,12 @@ function awardsLocals(req, extra = {}) {
     )
     .all(issueWeek)
     .map((r) => ({ ...r, canEdit: canEditRecord(req.user, r) }));
+  const topicRow = db.prepare('SELECT title FROM award_topics WHERE week_start = ?').get(submissionWeek);
   return {
     rows,
+    topic: topicRow ? topicRow.title : '',
     issueWeek,
-    submissionWeek: submissionWeekStart(),
+    submissionWeek,
     errors: [],
     ...extra,
   };
@@ -42,20 +46,27 @@ router.get('/awards', requireLogin, (req, res) => {
   res.render('awards', awardsLocals(req));
 });
 
+// The week's topic title, shown in gold above the table in the newsletter.
+router.post('/awards/topic', requireLogin, (req, res) => {
+  const title = (req.body.title || '').trim().slice(0, 160);
+  db.prepare('INSERT OR REPLACE INTO award_topics (week_start, title) VALUES (?, ?)').run(submissionWeekStart(), title);
+  res.redirect('/awards');
+});
+
 router.post('/awards', requireLogin, (req, res) => {
-  const { values, errors } = clean(req.body);
+  const { className, students, errors } = clean(req.body);
   if (errors.length) return res.status(400).render('awards', awardsLocals(req, { errors }));
   db.prepare(
-    'INSERT INTO awards (week_start, award, grade_stage, student_name, award_title, created_by) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(submissionWeekStart(), values.award, values.grade_stage, values.student_name, values.award_title, req.user.id);
+    "INSERT INTO awards (week_start, award, grade_stage, student_name, award_title, created_by) VALUES (?, '', ?, ?, '', ?)"
+  ).run(submissionWeekStart(), className, students, req.user.id);
   res.redirect('/awards');
 });
 
 function loadAward(req, res, next) {
   const row = db.prepare('SELECT * FROM awards WHERE id = ?').get(req.params.id);
-  if (!row) return res.status(404).render('error', { message: 'Award row not found.' });
+  if (!row) return res.status(404).render('error', { message: 'Rewards row not found.' });
   if (!canEditRecord(req.user, row)) {
-    return res.status(403).render('error', { message: 'You can only change award rows you added yourself.' });
+    return res.status(403).render('error', { message: 'You can only change rows you added yourself.' });
   }
   req.award = row;
   next();
@@ -67,15 +78,9 @@ router.post('/awards/:id/delete', requireLogin, loadAward, (req, res) => {
 });
 
 router.post('/awards/:id', requireLogin, loadAward, (req, res) => {
-  const { values, errors } = clean(req.body);
+  const { className, students, errors } = clean(req.body);
   if (errors.length) return res.status(400).render('awards', awardsLocals(req, { errors }));
-  db.prepare('UPDATE awards SET award = ?, grade_stage = ?, student_name = ?, award_title = ? WHERE id = ?').run(
-    values.award,
-    values.grade_stage,
-    values.student_name,
-    values.award_title,
-    req.award.id
-  );
+  db.prepare('UPDATE awards SET grade_stage = ?, student_name = ? WHERE id = ?').run(className, students, req.award.id);
   res.redirect('/awards');
 });
 

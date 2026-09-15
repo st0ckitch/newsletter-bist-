@@ -1631,9 +1631,16 @@ test('house points strip (fixed under the principal) and the primary awards tabl
   const logo = db.prepare('SELECT logo FROM houses WHERE id = ?').get(phoenix.id).logo;
   assert.ok(logo && fs.existsSync(path.join(config.uploadDir, logo)), 'house logo stored');
 
+  // A house named after the school palette gets its brand colour; others navy.
+  await post('/houses', { name: 'Tigers', points: '205' });
+  assert.strictEqual(db.prepare("SELECT color FROM houses WHERE name = 'Tigers'").get().color, '#DD2127');
+  assert.strictEqual(db.prepare('SELECT color FROM houses WHERE id = ?').get(phoenix.id).color, '#1d3061');
+
   let preview = await (await get('/newsletter/preview.html')).text();
   assert.match(preview, /House Points/);
   assert.ok(preview.includes(`/uploads/${logo}`), 'logo renders');
+  assert.ok(preview.includes('background:#DD2127'), 'tile painted in the house colour');
+  assert.match(preview, /205 Points/);
   // The strip is fixed below the events/principal top block...
   assert.ok(preview.indexOf('House Points') > preview.indexOf('Upcoming Events'), 'sits under the top block');
   // ...and the leader (most points) comes first with the gold treatment.
@@ -1644,30 +1651,23 @@ test('house points strip (fixed under the principal) and the primary awards tabl
   preview = await (await get('/newsletter/preview.html')).text();
   assert.ok(preview.indexOf('Phoenix') < preview.indexOf('Dragon'), 'updated points lead');
 
-  // Awards: an ordinary staff member adds a row...
+  // Rewards: the topic title plus a class row from an ordinary staff member.
+  await post('/awards/topic', { title: 'Generosity of Spirit Certificate Winners 12.12.25' });
   const teacher = await makeUser('Award Teacher', 'award.teacher@test.local', 'staff');
-  const add = await teacher.post('/awards', {
-    award: 'Star of the Week',
-    grade_stage: 'Year 3',
-    student_name: 'Nino B.',
-    award_title: 'Kindness to others',
-  });
+  const add = await teacher.post('/awards', { class_name: 'Year 3W', students: 'Marta, Renee' });
   assert.strictEqual(add.status, 302);
-  const row = db.prepare("SELECT * FROM awards WHERE student_name = 'Nino B.'").get();
+  const row = db.prepare("SELECT * FROM awards WHERE grade_stage = 'Year 3W'").get();
   preview = await (await get('/newsletter/preview.html')).text();
-  assert.match(preview, /Primary Awards/);
-  assert.match(preview, /Star of the Week/);
-  assert.match(preview, /Nino B\./);
+  assert.match(preview, /Primary Rewards/);
+  assert.match(preview, /Generosity of Spirit Certificate Winners 12\.12\.25/);
+  assert.match(preview, /Year 3W/);
+  assert.match(preview, /Marta, Renee/);
+  assert.match(preview, /Congratulations to all our winners!/);
   // ...another staff member cannot touch it, its author and managers can.
   const rival = await makeUser('Other Teacher', 'other.teacher@test.local', 'staff');
-  assert.strictEqual((await rival.post(`/awards/${row.id}`, { award: 'X', student_name: 'Y' })).status, 403);
-  await teacher.post(`/awards/${row.id}`, {
-    award: 'Star of the Week',
-    grade_stage: 'Year 4',
-    student_name: 'Nino B.',
-    award_title: 'Kindness',
-  });
-  assert.strictEqual(db.prepare('SELECT grade_stage FROM awards WHERE id = ?').get(row.id).grade_stage, 'Year 4');
+  assert.strictEqual((await rival.post(`/awards/${row.id}`, { class_name: 'X', students: 'Y' })).status, 403);
+  await teacher.post(`/awards/${row.id}`, { class_name: 'Year 3M', students: 'Marta, Renee' });
+  assert.strictEqual(db.prepare('SELECT grade_stage FROM awards WHERE id = ?').get(row.id).grade_stage, 'Year 3M');
   assert.strictEqual((await post(`/awards/${row.id}/delete`, {})).status, 302, 'admin deletes any row');
   assert.ok(!db.prepare('SELECT 1 FROM awards WHERE id = ?').get(row.id));
 

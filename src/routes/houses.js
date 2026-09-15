@@ -9,6 +9,16 @@ const { upload, isRealImage, removeFiles } = require('../uploads');
 // House Points strip (right under the principal's message) picks them up.
 const router = express.Router();
 
+// The school's house palette (from the brand sheet): a new house with one of
+// these names gets its colour automatically; anything else starts navy and
+// can be changed with the per-row colour picker.
+const HOUSE_COLORS = {
+  tigers: '#DD2127',
+  pumas: '#9AC8E1',
+  panthers: '#189B49',
+  leopards: '#F0E928',
+};
+
 function housesLocals(extra = {}) {
   return { houses: db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all(), errors: [], ...extra };
 }
@@ -16,12 +26,13 @@ function housesLocals(extra = {}) {
 function validate(body) {
   const name = (body.name || '').trim().slice(0, 60);
   const points = parseInt(body.points, 10);
+  const color = /^#[0-9a-fA-F]{6}$/.test(body.color || '') ? body.color : null;
   const errors = [];
   if (!name) errors.push('The house needs a name.');
   if (body.points !== undefined && body.points !== '' && (Number.isNaN(points) || points < 0)) {
     errors.push('Points must be a whole number (0 or more).');
   }
-  return { name, points: Number.isNaN(points) ? 0 : Math.max(0, points), errors };
+  return { name, points: Number.isNaN(points) ? 0 : Math.max(0, points), color, errors };
 }
 
 router.get('/houses', requireManager, (req, res) => {
@@ -31,7 +42,8 @@ router.get('/houses', requireManager, (req, res) => {
 router.post('/houses', requireManager, (req, res) => {
   const { name, points, errors } = validate(req.body);
   if (errors.length) return res.status(400).render('houses', housesLocals({ errors }));
-  db.prepare('INSERT INTO houses (name, points) VALUES (?, ?)').run(name, points);
+  const color = HOUSE_COLORS[name.toLowerCase()] || '#1d3061';
+  db.prepare('INSERT INTO houses (name, points, color) VALUES (?, ?, ?)').run(name, points, color);
   res.redirect('/houses');
 });
 
@@ -83,9 +95,14 @@ router.post('/houses/:id/logo', requireManager, (req, res) => {
 router.post('/houses/:id', requireManager, (req, res) => {
   const row = db.prepare('SELECT * FROM houses WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).render('error', { message: 'House not found.' });
-  const { name, points, errors } = validate(req.body);
+  const { name, points, color, errors } = validate(req.body);
   if (errors.length) return res.status(400).render('houses', housesLocals({ errors }));
-  db.prepare('UPDATE houses SET name = ?, points = ? WHERE id = ?').run(name, points, row.id);
+  db.prepare('UPDATE houses SET name = ?, points = ?, color = COALESCE(?, color) WHERE id = ?').run(
+    name,
+    points,
+    color,
+    row.id
+  );
   res.redirect('/houses');
 });
 

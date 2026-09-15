@@ -8,9 +8,11 @@
   <div class="card">
     <h2>How it works</h2>
     <p class="muted">The <strong>House Points</strong> strip sits in every issue right under the calendar and the
-    principal&#39;s message - always, automatically. Houses (their names and logos) are set up once here and stay
-    from issue to issue; the <strong>points are what you update</strong> before each newsletter. The leading house
-    is highlighted in gold. No houses added = no strip in the email.</p>
+    principal&#39;s message - always, automatically. Houses (names, logos, tile colours) are set up once here and
+    stay from issue to issue; the <strong>points are what you update</strong> before each newsletter. Each house
+    renders as a solid tile in its colour - <strong>Tigers, Pumas, Panthers and Leopards get the school&#39;s brand
+    colours automatically</strong> when you add them by name; the colour swatch on each row overrides it.
+    The leading house comes first with a gold outline. No houses added = no strip in the email.</p>
   </div>
   <div class="card">
     <h2>Add a house</h2>
@@ -54,6 +56,7 @@
               <input type="hidden" name="_csrf" value="<%= csrf %>">
               <input type="text" name="name" value="<%= h.name %>" required maxlength="60">
               <input type="text" name="points" inputmode="numeric" pattern="[0-9]*" value="<%= h.points %>" style="width:90px">
+              <input type="color" name="color" value="<%= h.color || '#1d3061' %>" title="Tile colour" style="width:44px;height:34px;padding:2px;">
               <button class="btn btn-ghost btn-sm">Save</button>
             </form>
           </td>

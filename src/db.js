@@ -132,6 +132,11 @@ CREATE TABLE IF NOT EXISTS awards (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS award_topics (
+  week_start TEXT PRIMARY KEY,
+  title TEXT NOT NULL DEFAULT ''
+);
+
 `);
 
 // Databases created before a column existed get it added in place.
@@ -222,6 +227,17 @@ ensureColumn('users', 'invite_sent_at', 'invite_sent_at TEXT');
 ensureColumn('users', 'activated_at', 'activated_at TEXT');
 ensureColumn('users', 'last_login_at', 'last_login_at TEXT');
 ensureColumn('users', 'headshot', 'headshot TEXT');
+// Each house tile in the newsletter is a solid block of the house's brand
+// colour. Rows from before the column existed get the school palette by
+// name (see HOUSE_COLORS in routes/houses.js), navy otherwise.
+ensureColumn('houses', 'color', 'color TEXT');
+db.prepare(
+  `UPDATE houses SET color = CASE lower(name)
+     WHEN 'tigers' THEN '#DD2127' WHEN 'pumas' THEN '#9AC8E1'
+     WHEN 'panthers' THEN '#189B49' WHEN 'leopards' THEN '#F0E928'
+     ELSE '#1d3061' END
+   WHERE color IS NULL`
+).run();
 ensureColumn('photos', 'normalized', 'normalized INTEGER NOT NULL DEFAULT 0');
 ensureColumn('news', 'lead_photo', 'lead_photo TEXT');
 ensureColumn('news', 'lead_photo_mailchimp_url', 'lead_photo_mailchimp_url TEXT');
