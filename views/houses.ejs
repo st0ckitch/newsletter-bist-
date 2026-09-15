@@ -1,0 +1,72 @@
+<%- include('partials/head', { title: 'Houses' }) %>
+<div class="page-head">
+  <h1>House points</h1>
+</div>
+<% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>How it works</h2>
+    <p class="muted">The <strong>House Points</strong> strip sits in every issue right under the calendar and the
+    principal&#39;s message - always, automatically. Houses (their names and logos) are set up once here and stay
+    from issue to issue; the <strong>points are what you update</strong> before each newsletter. The leading house
+    is highlighted in gold. No houses added = no strip in the email.</p>
+  </div>
+  <div class="card">
+    <h2>Add a house</h2>
+    <form method="post" action="/houses">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field-row">
+        <label>House name <input type="text" name="name" required maxlength="60" placeholder="e.g. Phoenix"></label>
+        <label>Points <input type="text" name="points" inputmode="numeric" pattern="[0-9]*" value="0"></label>
+      </div>
+      <button class="btn btn-primary">Add house</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <% if (!houses.length) { %>
+    <p class="muted">No houses yet - add the school&#39;s houses above and they appear in the newsletter straight away.</p>
+  <% } else { %>
+  <p class="muted">Update the numbers and press <strong>Save</strong> - the newsletter always shows the latest
+  totals, leader first. Logos are uploaded once and reused every week (square images look best).</p>
+  <table class="table">
+    <thead><tr><th>Logo</th><th>House &amp; points</th><th></th></tr></thead>
+    <tbody>
+      <% houses.forEach(function(h) { %>
+        <tr>
+          <td>
+            <% if (h.logo) { %>
+              <img src="/uploads/<%= h.logo %>" alt="<%= h.name %>" style="width:44px;height:44px;object-fit:contain;display:block;margin-bottom:4px;">
+            <% } %>
+            <form method="post" action="/houses/<%= h.id %>/logo" enctype="multipart/form-data" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="file" name="logo" accept="image/jpeg,image/png,image/webp,image/gif" style="max-width:170px;">
+              <button class="btn btn-ghost btn-sm">Save</button>
+              <% if (h.logo) { %>
+                <label class="muted" style="font-size:12px"><input type="checkbox" name="remove_logo" value="1"> remove</label>
+              <% } %>
+            </form>
+          </td>
+          <td>
+            <form method="post" action="/houses/<%= h.id %>" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="text" name="name" value="<%= h.name %>" required maxlength="60">
+              <input type="text" name="points" inputmode="numeric" pattern="[0-9]*" value="<%= h.points %>" style="width:90px">
+              <button class="btn btn-ghost btn-sm">Save</button>
+            </form>
+          </td>
+          <td class="row-actions">
+            <form method="post" action="/houses/<%= h.id %>/delete" data-confirm="Delete this house? Its logo file is removed too.">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <button class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/foot') %>

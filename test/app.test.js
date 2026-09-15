@@ -719,7 +719,7 @@ test('pasted links become hyperlinks: Google Drive without https, and in event n
   // A Drive link pasted into an event's note is clickable in the newsletter.
   await post('/events', {
     title: 'Trip Photos Day',
-    event_date: '2026-09-14',
+    event_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     time_note: 'Album: https://drive.google.com/drive/folders/evnt42',
   });
   const preview = await (await get('/newsletter/preview.html')).text();
@@ -1608,6 +1608,75 @@ test('export.html is the paste-into-Mailchimp version: no placeholders or editor
   assert.match(await (await get('/newsletter/preview')).text(), /data-copy-html="\/newsletter\/export\.html/);
   const anon = await fetch(base + '/newsletter/export.html', { redirect: 'manual' });
   assert.strictEqual(anon.status, 302);
+});
+
+test('house points strip (fixed under the principal) and the primary awards table', async () => {
+  const sharp = require('sharp');
+  const config = require('../src/config');
+  const png = (w, h, bg) => sharp({ create: { width: w, height: h, channels: 3, background: bg } }).png().toBuffer();
+  const mp = async (url, fields, files) => {
+    const form = new FormData();
+    form.append('_csrf', csrf);
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+    for (const [name, buf, fname] of files) form.append(name, new Blob([buf], { type: 'image/png' }), fname);
+    return fetch(base + url, { method: 'POST', headers: { cookie: cookies }, body: form, redirect: 'manual' });
+  };
+
+  // Houses: create two, give one a logo.
+  await post('/houses', { name: 'Phoenix', points: '120' });
+  await post('/houses', { name: 'Dragon', points: '250' });
+  const phoenix = db.prepare("SELECT * FROM houses WHERE name = 'Phoenix'").get();
+  const up = await mp(`/houses/${phoenix.id}/logo`, {}, [['logo', await png(200, 200, '#aa2222'), 'crest.png']]);
+  assert.strictEqual(up.status, 302);
+  const logo = db.prepare('SELECT logo FROM houses WHERE id = ?').get(phoenix.id).logo;
+  assert.ok(logo && fs.existsSync(path.join(config.uploadDir, logo)), 'house logo stored');
+
+  let preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /House Points/);
+  assert.ok(preview.includes(`/uploads/${logo}`), 'logo renders');
+  // The strip is fixed below the events/principal top block...
+  assert.ok(preview.indexOf('House Points') > preview.indexOf('Upcoming Events'), 'sits under the top block');
+  // ...and the leader (most points) comes first with the gold treatment.
+  assert.ok(preview.indexOf('Dragon') < preview.indexOf('Phoenix'), 'leader first');
+  assert.match(preview, /LEADING/);
+  // Updating points reorders next issue's strip - logos and names stay.
+  await post(`/houses/${phoenix.id}`, { name: 'Phoenix', points: '400' });
+  preview = await (await get('/newsletter/preview.html')).text();
+  assert.ok(preview.indexOf('Phoenix') < preview.indexOf('Dragon'), 'updated points lead');
+
+  // Awards: an ordinary staff member adds a row...
+  const teacher = await makeUser('Award Teacher', 'award.teacher@test.local', 'staff');
+  const add = await teacher.post('/awards', {
+    award: 'Star of the Week',
+    grade_stage: 'Year 3',
+    student_name: 'Nino B.',
+    award_title: 'Kindness to others',
+  });
+  assert.strictEqual(add.status, 302);
+  const row = db.prepare("SELECT * FROM awards WHERE student_name = 'Nino B.'").get();
+  preview = await (await get('/newsletter/preview.html')).text();
+  assert.match(preview, /Primary Awards/);
+  assert.match(preview, /Star of the Week/);
+  assert.match(preview, /Nino B\./);
+  // ...another staff member cannot touch it, its author and managers can.
+  const rival = await makeUser('Other Teacher', 'other.teacher@test.local', 'staff');
+  assert.strictEqual((await rival.post(`/awards/${row.id}`, { award: 'X', student_name: 'Y' })).status, 403);
+  await teacher.post(`/awards/${row.id}`, {
+    award: 'Star of the Week',
+    grade_stage: 'Year 4',
+    student_name: 'Nino B.',
+    award_title: 'Kindness',
+  });
+  assert.strictEqual(db.prepare('SELECT grade_stage FROM awards WHERE id = ?').get(row.id).grade_stage, 'Year 4');
+  assert.strictEqual((await post(`/awards/${row.id}/delete`, {})).status, 302, 'admin deletes any row');
+  assert.ok(!db.prepare('SELECT 1 FROM awards WHERE id = ?').get(row.id));
+
+  // Houses are manager-only; deleting a house removes its logo file.
+  assert.strictEqual((await teacher.post('/houses', { name: 'Rogue', points: '1' })).status, 403);
+  await post(`/houses/${phoenix.id}/delete`, {});
+  assert.ok(!fs.existsSync(path.join(config.uploadDir, logo)), 'logo file cleaned up');
+  db.prepare('DELETE FROM houses').run();
+  db.prepare("DELETE FROM users WHERE email IN ('award.teacher@test.local', 'other.teacher@test.local')").run();
 });
 
 // Keep this test LAST: recreating the admin row invalidates the shared session.

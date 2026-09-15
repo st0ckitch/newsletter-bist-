@@ -112,6 +112,26 @@ CREATE TABLE IF NOT EXISTS menus (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS houses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  points INTEGER NOT NULL DEFAULT 0,
+  logo TEXT,
+  logo_mailchimp_url TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS awards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  week_start TEXT NOT NULL,
+  award TEXT NOT NULL,
+  grade_stage TEXT NOT NULL DEFAULT '',
+  student_name TEXT NOT NULL,
+  award_title TEXT NOT NULL DEFAULT '',
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 `);
 
 // Databases created before a column existed get it added in place.

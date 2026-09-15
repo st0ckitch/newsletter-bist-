@@ -1,0 +1,70 @@
+<%- include('partials/head', { title: 'Primary Awards' }) %>
+<div class="page-head">
+  <h1>Primary Awards</h1>
+</div>
+<% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+
+<div class="card">
+  <h2>Add a student</h2>
+  <p class="muted">Anyone on the staff can add students here. The rows below go into this issue&#39;s
+  <strong>Primary Awards</strong> table in the newsletter; each new issue starts with a fresh table.
+  You can fix or remove the rows you added yourself.</p>
+  <form method="post" action="/awards">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field-row">
+      <label>Award * <input type="text" name="award" required maxlength="120" placeholder="e.g. Star of the Week"></label>
+      <label>Grade / Stage <input type="text" name="grade_stage" maxlength="120" placeholder="e.g. Year 3"></label>
+    </div>
+    <div class="field-row">
+      <label>Student name * <input type="text" name="student_name" required maxlength="120" placeholder="e.g. Nino B."></label>
+      <label>Award title <input type="text" name="award_title" maxlength="120" placeholder="e.g. Kindness to others"></label>
+    </div>
+    <button class="btn btn-primary">Add to the table</button>
+  </form>
+</div>
+
+<div class="card">
+  <% if (!rows.length) { %>
+    <p class="muted">No award rows for this issue yet.</p>
+  <% } else { %>
+  <table class="table">
+    <thead><tr><th>Award</th><th>Grade / Stage</th><th>Student</th><th>Award title</th><th>Added by</th><th></th></tr></thead>
+    <tbody>
+      <% rows.forEach(function(r) { %>
+        <tr>
+          <% if (r.canEdit) { %>
+          <td colspan="4">
+            <form method="post" action="/awards/<%= r.id %>" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="text" name="award" value="<%= r.award %>" required maxlength="120" style="width:150px">
+              <input type="text" name="grade_stage" value="<%= r.grade_stage %>" maxlength="120" style="width:100px">
+              <input type="text" name="student_name" value="<%= r.student_name %>" required maxlength="120" style="width:150px">
+              <input type="text" name="award_title" value="<%= r.award_title %>" maxlength="120" style="width:170px">
+              <button class="btn btn-ghost btn-sm">Save</button>
+            </form>
+            <% if (r.week_start !== issueWeek) { %><span class="tag tag-pending">next week's issue</span><% } %>
+          </td>
+          <% } else { %>
+          <td><%= r.award %></td>
+          <td><%= r.grade_stage || '-' %></td>
+          <td><%= r.student_name %></td>
+          <td><%= r.award_title || '-' %>
+            <% if (r.week_start !== issueWeek) { %><br><span class="tag tag-pending">next week's issue</span><% } %>
+          </td>
+          <% } %>
+          <td class="muted"><%= r.author || '-' %></td>
+          <td class="row-actions">
+            <% if (r.canEdit) { %>
+            <form method="post" action="/awards/<%= r.id %>/delete" data-confirm="Remove this student from the awards table?">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <button class="btn btn-danger btn-sm">Delete</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('partials/foot') %>

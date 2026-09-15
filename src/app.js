@@ -67,6 +67,8 @@ function createApp() {
   app.use(require('./routes/dashboard'));
   app.use(require('./routes/events'));
   app.use(require('./routes/menus'));
+  app.use(require('./routes/houses'));
+  app.use(require('./routes/awards'));
   app.use(require('./routes/news'));
   app.use(require('./routes/principal'));
   app.use(require('./routes/newsletter'));

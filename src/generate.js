@@ -33,7 +33,10 @@ function collectWeekData(weekStart) {
     .prepare("SELECT id, title, section FROM news WHERE week_start = ? AND review_status = 'pending' ORDER BY created_at")
     .all(weekStart);
   const menus = db.prepare('SELECT * FROM menus ORDER BY id').all();
-  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview, menus };
+  // House standings (leader first) and this week's Primary Awards rows.
+  const houses = db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all();
+  const awards = db.prepare('SELECT * FROM awards WHERE week_start = ? ORDER BY id').all(weekStart);
+  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview, menus, houses, awards };
 }
 
 function photoPublicUrl(photo, baseUrl = publicBaseUrl()) {
@@ -83,6 +86,23 @@ async function ensureLeadPhotosUploaded(news, warnings) {
   }
 }
 
+// House crests live on the houses row; push any not on the CDN yet,
+// mirroring ensureLeadPhotosUploaded.
+async function ensureHouseLogosUploaded(houses, warnings) {
+  if (!mailchimp.isConfigured()) return;
+  for (const h of houses) {
+    if (!h.logo || h.logo_mailchimp_url) continue;
+    try {
+      const buffer = fs.readFileSync(path.join(config.uploadDir, h.logo));
+      const url = await mailchimp.uploadFile(h.logo, buffer);
+      db.prepare('UPDATE houses SET logo_mailchimp_url = ? WHERE id = ?').run(url, h.id);
+      h.logo_mailchimp_url = url;
+    } catch (err) {
+      warnings.push(`The logo of house "${h.name}" could not be uploaded to Mailchimp: ${err.message}`);
+    }
+  }
+}
+
 // baseUrl: absolute (config.appBaseUrl) for the Mailchimp draft - email
 // clients need full URLs - and '' for the in-panel preview, so preview
 // images and fonts resolve relative to the panel itself and work on any
@@ -111,6 +131,11 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
         ? { text: data.principalMessage.quote, author: data.principalMessage.quote_author, weekStart: data.weekStart }
         : null,
     menus: data.menus || [],
+    houses: (data.houses || []).map((h) => ({
+      ...h,
+      logoUrl: h.logo ? h.logo_mailchimp_url || `${baseUrl}/uploads/${h.logo}` : null,
+    })),
+    awards: data.awards || [],
     events: data.events,
     principalMessage: data.principalMessage
       ? {
@@ -203,6 +228,7 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   const allPhotos = Object.values(data.photosByNews).flat();
   const photoCounts = await ensurePhotosUploaded(allPhotos, warnings);
   await ensureLeadPhotosUploaded(data.news, warnings);
+  await ensureHouseLogosUploaded(data.houses, warnings);
   if (allPhotos.length || (data.principalMessage && data.principalMessage.photo)) {
     step(
       photoCounts.failed === 0,

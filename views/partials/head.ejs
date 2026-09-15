@@ -17,6 +17,7 @@
       <a href="/">Dashboard</a>
       <a href="/events">Events</a>
       <a href="/news">News</a>
+      <a href="/awards">Awards</a>
       <% if (['principal','admin'].includes(currentUser.role)) { %>
         <a href="/principal-message">Principal's message</a>
       <% } %>
@@ -27,6 +28,7 @@
       <% } %>
       <% if (locals.can && can.manage) { %>
         <a href="/menus">Menus</a>
+        <a href="/houses">Houses</a>
         <a href="/settings">Settings</a>
       <% } %>
     </nav>

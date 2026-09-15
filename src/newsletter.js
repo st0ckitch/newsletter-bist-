@@ -83,6 +83,9 @@ const MOBILE_CSS = `
     .dir-cell { display: block !important; width: 100% !important; text-align: center !important; padding: 5px 0 !important; }
     .dir-fill { display: none !important; }
     .foot-pad { padding: 22px 16px 20px 16px !important; }
+    .hp-table, .hp-table tbody, .hp-table tr { display: block !important; width: 100% !important; }
+    .hp-cell { display: inline-block !important; width: 48% !important; box-sizing: border-box !important; }
+    .awards-table th, .awards-table td { padding: 7px 6px !important; font-size: 11px !important; }
   }`;
 
 function escapeHtml(s) {
@@ -539,6 +542,82 @@ function renderMenusBlock(menus, placeholders) {
   </div>`;
 }
 
+/* ---------- House points ---------- */
+
+// The running house standings: one card per house with its crest, name and
+// point total, leader first with a gold accent. Fixed right under the
+// events/principal top block in every issue; managers keep the numbers
+// current on the Houses page.
+function renderHousePointsBlock(houses, placeholders) {
+  if (!houses || !houses.length) {
+    return placeholders
+      ? placeholderBox('HP', 'House Points', 'Add the houses (name, logo, points) on the Houses page.')
+      : '';
+  }
+  const cells = houses
+    .map((h, i) => {
+      const leader = i === 0 && h.points > 0;
+      const logo = h.logoUrl
+        ? `<img src="${escapeHtml(h.logoUrl)}" alt="${escapeHtml(h.name)}" width="52" style="width:52px; height:52px; object-fit:contain; display:block; margin:0 auto 6px auto;">`
+        : `<div style="width:52px; height:52px; line-height:52px; margin:0 auto 6px auto; background:${NAVY}; border-radius:26px; font-family:${SERIF}; font-size:24px; font-weight:800; color:${GOLD}; text-align:center;">${escapeHtml(
+            (h.name || '?').charAt(0).toUpperCase()
+          )}</div>`;
+      return `
+      <td class="hp-cell" width="${Math.floor(100 / houses.length)}%" valign="top" style="padding:4px;">
+        <div style="background:${leader ? '#fdf6e4' : '#ffffff'}; border:1px solid ${leader ? GOLD : CARD_BORDER}; border-radius:10px; padding:12px 6px 10px 6px; text-align:center;">
+          ${logo}
+          <p style="margin:0; font-family:${SANS}; font-size:11px; font-weight:600; letter-spacing:1px; color:${NAVY}; text-transform:uppercase;">${escapeHtml(
+        h.name
+      )}</p>
+          <p style="margin:2px 0 0 0; font-family:${SERIF}; font-size:26px; font-weight:800; line-height:1.1; color:${leader ? GOLD_DEEP : NAVY};">${Number(h.points) || 0}</p>
+          <p style="margin:0; font-family:${SANS}; font-size:9px; letter-spacing:2px; color:${MUTED};">${leader ? 'LEADING' : 'POINTS'}</p>
+        </div>
+      </td>`;
+    })
+    .join('');
+  return `
+  <div style="padding:0 0 18px 0;">
+    ${columnHeading('House spirit', 'House Points')}
+    <table role="presentation" class="hp-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;">
+      <tr>${cells}</tr>
+    </table>
+  </div>`;
+}
+
+/* ---------- Primary awards ---------- */
+
+// The Primary Awards table, filled in by staff on the Awards page: one row
+// per student - award, grade/stage, name, what it was for.
+function renderAwardsBlock(awards, placeholders) {
+  if (!awards || !awards.length) {
+    return placeholders
+      ? placeholderBox('PA', 'Primary Awards', 'Staff add students (award, grade, name, title) on the Awards page.')
+      : '';
+  }
+  const th = (label, width) =>
+    `<th width="${width}" align="left" style="background:${NAVY}; font-family:${SANS}; font-size:9px; font-weight:600; letter-spacing:2px; color:${GOLD}; text-transform:uppercase; padding:9px 10px;">${label}</th>`;
+  const td = (value, bold) =>
+    `<td valign="top" style="font-family:${SANS}; font-size:12.5px; font-weight:${bold ? 600 : 300}; color:${bold ? NAVY : INK}; padding:8px 10px; border-bottom:1px solid ${CARD_BORDER};">${escapeHtml(
+      value || '-'
+    )}</td>`;
+  const rows = awards
+    .map(
+      (a, i) => `
+      <tr style="background:${i % 2 ? '#faf7f0' : '#ffffff'};">
+        ${td(a.award, true)}${td(a.grade_stage)}${td(a.student_name, true)}${td(a.award_title)}
+      </tr>`
+    )
+    .join('');
+  return `
+  <div style="padding:0 0 18px 0;">
+    ${columnHeading('Celebrating success', 'Primary Awards')}
+    <table role="presentation" class="awards-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; border-spacing:0; border:1px solid ${CARD_BORDER}; border-radius:10px; overflow:hidden; margin-top:8px;">
+      <tr>${th('Award', '26%')}${th('Grade / Stage', '18%')}${th('Student', '26%')}${th('Award title', '30%')}</tr>
+      ${rows}
+    </table>
+  </div>`;
+}
+
 /* ---------- Footer ---------- */
 
 // Lines like "Robert Snowden - Principal" become a staff directory grid;
@@ -768,6 +847,7 @@ ${fontFaceCss(fontBase)}
             <td class="col" width="${COL_W}" valign="top">${principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '&nbsp;'}</td>
           </tr>
         </table>
+        ${renderHousePointsBlock(data.houses, placeholders)}
         ${renderMenusBlock(data.menus, placeholders)}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>
@@ -776,6 +856,7 @@ ${fontFaceCss(fontBase)}
             <td class="col" width="${COL_W}" valign="top">${rightColumn || '&nbsp;'}</td>
           </tr>
         </table>
+        ${renderAwardsBlock(data.awards, placeholders)}
       </td>
     </tr>
     ${lowerBandsRow}
