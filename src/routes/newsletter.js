@@ -24,12 +24,17 @@ router.get('/newsletter/preview.html', requireLogin, (req, res) => {
   // click any text or photo to change it in place. The generated Mailchimp
   // draft contains neither placeholders nor editor markup.
   const editable = req.query.edit === '1' && canLayout(req.user);
-  const html = renderNewsletter(
-    // baseUrl '' keeps preview images and fonts relative to this panel, so
-    // they load on any host regardless of the APP_BASE_URL setting.
-    buildRenderData(collectWeekData(weekStart), { placeholders: true, editable, csrf: req.session.csrf, baseUrl: '' })
-  );
-  res.type('html').send(html);
+  // baseUrl '' keeps preview images and fonts relative to this panel, so
+  // they load on any host regardless of the APP_BASE_URL setting.
+  const renderData = buildRenderData(collectWeekData(weekStart), {
+    placeholders: true,
+    editable,
+    csrf: req.session.csrf,
+    baseUrl: '',
+  });
+  // Writers exempt from the article cap keep that freedom in the live editor.
+  if (req.user.no_word_limit) renderData.maxWords = 100000;
+  res.type('html').send(renderNewsletter(renderData));
 });
 
 // The issue exactly as it should be pasted into Mailchimp's code editor:

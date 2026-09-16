@@ -82,7 +82,8 @@ function validate(body, user) {
   if (!title) errors.push('Title is required.');
   if (!bodyText) errors.push('The article text is required.');
   const words = wordCount(bodyText);
-  if (words > MAX_ARTICLE_WORDS) {
+  // Some writers (flagged on the Users page) may run as long as they need.
+  if (words > MAX_ARTICLE_WORDS && !user.no_word_limit) {
     errors.push(`Article text is limited to ${MAX_ARTICLE_WORDS} words - currently ${words}. Please shorten it.`);
   }
   if (!isSection(section)) errors.push('Choose the area this story belongs to.');
@@ -116,7 +117,7 @@ function formLocals(req, extra) {
     slotLabels: SLOT_LABELS,
     contentSlots: CONTENT_SLOTS,
     sectionSlots: Object.fromEntries(allowedSections().map((s) => [s, allowedSlots(s)])),
-    maxWords: MAX_ARTICLE_WORDS,
+    maxWords: req.user.no_word_limit ? 0 : MAX_ARTICLE_WORDS,
     ...extra,
   };
 }

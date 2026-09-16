@@ -1679,6 +1679,36 @@ test('house points strip (fixed under the principal) and the primary awards tabl
   db.prepare("DELETE FROM users WHERE email IN ('award.teacher@test.local', 'other.teacher@test.local')").run();
 });
 
+test('a writer with the word cap lifted can write as long as they need', async () => {
+  const writer = await makeUser('Long Writer', 'long.writer@test.local', 'staff');
+  const wordy = Array.from({ length: 150 }, (_, i) => `word${i}`).join(' ');
+
+  // Capped by default...
+  let res = await writer.post('/news', { title: 'Long Story', body: wordy, section: 'primary' });
+  assert.strictEqual(res.status, 400);
+  assert.match(await res.text(), /limited to 100 words/);
+
+  // ...until an admin lifts the cap on the Users page.
+  const u = db.prepare("SELECT id FROM users WHERE email = 'long.writer@test.local'").get();
+  assert.strictEqual((await post(`/users/${u.id}/word-limit`, { unlimited: '1' })).status, 302);
+  res = await writer.post('/news', { title: 'Long Story', body: wordy, section: 'primary' });
+  assert.strictEqual(res.status, 302, 'exempt writer saves 150 words');
+  assert.ok(db.prepare("SELECT 1 FROM news WHERE title = 'Long Story'").get());
+  // Their article form drops the counter and says so.
+  const form = await (await writer.get('/news/new')).text();
+  assert.ok(!form.includes('data-word-limit'), 'no client-side cap for exempt writers');
+  assert.match(form, /no word limit for your account/);
+
+  // Restoring the cap brings the rule back; other writers were never affected.
+  await post(`/users/${u.id}/word-limit`, { unlimited: '0' });
+  res = await writer.post('/news', { title: 'Long Two', body: wordy, section: 'primary' });
+  assert.strictEqual(res.status, 400);
+  assert.match(await (await get('/news/new')).text(), /max 100 words/);
+
+  db.prepare("DELETE FROM news WHERE title = 'Long Story'").run();
+  db.prepare("DELETE FROM users WHERE email = 'long.writer@test.local'").run();
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

@@ -227,6 +227,9 @@ ensureColumn('users', 'invite_sent_at', 'invite_sent_at TEXT');
 ensureColumn('users', 'activated_at', 'activated_at TEXT');
 ensureColumn('users', 'last_login_at', 'last_login_at TEXT');
 ensureColumn('users', 'headshot', 'headshot TEXT');
+// Per-person exemption from the 100-word article cap (e.g. a head of
+// school whose section legitimately runs long). 0 = capped, 1 = unlimited.
+ensureColumn('users', 'no_word_limit', 'no_word_limit INTEGER NOT NULL DEFAULT 0');
 // Each house tile in the newsletter is a solid block of the house's brand
 // colour. Rows from before the column existed get the school palette by
 // name (see HOUSE_COLORS in routes/houses.js), navy otherwise.

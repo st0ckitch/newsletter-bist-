@@ -838,7 +838,7 @@ ${fontFaceCss(fontBase)}
 </style>
 </head>
 <body style="margin:0; padding:0; background:${PAGE_BG}; -webkit-text-size-adjust:100%;"${
-    editable ? ` data-csrf="${escapeHtml(data.csrf || '')}" data-max-words="${MAX_ARTICLE_WORDS}"` : ''
+    editable ? ` data-csrf="${escapeHtml(data.csrf || '')}" data-max-words="${data.maxWords || MAX_ARTICLE_WORDS}"` : ''
   }>
   <center>
   <table role="presentation" class="sheet" width="680" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:680px; max-width:100%; background:${IVORY};">

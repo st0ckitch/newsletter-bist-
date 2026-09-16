@@ -84,7 +84,7 @@ router.post('/api/edit/text', manager, (req, res) => {
   const text = String(value ?? '').trim();
   if (fieldSpec.required && !text) return bad(res, 'This text cannot be empty.');
   if (fieldSpec.max && text.length > fieldSpec.max) return bad(res, `Keep it under ${fieldSpec.max} characters.`);
-  if (fieldSpec.words) {
+  if (fieldSpec.words && !req.user.no_word_limit) {
     const words = wordCount(text);
     if (words > fieldSpec.words) return bad(res, `Article text is limited to ${fieldSpec.words} words - currently ${words}.`);
   }

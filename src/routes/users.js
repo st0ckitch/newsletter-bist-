@@ -55,7 +55,7 @@ function usersLocals(req, extra = {}) {
   const users = db
     .prepare(
       `SELECT id, email, name, role, section, created_at, invite_sent_at,
-              activated_at, last_login_at, headshot, (password_hash = '') AS invited
+              activated_at, last_login_at, headshot, no_word_limit, (password_hash = '') AS invited
        FROM users ORDER BY role, name`
     )
     .all();
@@ -249,6 +249,15 @@ router.post('/users/:id/headshot', requireAdmin, (req, res) => {
     db.prepare('UPDATE users SET headshot = ? WHERE id = ?').run(req.file.filename, user.id);
     res.redirect('/users');
   });
+});
+
+// Per-person exemption from the article word cap: lifted for writers whose
+// section legitimately runs long, restorable with the same button.
+router.post('/users/:id/word-limit', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).render('error', { message: 'User not found.' });
+  db.prepare('UPDATE users SET no_word_limit = ? WHERE id = ?').run(req.body.unlimited === '1' ? 1 : 0, user.id);
+  res.redirect('/users');
 });
 
 router.get('/users/new', requireAdmin, (req, res) => {

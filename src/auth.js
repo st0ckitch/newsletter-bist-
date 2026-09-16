@@ -6,7 +6,8 @@ const roles = require('./roles');
 function attachUser(req, res, next) {
   if (req.session && req.session.userId) {
     req.user =
-      db.prepare('SELECT id, email, name, role, section FROM users WHERE id = ?').get(req.session.userId) || null;
+      db.prepare('SELECT id, email, name, role, section, no_word_limit FROM users WHERE id = ?').get(req.session.userId) ||
+      null;
     if (!req.user) req.session = null;
   }
   if (req.session && !req.session.csrf) {

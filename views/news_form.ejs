@@ -16,10 +16,10 @@
       </select>
     </label>
     <p class="muted">The SLT member responsible for this area checks the story before it goes into the newsletter.</p>
-    <label>Article text * (max <%= maxWords %> words)
-      <textarea name="body" rows="10" required data-word-limit="<%= maxWords %>" placeholder="Write the article. Leave an empty line between paragraphs."><%= item ? item.body : '' %></textarea>
+    <label>Article text * <%= maxWords ? '(max ' + maxWords + ' words)' : '(no word limit for your account)' %>
+      <textarea name="body" rows="10" required <%- maxWords ? 'data-word-limit="' + maxWords + '"' : '' %> placeholder="Write the article. Leave an empty line between paragraphs."><%= item ? item.body : '' %></textarea>
     </label>
-    <p class="muted"><span data-word-count></span></p>
+    <% if (maxWords) { %><p class="muted"><span data-word-count></span></p><% } %>
     <p class="muted"><strong>Links:</strong> just paste the URL - the words the sentence already uses become the
     link and the long address disappears: <em>&quot;please complete this form: https://…&quot;</em> makes
     <strong>this form</strong> clickable. With no such words nearby, the link shows as a short label

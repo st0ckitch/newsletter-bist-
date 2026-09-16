@@ -183,6 +183,12 @@
               <button class="btn btn-ghost btn-sm">Set</button>
             </form>
             <span class="muted"><%= roleLabels[u.role] || u.role %></span>
+            <form method="post" action="/users/<%= u.id %>/word-limit" class="inline-form" style="margin-top:4px">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <input type="hidden" name="unlimited" value="<%= u.no_word_limit ? '0' : '1' %>">
+              <% if (u.no_word_limit) { %><span class="tag tag-approved">no word cap</span><% } %>
+              <button class="btn btn-ghost btn-sm"><%= u.no_word_limit ? 'Restore 100-word cap' : 'Lift word cap' %></button>
+            </form>
           </td>
           <td>
             <form method="post" action="/users/<%= u.id %>/password" class="inline-form">
