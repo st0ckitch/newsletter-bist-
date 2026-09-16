@@ -86,7 +86,10 @@ router.post('/api/edit/text', manager, (req, res) => {
   if (fieldSpec.max && text.length > fieldSpec.max) return bad(res, `Keep it under ${fieldSpec.max} characters.`);
   if (fieldSpec.words && !req.user.no_word_limit) {
     const words = wordCount(text);
-    if (words > fieldSpec.words) return bad(res, `Article text is limited to ${fieldSpec.words} words - currently ${words}.`);
+    // An article an exempt writer already made longer stays editable: capped
+    // editors may keep or shorten it, but not grow it further.
+    const allowance = Math.max(fieldSpec.words, wordCount(String(row[field] || '')));
+    if (words > allowance) return bad(res, `Article text is limited to ${allowance} words - currently ${words}.`);
   }
   spec.save(ref, field, text || null, fieldSpec.column);
   res.json({ ok: true });

@@ -74,7 +74,7 @@ function loadNews(req, res, next) {
   next();
 }
 
-function validate(body, user) {
+function validate(body, user, existing) {
   const errors = [];
   const title = (body.title || '').trim();
   const bodyText = (body.body || '').trim();
@@ -83,8 +83,15 @@ function validate(body, user) {
   if (!bodyText) errors.push('The article text is required.');
   const words = wordCount(bodyText);
   // Some writers (flagged on the Users page) may run as long as they need.
-  if (words > MAX_ARTICLE_WORDS && !user.no_word_limit) {
-    errors.push(`Article text is limited to ${MAX_ARTICLE_WORDS} words - currently ${words}. Please shorten it.`);
+  // An article one of them already made longer stays editable by everyone -
+  // capped writers can fix or shorten it, they just cannot grow it further.
+  const allowance = Math.max(MAX_ARTICLE_WORDS, existing ? wordCount(existing.body || '') : 0);
+  if (words > allowance && !user.no_word_limit) {
+    errors.push(
+      allowance > MAX_ARTICLE_WORDS
+        ? `This article already runs to ${allowance} words (written over the cap). You can edit or shorten it, but not make it longer - currently ${words} words.`
+        : `Article text is limited to ${MAX_ARTICLE_WORDS} words - currently ${words}. Please shorten it.`
+    );
   }
   if (!isSection(section)) errors.push('Choose the area this story belongs to.');
   // Template placement belongs to whoever lays the issue out, and the area
@@ -200,7 +207,7 @@ router.get('/news/:id/edit', requireLogin, loadNews, (req, res) => {
 });
 
 router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) => {
-  const { errors, values } = validate(req.body, req.user);
+  const { errors, values } = validate(req.body, req.user, req.newsItem);
   const existingCount = db.prepare('SELECT COUNT(*) AS c FROM photos WHERE news_id = ?').get(req.newsItem.id).c;
   // Only when NEW photos arrive: an article that exceeded the cap before the
   // cap existed can still have its text edited freely.

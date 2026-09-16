@@ -1699,6 +1699,18 @@ test('a writer with the word cap lifted can write as long as they need', async (
   assert.ok(!form.includes('data-word-limit'), 'no client-side cap for exempt writers');
   assert.match(form, /no word limit for your account/);
 
+  // A capped editor can still edit the over-cap article - keep it or
+  // shorten it - but cannot make it longer.
+  const story = db.prepare("SELECT * FROM news WHERE title = 'Long Story'").get();
+  const words = (n) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ');
+  let edit = await post(`/news/${story.id}`, { title: 'Long Story', body: wordy, section: 'primary' });
+  assert.strictEqual(edit.status, 302, 'capped editor saves the article at its current length');
+  edit = await post(`/news/${story.id}`, { title: 'Long Story', body: words(160), section: 'primary' });
+  assert.strictEqual(edit.status, 400, 'capped editor cannot grow it further');
+  assert.match(await edit.text(), /not make it longer/);
+  edit = await post(`/news/${story.id}`, { title: 'Long Story', body: words(120), section: 'primary' });
+  assert.strictEqual(edit.status, 302, 'capped editor may shorten it (even if still over 100)');
+
   // Restoring the cap brings the rule back; other writers were never affected.
   await post(`/users/${u.id}/word-limit`, { unlimited: '0' });
   res = await writer.post('/news', { title: 'Long Two', body: wordy, section: 'primary' });
