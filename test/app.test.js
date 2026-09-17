@@ -1658,7 +1658,7 @@ test('house points strip (fixed under the principal) and the primary awards tabl
   assert.strictEqual(add.status, 302);
   const row = db.prepare("SELECT * FROM awards WHERE grade_stage = 'Year 3W'").get();
   preview = await (await get('/newsletter/preview.html')).text();
-  assert.match(preview, /Primary Rewards/);
+  assert.match(preview, /Primary Awards/);
   assert.match(preview, /Generosity of Spirit Certificate Winners 12\.12\.25/);
   assert.match(preview, /Year 3W/);
   assert.match(preview, /Marta, Renee/);

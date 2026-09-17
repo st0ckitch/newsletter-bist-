@@ -1,6 +1,6 @@
-<%- include('partials/head', { title: 'Primary Rewards' }) %>
+<%- include('partials/head', { title: 'Primary Awards' }) %>
 <div class="page-head">
-  <h1>Primary Rewards</h1>
+  <h1>Primary Awards</h1>
 </div>
 <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
 
@@ -34,7 +34,7 @@
 
 <div class="card">
   <% if (!rows.length) { %>
-    <p class="muted">No rows for this issue yet - the Primary Rewards block only appears in the newsletter once
+    <p class="muted">No rows for this issue yet - the Primary Awards block only appears in the newsletter once
     at least one class is added.</p>
   <% } else { %>
   <table class="table">

@@ -3,7 +3,7 @@ const { db } = require('../db');
 const { requireLogin, canEditRecord } = require('../auth');
 const { submissionWeekStart, generationWeekStart } = require('../appweek');
 
-// The Primary Rewards table: a topic title for the week ("Generosity of
+// The Primary Awards table: a topic title for the week ("Generosity of
 // Spirit Certificate Winners 12.12.25") and one row per class with the
 // winning students' names. Every member of staff can add rows and fix their
 // own (managers can fix anyone's); rows belong to a week, like news stories,
@@ -64,7 +64,7 @@ router.post('/awards', requireLogin, (req, res) => {
 
 function loadAward(req, res, next) {
   const row = db.prepare('SELECT * FROM awards WHERE id = ?').get(req.params.id);
-  if (!row) return res.status(404).render('error', { message: 'Rewards row not found.' });
+  if (!row) return res.status(404).render('error', { message: 'Awards row not found.' });
   if (!canEditRecord(req.user, row)) {
     return res.status(403).render('error', { message: 'You can only change rows you added yourself.' });
   }
