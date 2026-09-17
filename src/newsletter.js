@@ -615,7 +615,7 @@ function renderHousePointsBlock(houses, placeholders, hidden) {
 // class/students pairs per row, closed by a congratulations line.
 const REWARDS_ORANGE = '#d0562b';
 const REWARDS_BORDER = '#b7bfce';
-const REWARDS_SHADE = '#eef1f6'; // light grey on the class columns
+const REWARDS_SHADE = '#dde2ec'; // light grey on the class columns
 const REWARDS_GOLD_BG = '#fdf6e4';
 
 function renderAwardsBlock(awards, topic, placeholders) {
