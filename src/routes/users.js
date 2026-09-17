@@ -251,6 +251,82 @@ router.post('/users/:id/headshot', requireAdmin, (req, res) => {
   });
 });
 
+/* ---------------- bulk headshot import ---------------- */
+
+// Matches a photo's file name to a staff member. "Thomas_Browning-Stamp
+// (1).jpg" and "t.browningstamp.jpg" both find Thomas: names/emails and the
+// file name are normalised to plain lowercase words, then compared as whole
+// keys and as token sets. One clear match wins; none or several = skipped.
+function normalizeKey(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/[^a-z]+/g, ' ')
+    .trim();
+}
+
+function matchUserByFilename(filename) {
+  const key = normalizeKey(String(filename).replace(/\.[^.]+$/, ''));
+  if (!key) return { user: null, reason: 'file name carries no name' };
+  const joined = key.replace(/ /g, '');
+  const tokens = key.split(' ').filter((t) => t.length > 1);
+  const hits = [];
+  for (const u of db.prepare('SELECT id, name, email, headshot FROM users').all()) {
+    const nameKey = normalizeKey(u.name);
+    const nameTokens = nameKey.split(' ').filter(Boolean);
+    const emailKey = normalizeKey(u.email.split('@')[0]).replace(/ /g, '');
+    if (
+      nameKey === key ||
+      (emailKey && emailKey === joined) ||
+      (tokens.length &&
+        (tokens.every((t) => nameTokens.includes(t)) || nameTokens.every((t) => tokens.includes(t))))
+    ) {
+      hits.push(u);
+    }
+  }
+  if (hits.length === 1) return { user: hits[0] };
+  return { user: null, reason: hits.length ? `matches ${hits.length} people - rename it more precisely` : 'no matching staff member' };
+}
+
+router.get('/users/headshots', requireAdmin, (req, res) => {
+  res.render('headshots_import');
+});
+
+// One photo per request (the page sends them one by one, already downscaled
+// in the browser, so gigabytes of originals never travel anywhere).
+router.post('/api/headshots/import', requireAdmin, (req, res) => {
+  upload.single('photo')(req, res, (err) => {
+    const cleanup = () => removeFiles(req.file ? [req.file.filename] : []);
+    if (err) {
+      cleanup();
+      return res.status(400).json({ error: err.message });
+    }
+    if (!csrfOk(req)) {
+      cleanup();
+      return res.status(403).json({ error: 'Session expired - reload the page and try again.' });
+    }
+    if (!req.file || !isRealImage(req.file)) {
+      cleanup();
+      return res.status(400).json({ error: 'Not a valid image file.' });
+    }
+    const original = req.body.name || req.file.originalname || '';
+    const { user, reason } = matchUserByFilename(original);
+    if (!user) {
+      cleanup();
+      return res.json({ ok: false, reason });
+    }
+    if (user.headshot && req.body.overwrite !== '1') {
+      cleanup();
+      return res.json({ ok: false, reason: `${user.name} already has a headshot (tick "replace existing" to overwrite)` });
+    }
+    removeFiles([user.headshot]);
+    db.prepare('UPDATE users SET headshot = ? WHERE id = ?').run(req.file.filename, user.id);
+    res.json({ ok: true, matched: user.name });
+  });
+});
+
 // Per-person exemption from the article word cap: lifted for writers whose
 // section legitimately runs long, restorable with the same button.
 router.post('/users/:id/word-limit', requireAdmin, (req, res) => {

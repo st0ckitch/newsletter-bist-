@@ -1,0 +1,27 @@
+<%- include('partials/head', { title: 'Import staff photos' }) %>
+<div class="page-head">
+  <h1>Import staff photos</h1>
+  <div class="page-actions"><a class="btn btn-secondary" href="/users">Back to staff accounts</a></div>
+</div>
+
+<div class="card">
+  <h2>How it works</h2>
+  <p class="muted">Got a folder (or zip archives) of staff photos? <strong>Unzip them on your computer first</strong>,
+  then select all the image files below - you can pick hundreds at once. Your browser shrinks each photo to
+  headshot size before sending, so even gigabytes of originals upload in a couple of minutes, and each file is
+  <strong>matched to a staff member by its file name</strong>: <code>Thomas Browning-Stamp.jpg</code>,
+  <code>thomas_browning_stamp.png</code> and <code>t.browningstamp.jpg</code> (the email name) all find the same
+  person. Files that match nobody - or more than one person - are skipped and listed, so nothing is ever guessed.
+  Matched photos appear immediately in the article form&#39;s &quot;saved staff headshot&quot; picker.</p>
+  <form id="headshot-import">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Photo files (select them all at once)
+      <input type="file" name="photos" accept="image/*" multiple>
+    </label>
+    <label class="muted" style="font-weight:300"><input type="checkbox" name="overwrite" value="1">
+      replace existing headshots (otherwise people who already have one are skipped)</label>
+    <div class="btn-row"><button type="submit" class="btn btn-primary">Import photos</button></div>
+  </form>
+  <div id="headshot-import-log" style="margin-top:14px; font-size:13.5px; max-height:420px; overflow-y:auto;"></div>
+</div>
+<%- include('partials/foot') %>

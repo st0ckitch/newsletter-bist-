@@ -1721,6 +1721,47 @@ test('a writer with the word cap lifted can write as long as they need', async (
   db.prepare("DELETE FROM users WHERE email = 'long.writer@test.local'").run();
 });
 
+test('bulk headshot import matches photos to staff by file name', async () => {
+  const sharp = require('sharp');
+  const config = require('../src/config');
+  const png = (bg) => sharp({ create: { width: 200, height: 260, channels: 3, background: bg } }).png().toBuffer();
+  const send = async (filename, extra = {}) => {
+    const form = new FormData();
+    form.append('_csrf', csrf);
+    form.append('name', filename);
+    for (const [k, v] of Object.entries(extra)) form.append(k, v);
+    form.append('photo', new Blob([await png('#334455')], { type: 'image/png' }), filename);
+    const res = await fetch(base + '/api/headshots/import', { method: 'POST', headers: { cookie: cookies }, body: form });
+    return res.json();
+  };
+  db.prepare("INSERT INTO users (email, name, password_hash, role) VALUES ('t.zipone@test.local', 'Tina Zip-One', '', 'staff')").run();
+  db.prepare("INSERT INTO users (email, name, password_hash, role) VALUES ('m.ziptwo@test.local', 'Mark Zip Two', '', 'staff')").run();
+
+  // Full name (with underscores and a copy suffix) and email-name forms both match.
+  assert.deepStrictEqual(await send('Tina_Zip-One (1).jpg'), { ok: true, matched: 'Tina Zip-One' });
+  const one = db.prepare("SELECT headshot FROM users WHERE email = 't.zipone@test.local'").get().headshot;
+  assert.ok(one && fs.existsSync(path.join(config.uploadDir, one)));
+  assert.deepStrictEqual(await send('m.ziptwo.png'), { ok: true, matched: 'Mark Zip Two' });
+
+  // No match and ambiguous names are skipped with a reason, never guessed.
+  assert.match((await send('Nobody Here.jpg')).reason, /no matching staff member/);
+  assert.match((await send('Zip.jpg')).reason, /matches 2 people/);
+
+  // Existing headshots are kept unless overwrite is ticked.
+  assert.match((await send('Tina Zip One.jpg')).reason, /already has a headshot/);
+  assert.strictEqual((await send('Tina Zip One.jpg', { overwrite: '1' })).ok, true);
+  assert.ok(!fs.existsSync(path.join(config.uploadDir, one)), 'replaced file is removed');
+
+  // The import page is linked and reachable for admins.
+  assert.match(await (await get('/users')).text(), /\/users\/headshots/);
+  assert.strictEqual((await get('/users/headshots')).status, 200);
+
+  for (const u of db.prepare("SELECT headshot FROM users WHERE email LIKE '%zip%@test.local'").all()) {
+    if (u.headshot) fs.rmSync(path.join(config.uploadDir, u.headshot), { force: true });
+  }
+  db.prepare("DELETE FROM users WHERE email LIKE '%zip%@test.local'").run();
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

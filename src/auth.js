@@ -51,6 +51,7 @@ const MULTIPART_PATHS = [
   /^\/api\/edit\/masthead-photo$/,
   /^\/users\/\d+\/headshot$/,
   /^\/houses\/\d+\/logo$/,
+  /^\/api\/headshots\/import$/,
 ];
 
 function csrfProtection(req, res, next) {

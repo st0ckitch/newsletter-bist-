@@ -218,3 +218,103 @@ document.addEventListener('click', function (e) {
       }, 4000);
     });
 });
+
+// Bulk headshot import: each selected photo is downscaled in the browser
+// (~700px JPEG - so folders of multi-MB originals never travel in full),
+// then sent one at a time to /api/headshots/import, where the file name is
+// matched to a staff member. Results stream into the log as they happen.
+(function () {
+  var form = document.getElementById('headshot-import');
+  if (!form) return;
+  var input = form.querySelector('input[type=file]');
+  var out = document.getElementById('headshot-import-log');
+  var csrfValue = form.querySelector('input[name=_csrf]').value;
+  var btn = form.querySelector('button[type=submit]');
+
+  function log(line, color) {
+    var p = document.createElement('p');
+    p.textContent = line;
+    p.style.margin = '2px 0';
+    if (color) p.style.color = color;
+    out.appendChild(p);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  function decode(file) {
+    if (window.createImageBitmap) {
+      return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () {
+        return createImageBitmap(file);
+      });
+    }
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('unreadable image')); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  function shrink(file) {
+    return decode(file).then(function (img) {
+      var w = img.width;
+      var h = img.height;
+      var scale = Math.min(1, 700 / Math.max(w, h));
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(w * scale));
+      canvas.height = Math.max(1, Math.round(h * scale));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      return new Promise(function (resolve, reject) {
+        canvas.toBlob(function (blob) {
+          if (blob) resolve(blob);
+          else reject(new Error('could not convert the image'));
+        }, 'image/jpeg', 0.85);
+      });
+    });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var files = Array.prototype.slice.call(input.files || []);
+    if (!files.length) return log('Choose the photo files first.', '#75809a');
+    var overwrite = form.querySelector('input[name=overwrite]').checked ? '1' : '0';
+    out.textContent = '';
+    btn.disabled = true;
+    var i = 0;
+    var matched = 0;
+    var skipped = 0;
+
+    (function next() {
+      if (i >= files.length) {
+        btn.disabled = false;
+        btn.textContent = 'Import photos';
+        log('Done: ' + matched + ' matched and saved, ' + skipped + ' skipped (of ' + files.length + ').', '#1d3061');
+        return;
+      }
+      var file = files[i++];
+      btn.textContent = 'Importing ' + i + ' / ' + files.length + '…';
+      shrink(file)
+        .then(function (blob) {
+          var fd = new FormData();
+          fd.append('_csrf', csrfValue);
+          fd.append('name', file.name);
+          fd.append('overwrite', overwrite);
+          fd.append('photo', blob, file.name.replace(/\.[^.]+$/, '') + '.jpg');
+          return fetch('/api/headshots/import', { method: 'POST', body: fd }).then(function (r) { return r.json(); });
+        })
+        .then(function (result) {
+          if (result.ok) {
+            matched++;
+            log('✓ ' + file.name + ' → ' + result.matched, '#2e7d52');
+          } else {
+            skipped++;
+            log('✗ ' + file.name + ' - ' + (result.reason || result.error || 'failed'), '#c4432e');
+          }
+        })
+        .catch(function (err) {
+          skipped++;
+          log('✗ ' + file.name + ' - ' + err.message, '#c4432e');
+        })
+        .then(next);
+    })();
+  });
+})();
