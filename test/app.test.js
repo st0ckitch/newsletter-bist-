@@ -1771,6 +1771,57 @@ test('bulk headshot import matches photos to staff by file name', async () => {
   db.prepare("DELETE FROM users WHERE email LIKE '%zip%@test.local'").run();
 });
 
+test('principal portrait: pick a saved headshot, and last week\'s carries forward', async () => {
+  const sharp = require('sharp');
+  const config = require('../src/config');
+  const onDisk = (n) => n && fs.existsSync(path.join(config.uploadDir, n));
+  const png = await sharp({ create: { width: 220, height: 280, channels: 3, background: '#224466' } }).png().toBuffer();
+
+  // Snapshot the current week's message so this test leaves it untouched.
+  const { generationWeekStart } = require('../src/appweek');
+  const week = generationWeekStart();
+  const snapshot = db.prepare('SELECT * FROM principal_messages WHERE week_start = ?').get(week) || null;
+  db.prepare('DELETE FROM principal_messages WHERE week_start = ?').run(week);
+
+  // Give the admin account a saved headshot to pick from.
+  const adminRow = db.prepare("SELECT id FROM users WHERE email = 'admin@test.local'").get();
+  const form = new FormData();
+  form.append('_csrf', csrf);
+  form.append('headshot', new Blob([png], { type: 'image/png' }), 'principal.png');
+  await fetch(base + `/users/${adminRow.id}/headshot`, { method: 'POST', headers: { cookie: cookies }, body: form });
+  const headshot = db.prepare('SELECT headshot FROM users WHERE id = ?').get(adminRow.id).headshot;
+
+  // The page offers the picker; saving with a picked person copies their headshot.
+  assert.match(await (await get('/principal-message')).text(), /photo_user_id/);
+  const mpSave = new FormData();
+  mpSave.append('_csrf', csrf);
+  mpSave.append('body', 'Dear Parents, a fine week.');
+  mpSave.append('photo_user_id', String(adminRow.id));
+  const save = await fetch(base + '/principal-message', { method: 'POST', headers: { cookie: cookies }, body: mpSave, redirect: 'manual' });
+  assert.strictEqual(save.status, 302);
+  const withPick = db.prepare('SELECT photo FROM principal_messages WHERE week_start = ?').get(week);
+  assert.ok(withPick.photo && withPick.photo !== headshot && onDisk(withPick.photo), 'own copy of the headshot stored');
+
+  // A fresh week with nothing chosen reuses the latest previous portrait.
+  db.prepare("UPDATE principal_messages SET week_start = '2019-12-30' WHERE week_start = ?").run(week);
+  const mpPlain = new FormData();
+  mpPlain.append('_csrf', csrf);
+  mpPlain.append('body', 'Dear Parents, another week.');
+  await fetch(base + '/principal-message', { method: 'POST', headers: { cookie: cookies }, body: mpPlain, redirect: 'manual' });
+  const carried = db.prepare('SELECT photo FROM principal_messages WHERE week_start = ?').get(week);
+  assert.ok(carried.photo && carried.photo !== withPick.photo && onDisk(carried.photo), "last week's portrait carried forward as a copy");
+
+  // Cleanup: files, rows, headshot; restore the snapshot.
+  for (const f of [withPick.photo, carried.photo, headshot]) fs.rmSync(path.join(config.uploadDir, f), { force: true });
+  db.prepare("DELETE FROM principal_messages WHERE week_start IN ('2019-12-30', ?)").run(week);
+  db.prepare('UPDATE users SET headshot = NULL WHERE id = ?').run(adminRow.id);
+  if (snapshot) {
+    db.prepare(
+      'INSERT INTO principal_messages (week_start, body, quote, quote_author, photo, photo_mailchimp_url, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(snapshot.week_start, snapshot.body, snapshot.quote, snapshot.quote_author, snapshot.photo, snapshot.photo_mailchimp_url, snapshot.created_by);
+  }
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

@@ -12,7 +12,18 @@
     <label>Portrait photo (shown beside the message)
       <input type="file" name="photo" accept="image/jpeg,image/png,image/webp">
     </label>
-    <p class="muted"><strong>Recommended:</strong> a portrait crop around <strong>400 × 500 px</strong> (minimum 200 px wide), JPEG, under <strong>1 MB</strong>. Uploading a new photo replaces the current one.</p>
+    <% if (savedHeadshots.length) { %>
+    <label>…or pick a saved staff headshot
+      <select name="photo_user_id">
+        <option value="">- keep the current / last week's portrait -</option>
+        <% savedHeadshots.forEach(function(p) { %>
+          <option value="<%= p.id %>"><%= p.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <% } %>
+    <p class="muted"><strong>Recommended:</strong> a portrait crop around <strong>400 × 500 px</strong> (minimum 200 px wide), JPEG, under <strong>1 MB</strong>. Uploading a new photo replaces the current one; with nothing chosen,
+    <strong>last week&#39;s portrait is reused automatically</strong>, so it only needs choosing once.</p>
     <div class="field-row">
       <label>Quote of the week
         <input type="text" name="quote" value="<%= message && message.quote ? message.quote : '' %>" maxlength="300" placeholder="The future belongs to those who believe in the beauty of their dreams.">

@@ -3,12 +3,32 @@ const { db } = require('../db');
 const { requireRole, csrfOk } = require('../auth');
 const { formatHuman } = require('../week');
 const { generationWeekStart, generationDay, generationTimeLabel } = require('../appweek');
-const { upload, isRealImage, removeFiles } = require('../uploads');
+const { upload, isRealImage, removeFiles, copyUpload } = require('../uploads');
 
 const router = express.Router();
 
 function currentMessage(weekStart) {
   return db.prepare('SELECT * FROM principal_messages WHERE week_start = ?').get(weekStart) || null;
+}
+
+// The portrait can be chosen three ways: upload a file, pick a saved staff
+// headshot (Users page), or do nothing - in which case the most recent
+// previous week's portrait carries forward automatically, so it only ever
+// needs choosing once.
+function savedHeadshots() {
+  return db.prepare('SELECT id, name FROM users WHERE headshot IS NOT NULL ORDER BY name').all();
+}
+
+function pageLocals(req, weekStart, extra = {}) {
+  return {
+    message: currentMessage(weekStart),
+    weekStart,
+    deadlineHuman: `${formatHuman(generationDay(weekStart))} at ${generationTimeLabel()}`,
+    saved: req.query.saved === '1',
+    savedHeadshots: savedHeadshots(),
+    errors: [],
+    ...extra,
+  };
 }
 
 // Parses the multipart body (optional portrait photo), then verifies the
@@ -38,14 +58,7 @@ function photoUpload(req, res, next) {
 }
 
 router.get('/principal-message', requireRole('principal', 'admin'), (req, res) => {
-  const weekStart = generationWeekStart();
-  res.render('principal', {
-    message: currentMessage(weekStart),
-    weekStart,
-    deadlineHuman: `${formatHuman(generationDay(weekStart))} at ${generationTimeLabel()}`,
-    saved: req.query.saved === '1',
-    errors: [],
-  });
+  res.render('principal', pageLocals(req, generationWeekStart()));
 });
 
 router.post('/principal-message', requireRole('principal', 'admin'), photoUpload, (req, res) => {
@@ -55,13 +68,11 @@ router.post('/principal-message', requireRole('principal', 'admin'), photoUpload
   const quote_author = (req.body.quote_author || '').trim() || null;
   if (!body) {
     removeFiles(req.file ? [req.file.filename] : []);
-    return res.status(400).render('principal', {
+    return res.status(400).render('principal', pageLocals(req, weekStart, {
       message: { ...(currentMessage(weekStart) || {}), body, quote, quote_author },
-      weekStart,
-      deadlineHuman: `${formatHuman(generationDay(weekStart))} at ${generationTimeLabel()}`,
       saved: false,
       errors: ['The message text is required.'],
-    });
+    }));
   }
   const existing = currentMessage(weekStart);
   db.prepare(
@@ -70,13 +81,37 @@ router.post('/principal-message', requireRole('principal', 'admin'), photoUpload
      ON CONFLICT(week_start) DO UPDATE SET body = excluded.body, quote = excluded.quote,
        quote_author = excluded.quote_author, created_by = excluded.created_by, updated_at = datetime('now')`
   ).run(weekStart, body, quote, quote_author, req.user.id);
-  if (req.file) {
+  // Portrait priority: an uploaded file wins; otherwise a saved staff
+  // headshot picked from the dropdown (the message gets its own copy).
+  let newPhoto = req.file ? req.file.filename : null;
+  if (!newPhoto) {
+    const pickedId = parseInt(req.body.photo_user_id, 10);
+    if (pickedId) {
+      const person = db.prepare('SELECT headshot FROM users WHERE id = ? AND headshot IS NOT NULL').get(pickedId);
+      if (person) newPhoto = copyUpload(person.headshot);
+    }
+  }
+  if (newPhoto) {
     // A new portrait replaces the old one and must be re-uploaded to Mailchimp.
     if (existing && existing.photo) removeFiles([existing.photo]);
     db.prepare('UPDATE principal_messages SET photo = ?, photo_mailchimp_url = NULL WHERE week_start = ?').run(
-      req.file.filename,
+      newPhoto,
       weekStart
     );
+  } else if (!existing || !existing.photo) {
+    // First save of a new week with no photo chosen: the portrait rarely
+    // changes, so the most recent previous week's carries forward (as this
+    // week's own copy, so deleting either week never breaks the other).
+    const prev = db
+      .prepare('SELECT photo FROM principal_messages WHERE photo IS NOT NULL AND week_start < ? ORDER BY week_start DESC LIMIT 1')
+      .get(weekStart);
+    const carried = prev ? copyUpload(prev.photo) : null;
+    if (carried) {
+      db.prepare('UPDATE principal_messages SET photo = ?, photo_mailchimp_url = NULL WHERE week_start = ?').run(
+        carried,
+        weekStart
+      );
+    }
   }
   res.redirect('/principal-message?saved=1');
 });
