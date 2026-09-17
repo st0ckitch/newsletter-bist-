@@ -604,7 +604,7 @@ function renderHousePointsBlock(houses, placeholders) {
 
 /* ---------- Primary rewards ---------- */
 
-// The Primary Awards block, styled after the school's own page: an orange
+// The Primary Certificates of Recognition block, styled after the school's own page: an orange
 // title band, the week's topic in gold ("Generosity of Spirit Certificate
 // Winners 12.12.25"), then a bordered table of class -> student names, two
 // class/students pairs per row, closed by a congratulations line.
@@ -614,7 +614,7 @@ const REWARDS_BORDER = '#8a93a8';
 function renderAwardsBlock(awards, topic, placeholders) {
   if (!awards || !awards.length) {
     return placeholders
-      ? placeholderBox('PR', 'Primary Awards', 'Staff add the topic title and each class&#39;s winners on the Awards page.')
+      ? placeholderBox('PR', 'Primary Certificates of Recognition', 'Staff add the topic title and each class&#39;s winners on the Awards page.')
       : '';
   }
   const cell = (value, bold, width) =>
@@ -636,7 +636,7 @@ function renderAwardsBlock(awards, topic, placeholders) {
   <div style="padding:0 0 18px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
       <tr><td style="background:${REWARDS_ORANGE}; border-radius:6px; padding:10px 14px;">
-        <p style="margin:0; font-family:${SANS}; font-size:19px; font-weight:800; color:#ffffff;">Primary Awards</p>
+        <p style="margin:0; font-family:${SANS}; font-size:19px; font-weight:800; color:#ffffff;">Primary Certificates of Recognition</p>
       </td></tr>
     </table>
     ${
