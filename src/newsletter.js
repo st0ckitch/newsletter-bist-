@@ -614,7 +614,9 @@ function renderHousePointsBlock(houses, placeholders, hidden) {
 // Winners 12.12.25"), then a bordered table of class -> student names, two
 // class/students pairs per row, closed by a congratulations line.
 const REWARDS_ORANGE = '#d0562b';
-const REWARDS_BORDER = '#8a93a8';
+const REWARDS_BORDER = '#b7bfce';
+const REWARDS_SHADE = '#eef1f6'; // light grey on the class columns
+const REWARDS_GOLD_BG = '#fdf6e4';
 
 function renderAwardsBlock(awards, topic, placeholders) {
   if (!awards || !awards.length) {
@@ -622,8 +624,10 @@ function renderAwardsBlock(awards, topic, placeholders) {
       ? placeholderBox('PR', 'Primary Certificates of Recognition', 'Staff add the topic title and each class&#39;s winners on the Awards page.')
       : '';
   }
+  // Class cells sit on a light grey ground, student cells on white - the
+  // alternating columns give the table its rhythm.
   const cell = (value, bold, width) =>
-    `<td width="${width}" valign="middle" style="font-family:${SANS}; font-size:12.5px; font-weight:${bold ? 600 : 300}; color:${bold ? '#1d47a4' : INK}; padding:9px 10px; border:1px solid ${REWARDS_BORDER};">${escapeHtml(
+    `<td width="${width}" valign="middle" style="font-family:${SANS}; font-size:12.5px; font-weight:${bold ? 600 : 300}; color:${bold ? '#1d47a4' : INK}; background:${bold ? REWARDS_SHADE : '#ffffff'}; padding:10px 12px; border:1px solid ${REWARDS_BORDER};">${escapeHtml(
       value || ''
     )}</td>`;
   let rows = '';
@@ -633,27 +637,30 @@ function renderAwardsBlock(awards, topic, placeholders) {
       .map((a) =>
         a
           ? cell(a.grade_stage, true, '22%') + cell(a.student_name, false, '28%')
-          : `<td width="22%" style="border:1px solid ${REWARDS_BORDER};">&nbsp;</td><td width="28%" style="border:1px solid ${REWARDS_BORDER};">&nbsp;</td>`
+          : `<td width="22%" style="background:${REWARDS_SHADE}; border:1px solid ${REWARDS_BORDER};">&nbsp;</td><td width="28%" style="background:#ffffff; border:1px solid ${REWARDS_BORDER};">&nbsp;</td>`
       )
       .join('')}</tr>`;
   }
   return `
   <div style="padding:0 0 18px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-      <tr><td style="background:${REWARDS_ORANGE}; border-radius:6px; padding:10px 14px;">
-        <p style="margin:0; font-family:${SANS}; font-size:19px; font-weight:800; color:#ffffff;">Primary Certificates of Recognition</p>
+      <tr><td style="background:${REWARDS_ORANGE}; border-radius:8px; padding:12px 16px; border-bottom:3px solid ${GOLD};">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="font-family:${SANS}; font-size:19px; font-weight:800; color:#ffffff;">\u{1F389} Primary Certificates of Recognition</td>
+          <td align="right" style="font-size:22px; line-height:1;">\u{1F3C6}</td>
+        </tr></table>
       </td></tr>
     </table>
     ${
       topic
-        ? `<p style="margin:10px 0 8px 0; font-family:${SANS}; font-size:16px; font-weight:700; line-height:1.35; color:${GOLD_DEEP};">${escapeHtml(
+        ? `<p style="margin:12px 0 10px 0; font-family:${SANS}; font-size:16px; font-weight:700; line-height:1.35; color:${GOLD_DEEP};">\u2B50 ${escapeHtml(
             topic
-          )}</p>`
-        : '<div style="height:10px; font-size:0; line-height:0;">&nbsp;</div>'
+          )} \u2B50</p>`
+        : '<div style="height:12px; font-size:0; line-height:0;">&nbsp;</div>'
     }
     <table role="presentation" class="awards-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; background:#ffffff;">
       ${rows}
-      <tr><td colspan="4" align="center" style="font-family:${SANS}; font-size:13px; font-weight:700; font-style:italic; color:#1d47a4; padding:10px; border:1px solid ${REWARDS_BORDER};">Congratulations to all our winners!</td></tr>
+      <tr><td colspan="4" align="center" style="background:${REWARDS_GOLD_BG}; font-family:${SANS}; font-size:13.5px; font-weight:700; font-style:italic; color:#1d47a4; padding:11px 10px; border:1px solid ${REWARDS_BORDER};">\u{1F38A} Congratulations to all our winners! \u{1F38A}</td></tr>
     </table>
   </div>`;
 }
