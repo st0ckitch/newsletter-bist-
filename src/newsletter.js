@@ -388,27 +388,25 @@ function renderPhotos(photos, editable, wide) {
   if (!photos || !photos.length) return '';
   const heroW = wide ? FULL_CARD_TEXT_W : CARD_TEXT_W;
   const pairW = wide ? FULL_PAIR_W : PAIR_W;
-  // First photo runs the full card width as a hero; the rest pair up.
-  const [hero, ...rest] = photos;
-  let html = `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:10px;">
+  let first = true;
+  const gap = () => {
+    const m = first ? 10 : 8;
+    first = false;
+    return m;
+  };
+  const fullRow = (p) => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:${gap()}px;">
       <tr><td style="padding:0;">
-        <img src="${escapeHtml(photoUrl(hero))}"${photoAttr(
-    hero,
+        <img src="${escapeHtml(photoUrl(p))}"${photoAttr(
+    p,
     editable
   )} alt="Newsletter photo" class="ph-hero" width="${heroW}" style="width:100%; max-width:${heroW}px; height:auto; display:block; border-radius:9px;">
       </td></tr>
     </table>`;
-  // Pairs fill complete rows; an odd photo at the end runs full width like
-  // the hero, so no row is ever left with an empty half.
-  const tail = rest.length % 2 ? rest[rest.length - 1] : null;
-  const paired = tail ? rest.slice(0, -1) : rest;
-  for (let i = 0; i < paired.length; i += 2) {
-    const pair = paired.slice(i, i + 2);
-    html += `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;">
+  const pairRow = (a, b) => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:${gap()}px;">
       <tr>
-        ${pair
+        ${[a, b]
           .map(
             (p) => `
         <td width="50%" valign="top" style="padding:0 4px;">
@@ -421,18 +419,14 @@ function renderPhotos(photos, editable, wide) {
           .join('')}
       </tr>
     </table>`;
-  }
-  if (tail) {
-    html += `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;">
-      <tr><td style="padding:0;">
-        <img src="${escapeHtml(photoUrl(tail))}"${photoAttr(
-      tail,
-      editable
-    )} alt="Newsletter photo" class="ph-hero" width="${heroW}" style="width:100%; max-width:${heroW}px; height:auto; display:block; border-radius:9px;">
-      </td></tr>
-    </table>`;
-  }
+  // The layout follows the count: an odd number leads with a full-width
+  // hero and pairs the rest; an even number pairs up completely - so two
+  // photos sit side by side in one row and no photo is ever left alone in
+  // a half-empty row.
+  const list = [...photos];
+  let html = '';
+  if (list.length % 2 === 1) html += fullRow(list.shift());
+  for (let i = 0; i < list.length; i += 2) html += pairRow(list[i], list[i + 1]);
   return html;
 }
 

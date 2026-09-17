@@ -806,7 +806,7 @@ test('band articles get wide photos; head-of-grade portrait sits at the top; 4-p
   assert.match(colCard, /class="ph-hero" width="288"/);
   assert.match(colCard, /class="ph-pair" width="139"/);
   // 3 photos = hero + one complete pair - no dangling half-empty rows, and a
-  // 2-photo article renders both full width instead of one lonely half.
+  // 2-photo article pairs both side by side in one row.
   assert.strictEqual((colCard.match(/class="ph-pair"/g) || []).length, 2);
   const imgT = await png(800, 600, '#553311');
   await mp('/news', { title: 'Two Photo Story', body: 'Two.', section: 'primary' }, [
@@ -816,8 +816,8 @@ test('band articles get wide photos; head-of-grade portrait sits at the top; 4-p
   const preview3 = await (await get('/newsletter/preview.html')).text();
   const twoStart = preview3.indexOf('Two Photo Story');
   const twoCard = preview3.slice(twoStart, twoStart + 6000);
-  assert.strictEqual((twoCard.match(/class="ph-hero"/g) || []).length, 2, 'odd trailing photo runs full width');
-  assert.strictEqual((twoCard.match(/class="ph-pair"/g) || []).length, 0);
+  assert.strictEqual((twoCard.match(/class="ph-hero"/g) || []).length, 0, 'even counts have no lone hero');
+  assert.strictEqual((twoCard.match(/class="ph-pair"/g) || []).length, 2, 'two photos share one row');
   db.prepare("DELETE FROM news WHERE title = 'Two Photo Story'").run();
 
   // Content photos are capped at 4: a fifth is refused outright by the form...
@@ -865,7 +865,7 @@ test('uploaded photos are cropped to a uniform 4:3 so pairs line up', async () =
   const sharp = require('sharp');
   const edit = await (await get('/newsletter/preview.html?edit=1')).text();
   const newsId = edit.match(/data-edit="news:(\d+):title"/)[1];
-  const tall = await sharp({ create: { width: 120, height: 480, channels: 3, background: '#123456' } })
+  const tall = await sharp({ create: { width: 300, height: 400, channels: 3, background: '#123456' } })
     .png()
     .toBuffer();
   const form = new FormData();
@@ -883,14 +883,29 @@ test('uploaded photos are cropped to a uniform 4:3 so pairs line up', async () =
   const stored = require('path').join(process.env.DATA_DIR, 'uploads', photo.filename);
   const meta = await sharp(stored).metadata();
   assert.strictEqual(meta.format, 'jpeg');
-  assert.strictEqual(meta.width, 120);
-  assert.strictEqual(meta.height, 90, 'portrait upload is cropped to 4:3');
+  assert.strictEqual(meta.width, 300);
+  assert.strictEqual(meta.height, 225, 'camera portrait is cropped to 4:3');
   db.prepare('DELETE FROM photos WHERE id = ?').run(photo.id);
+
+  // Extreme shapes are NOT cropped: a wide banner/logo and a tall
+  // screenshot keep their full frame (just re-encoded).
+  for (const [w, h] of [[1600, 500], [200, 800]]) {
+    const img = await sharp({ create: { width: w, height: h, channels: 3, background: '#334455' } }).png().toBuffer();
+    const f = new FormData();
+    f.append('news_id', newsId);
+    f.append('photo', new Blob([img], { type: 'image/png' }), 'shape.png');
+    await fetch(base + '/api/edit/photo/add', { method: 'POST', headers: { cookie: cookies, 'x-csrf-token': csrf }, body: f });
+    const row = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id DESC').get(newsId);
+    const m = await sharp(require('path').join(process.env.DATA_DIR, 'uploads', row.filename)).metadata();
+    assert.ok(Math.abs(m.width / m.height - w / h) < 0.02, `a ${w}x${h} image keeps its shape (got ${m.width}x${m.height})`);
+    assert.ok(m.width <= 1200 && m.height <= 1200, 'capped to 1200px');
+    db.prepare('DELETE FROM photos WHERE id = ?').run(row.id);
+  }
 
   // The crop is anchored to the TOP of a portrait photo - the "head end" -
   // never the busy middle. Red band on top, blue below: the crop keeps red.
-  const headshot = await sharp({ create: { width: 120, height: 480, channels: 3, background: '#0000ff' } })
-    .composite([{ input: { create: { width: 120, height: 120, channels: 3, background: '#ff0000' } }, top: 0, left: 0 }])
+  const headshot = await sharp({ create: { width: 300, height: 400, channels: 3, background: '#0000ff' } })
+    .composite([{ input: { create: { width: 300, height: 220, channels: 3, background: '#ff0000' } }, top: 0, left: 0 }])
     .png()
     .toBuffer();
   const form2 = new FormData();
