@@ -199,15 +199,19 @@ function linkify(escaped) {
 }
 
 // Plain text -> paragraphs. Blank line separates paragraphs, single newline = <br>.
-function textToHtml(text, color = INK, size = 15) {
+function textToHtml(text, color = INK, size = 15, leadHtml = '') {
+  // leadHtml (a floated portrait) is injected INSIDE the first paragraph:
+  // Outlook's Word engine only wraps text around a floated image that lives
+  // in the same block - an image before a following <div>/<p> gets the text
+  // pushed below it there.
   return bindBareLinks(escapeHtml(text))
     .split(/\r?\n\s*\r?\n/)
     .filter((p) => p.trim() !== '')
     .map(
-      (p) =>
-        `<p style="margin:0 0 12px 0; line-height:1.65; font-size:${size}px; font-weight:300; font-family:${SANS}; color:${color};">${linkify(
-          p
-        ).replace(/\r?\n/g, '<br>')}</p>`
+      (p, i) =>
+        `<p style="margin:0 0 12px 0; line-height:1.65; font-size:${size}px; font-weight:300; font-family:${SANS}; color:${color};">${
+          i === 0 ? leadHtml : ''
+        }${linkify(p).replace(/\r?\n/g, '<br>')}</p>`
     )
     .join('');
 }
@@ -365,14 +369,16 @@ function renderPrincipalBlock(principalMessage, editable) {
         <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:16px 14px 6px 14px;"${
     canEdit ? ` data-principal-week="${week}"${principalMessage.photoUrl ? '' : ' data-no-portrait="1"'}` : ''
   }>
-          ${
-            principalMessage.photoUrl
+          ${(() => {
+            const portrait = principalMessage.photoUrl
               ? `<img src="${escapeHtml(principalMessage.photoUrl)}"${
                   canEdit ? ` data-photo="principal:${week}"` : ''
                 } alt="Principal" width="96" align="right" style="width:96px; height:auto; border-radius:8px; margin:0 0 8px 12px;">`
-              : ''
-          }
-          <div class="atext"${canEdit ? ` data-edit="principal:${week}:body"` : ''}>${textToHtml(principalMessage.body, INK, 13.5)}</div>
+              : '';
+            return canEdit
+              ? `${portrait}<div class="atext" data-edit="principal:${week}:body">${textToHtml(principalMessage.body, INK, 13.5)}</div>`
+              : `<div class="atext">${textToHtml(principalMessage.body, INK, 13.5, portrait)}</div>`;
+          })()}
         </td>
       </tr>
     </table>
@@ -471,7 +477,7 @@ function renderArticle(article, barColor, slotLetter, editable) {
         <td style="background:#ffffff; border:1px solid ${CARD_BORDER}; border-top:none; border-radius:0 0 10px 10px; padding:14px 14px 8px 14px;"${
     editable && article.id ? ` data-add-photo="${article.id}"` : ''
   }>
-          ${leadPhoto}<div class="atext"${ed('body')}>${textToHtml(article.body, INK, 13.5)}</div>
+          ${editable ? leadPhoto : ''}<div class="atext"${ed('body')}>${textToHtml(article.body, INK, 13.5, editable ? '' : leadPhoto)}</div>
           ${renderPhotos(article.photos, editable, wide)}
         </td>
       </tr>
