@@ -279,6 +279,9 @@ db.prepare("UPDATE settings SET value = '0 18 * * 4' WHERE key = 'friday_generat
 
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi',
+  // The House Points strip can be hidden from the newsletter for weeks with
+  // no update (toggled on the Houses page); houses and points stay stored.
+  house_points_visible: '1',
   // Reminder to fill in content - every Monday morning
   monday_reminder_cron: '0 9 * * 1',
   // Hard-deadline reminder - Thursday morning, only to those who have not submitted

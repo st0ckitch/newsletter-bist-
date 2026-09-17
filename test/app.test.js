@@ -1651,6 +1651,15 @@ test('house points strip (fixed under the principal) and the primary awards tabl
   preview = await (await get('/newsletter/preview.html')).text();
   assert.ok(preview.indexOf('Phoenix') < preview.indexOf('Dragon'), 'updated points lead');
 
+  // The strip can be hidden from the newsletter without losing any data.
+  assert.strictEqual((await post('/houses/visibility', { visible: '0' })).status, 302);
+  const hiddenExport = await (await get('/newsletter/export.html')).text();
+  assert.ok(!hiddenExport.includes('House Points'), 'hidden strip stays out of the email');
+  assert.match(await (await get('/newsletter/preview.html')).text(), /House Points - hidden/);
+  assert.ok(db.prepare('SELECT COUNT(*) AS c FROM houses').get().c >= 2, 'houses kept while hidden');
+  await post('/houses/visibility', { visible: '1' });
+  assert.match(await (await get('/newsletter/export.html')).text(), /House Points/);
+
   // Rewards: the topic title plus a class row from an ordinary staff member.
   await post('/awards/topic', { title: 'Generosity of Spirit Certificate Winners 12.12.25' });
   const teacher = await makeUser('Award Teacher', 'award.teacher@test.local', 'staff');

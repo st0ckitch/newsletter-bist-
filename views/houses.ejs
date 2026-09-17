@@ -13,6 +13,16 @@
     renders as a solid tile in its colour - <strong>Tigers, Pumas, Panthers and Leopards get the school&#39;s brand
     colours automatically</strong> when you add them by name; the colour swatch on each row overrides it.
     The leading house comes first with a gold outline. No houses added = no strip in the email.</p>
+    <p>
+      <% if (visible) { %><span class="tag tag-approved">shown in the newsletter</span><% } else { %><span class="tag tag-rejected">hidden from the newsletter</span><% } %>
+    </p>
+    <form method="post" action="/houses/visibility" class="inline-form">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="visible" value="<%= visible ? '0' : '1' %>">
+      <button class="btn <%= visible ? 'btn-ghost' : 'btn-primary' %>"><%= visible ? 'Hide from the newsletter' : 'Show in the newsletter' %></button>
+    </form>
+    <p class="muted" style="margin-top:8px">Hiding keeps all houses, logos and points saved - the strip simply
+    stays out of the email until you switch it back on.</p>
   </div>
   <div class="card">
     <h2>Add a house</h2>

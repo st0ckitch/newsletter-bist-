@@ -560,7 +560,12 @@ function houseTileText(color) {
   return { name: lum < 0.25 ? '#ffffff' : darken, points: '#ffffff' };
 }
 
-function renderHousePointsBlock(houses, placeholders) {
+function renderHousePointsBlock(houses, placeholders, hidden) {
+  if (hidden) {
+    return placeholders
+      ? placeholderBox('HP', 'House Points - hidden', 'Hidden from the newsletter this week - switch it back on from the Houses page.')
+      : '';
+  }
   if (!houses || !houses.length) {
     return placeholders
       ? placeholderBox('HP', 'House Points', 'Add the houses (name, logo, points) on the Houses page.')
@@ -882,7 +887,7 @@ ${fontFaceCss(fontBase)}
             <td class="col" width="${COL_W}" valign="top">${principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '&nbsp;'}</td>
           </tr>
         </table>
-        ${renderHousePointsBlock(data.houses, placeholders)}
+        ${renderHousePointsBlock(data.houses, placeholders, data.housePointsHidden)}
         ${renderMenusBlock(data.menus, placeholders)}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
           <tr>

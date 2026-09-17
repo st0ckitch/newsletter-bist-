@@ -35,10 +35,11 @@ function collectWeekData(weekStart) {
   const menus = db.prepare('SELECT * FROM menus ORDER BY id').all();
   // House standings (leader first) and this week's Primary Awards rows.
   const houses = db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all();
+  const housePointsHidden = getSetting('house_points_visible') === '0';
   const awards = db.prepare('SELECT * FROM awards WHERE week_start = ? ORDER BY id').all(weekStart);
   const topicRow = db.prepare('SELECT title FROM award_topics WHERE week_start = ?').get(weekStart);
   const awardTopic = topicRow ? topicRow.title : '';
-  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview, menus, houses, awards, awardTopic };
+  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview, menus, houses, housePointsHidden, awards, awardTopic };
 }
 
 function photoPublicUrl(photo, baseUrl = publicBaseUrl()) {
@@ -137,6 +138,7 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
       ...h,
       logoUrl: h.logo ? h.logo_mailchimp_url || `${baseUrl}/uploads/${h.logo}` : null,
     })),
+    housePointsHidden: Boolean(data.housePointsHidden),
     awards: data.awards || [],
     awardTopic: data.awardTopic || '',
     events: data.events,

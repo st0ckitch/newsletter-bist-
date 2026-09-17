@@ -1,5 +1,5 @@
 const express = require('express');
-const { db } = require('../db');
+const { db, getSetting, setSetting } = require('../db');
 const { requireManager, csrfOk } = require('../auth');
 const { upload, isRealImage, removeFiles } = require('../uploads');
 
@@ -20,7 +20,12 @@ const HOUSE_COLORS = {
 };
 
 function housesLocals(extra = {}) {
-  return { houses: db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all(), errors: [], ...extra };
+  return {
+    houses: db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all(),
+    visible: getSetting('house_points_visible') !== '0',
+    errors: [],
+    ...extra,
+  };
 }
 
 function validate(body) {
@@ -44,6 +49,13 @@ router.post('/houses', requireManager, (req, res) => {
   if (errors.length) return res.status(400).render('houses', housesLocals({ errors }));
   const color = HOUSE_COLORS[name.toLowerCase()] || '#1d3061';
   db.prepare('INSERT INTO houses (name, points, color) VALUES (?, ?, ?)').run(name, points, color);
+  res.redirect('/houses');
+});
+
+// Hide/show the whole strip in the newsletter without touching the data -
+// for weeks when the points were not updated.
+router.post('/houses/visibility', requireManager, (req, res) => {
+  setSetting('house_points_visible', req.body.visible === '1' ? '1' : '0');
   res.redirect('/houses');
 });
 
