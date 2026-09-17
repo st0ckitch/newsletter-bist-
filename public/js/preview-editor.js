@@ -382,8 +382,20 @@
   var CONTENT_LETTERS = ['D', 'E', 'F', 'G', 'H', 'I'];
   var dragState = null;
 
+  var CONTENT_LETTERS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
+  // While a drag is in flight, scroll the page when the mouse nears the top
+  // or bottom edge - without this, moving a story across a long email means
+  // dropping it, scrolling, and picking it up again.
+  document.addEventListener('dragover', function (e) {
+    if (!dragState) return;
+    var EDGE = 90;
+    var SPEED = 24;
+    if (e.clientY < EDGE) window.scrollBy(0, -SPEED);
+    else if (window.innerHeight - e.clientY < EDGE) window.scrollBy(0, SPEED);
+  });
   document.querySelectorAll('[data-slot-block]').forEach(function (block) {
     var letter = block.getAttribute('data-slot-block');
+    if (CONTENT_LETTERS.indexOf(letter) === -1) return; // A/B/C/menus etc. are fixed
     if (CONTENT_LETTERS.indexOf(letter) === -1) return;
 
     // Every D-I block - articles and empty placeholders - accepts drops.

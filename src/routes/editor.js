@@ -105,15 +105,9 @@ router.post('/api/edit/slot', manager, (req, res) => {
   const item = db.prepare('SELECT * FROM news WHERE id = ?').get(news_id);
   if (!item) return bad(res, 'That article no longer exists - reload the preview.', 404);
   if (!CONTENT_SLOTS.includes(slot)) return bad(res, 'Unknown template section.');
-  if (!allowedSlots(item.section).includes(slot)) return bad(res, columnRule(item.section));
+  // The area only decides a story's DEFAULT position - whoever lays the
+  // issue out can drag any story into any section, whole email wide.
   const from = item.slot || DEFAULT_SLOT;
-  // A swap also moves whatever lives in the target section into the vacated
-  // one - refuse if that would push a story into the wrong column.
-  const displaced = db
-    .prepare('SELECT * FROM news WHERE week_start = ? AND slot = ? AND id != ?')
-    .all(item.week_start, slot, item.id)
-    .find((d) => !allowedSlots(d.section).includes(from));
-  if (displaced) return bad(res, `"${displaced.title}" cannot move to section ${from}: ${columnRule(displaced.section)}`);
   if (from !== slot) {
     db.prepare(
       "UPDATE news SET slot = ?, updated_at = datetime('now') WHERE week_start = ? AND slot = ? AND id != ?"

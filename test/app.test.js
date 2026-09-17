@@ -190,23 +190,21 @@ test('admin can exclude an article from the issue and re-include it', async () =
   assert.match(preview, /Big Tennis Win/);
 });
 
-test('placement follows the area: primary stays in the left column', async () => {
+test('placement: the area sets the default, but any section is choosable', async () => {
   const list = await get('/news');
   const id = (await list.text()).match(/\/news\/(\d+)\/slot/)[1]; // Big Tennis Win, primary
   // moves within the left column are fine...
   const res = await post(`/news/${id}/slot`, { slot: 'F' });
   assert.strictEqual(res.status, 302);
-  // ...the right column and unknown slots are refused
-  const bad = await post(`/news/${id}/slot`, { slot: 'E' });
-  assert.strictEqual(bad.status, 400);
-  assert.match(await bad.text(), /left column/);
+  // ...and so are the right column and the bands - only unknown slots fail.
+  assert.strictEqual((await post(`/news/${id}/slot`, { slot: 'E' })).status, 302);
   assert.strictEqual((await post(`/news/${id}/slot`, { slot: 'Z' })).status, 400);
   await post(`/news/${id}/slot`, { slot: 'D' });
 
-  // A wrong-column pick on the create form is coerced into the area's own
-  // column, and each area's default follows its dedicated section.
+  // A manager's explicit pick on the create form is honoured even outside
+  // the area's own column; without a pick, the area's default applies.
   await post('/news', { title: 'Coerce Check', body: 'x', section: 'primary', slot: 'G' });
-  assert.strictEqual(db.prepare("SELECT slot FROM news WHERE title = 'Coerce Check'").get().slot, 'D');
+  assert.strictEqual(db.prepare("SELECT slot FROM news WHERE title = 'Coerce Check'").get().slot, 'G');
   await post('/news', { title: 'Band Check', body: 'x', section: 'sixth_form' });
   assert.strictEqual(db.prepare("SELECT slot FROM news WHERE title = 'Band Check'").get().slot, 'X');
   db.prepare("DELETE FROM news WHERE title IN ('Coerce Check', 'Band Check')").run();
@@ -731,15 +729,14 @@ test('Foundation stories are single-column, in the right column beside Primary',
   // The area appears in the news form dropdown and maps to the right column.
   const form = await (await get('/news/new')).text();
   assert.match(form, /<option value="foundation"[^>]*>Foundation<\/option>/);
-  assert.match(form, /data-slots="E,G,I"/, 'the form knows Foundation shares the right column');
+  assert.match(form, /data-slots="W,D,E,F,G,H,I,X,Y"/, 'every content section is choosable');
   // ...a Foundation story lands at the top of the right column by default...
   await post('/news', { title: 'Foundation Sandpit News', body: 'Little ones had fun.', section: 'foundation' });
   const row = db.prepare("SELECT * FROM news WHERE title = 'Foundation Sandpit News'").get();
   assert.strictEqual(row.slot, 'E');
-  // ...cannot be moved into the left column or a band, but can move within
-  // the right column...
-  assert.strictEqual((await post(`/news/${row.id}/slot`, { slot: 'D' })).status, 400);
-  assert.strictEqual((await post(`/news/${row.id}/slot`, { slot: 'W' })).status, 400);
+  // ...and can be moved into ANY section - the area only sets the default.
+  assert.strictEqual((await post(`/news/${row.id}/slot`, { slot: 'D' })).status, 302);
+  assert.strictEqual((await post(`/news/${row.id}/slot`, { slot: 'Q' })).status, 400, 'unknown sections still refused');
   assert.strictEqual((await post(`/news/${row.id}/slot`, { slot: 'G' })).status, 302);
   // ...and renders inside the columns area, above the Whole School band.
   const preview = await (await get('/newsletter/preview.html')).text();
@@ -942,19 +939,18 @@ test('live editor API: drag-and-drop swaps sections within a column; the area ru
   const bad = await move(idOf('Drag Article A'), 'Z');
   assert.strictEqual(bad.status, 400);
 
-  // A primary story cannot be dragged into the right column or a band...
-  const wrongCol = await move(idOf('Drag Article A'), 'E');
-  assert.strictEqual(wrongCol.status, 400);
-  assert.match((await wrongCol.json()).error, /left column/);
-  assert.strictEqual((await move(idOf('Drag Article A'), 'W')).status, 400);
-  // ...and a swap is refused when it would displace a story into a column its
-  // area forbids (a legacy secondary story parked in the left column).
+  // Any story drags into any section, whole email wide - the area only
+  // sets the default spot.
+  const cross = await move(idOf('Drag Article A'), 'E');
+  assert.strictEqual((await cross.json()).ok, true, 'primary story drags into the right column');
+  assert.strictEqual(slotOf('Drag Article A'), 'E');
+  // Swaps still displace whatever lives in the target, regardless of area.
   db.prepare(
     "INSERT INTO news (title, body, section, slot, review_status, created_by, week_start) VALUES ('Legacy Right', 'x', 'secondary', 'D', 'approved', 1, ?)"
   ).run(db.prepare('SELECT week_start FROM news WHERE title = ?').get('Drag Article A').week_start);
-  const badSwap = await move(idOf('Drag Article A'), 'D');
-  assert.strictEqual(badSwap.status, 400);
-  assert.match((await badSwap.json()).error, /right column/);
+  await move(idOf('Legacy Right'), 'E');
+  assert.strictEqual(slotOf('Legacy Right'), 'E');
+  assert.strictEqual(slotOf('Drag Article A'), 'D', 'displaced story takes the vacated section');
   db.prepare("DELETE FROM news WHERE title = 'Legacy Right'").run();
 
   // not available without a manager session

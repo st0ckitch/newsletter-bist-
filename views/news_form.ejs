@@ -33,9 +33,9 @@
         <% }) %>
       </select>
     </label>
-    <p class="muted">The area decides where the story can go: Whole School runs full width under the header (W),
-    Primary fills the left column (D/F/H), Secondary the right (E/G/I), and Sixth Form (X) and Co-Curricular (Y)
-    run full width below the columns. Pick the area first - the list here only offers its positions.</p>
+    <p class="muted">The area picks where a story lands <strong>by default</strong> - Whole School full width under
+    the header (W), Primary left (D/F/H), Secondary/Foundation right (E/G/I), Sixth Form (X) and Co-Curricular (Y)
+    below - but you can place it in <strong>any section</strong> here, and drag sections anywhere in the live preview.</p>
     <% } else if (item && item.slot) { %>
       <p class="muted">Template section: <strong><%= slotLabels[item.slot] || item.slot %></strong> - placement is set by the admin.</p>
     <% } %>

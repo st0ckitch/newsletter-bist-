@@ -94,9 +94,9 @@ function validate(body, user, existing) {
     );
   }
   if (!isSection(section)) errors.push('Choose the area this story belongs to.');
-  // Template placement belongs to whoever lays the issue out, and the area
-  // decides which column is available (primary = left, secondary = right).
-  const slot = canLayout(user) && allowedSlots(section).includes(body.slot) ? body.slot : null;
+  // Template placement belongs to whoever lays the issue out; the area only
+  // sets the default position, any content section is a valid choice.
+  const slot = canLayout(user) && CONTENT_SLOTS.includes(body.slot) ? body.slot : null;
   return { errors, values: { title, body: bodyText, section, slot } };
 }
 
@@ -123,7 +123,7 @@ function formLocals(req, extra) {
     isManager: canLayout(req.user),
     slotLabels: SLOT_LABELS,
     contentSlots: CONTENT_SLOTS,
-    sectionSlots: Object.fromEntries(allowedSections().map((s) => [s, allowedSlots(s)])),
+    sectionSlots: Object.fromEntries(allowedSections().map((s) => [s, CONTENT_SLOTS])),
     maxWords: req.user.no_word_limit ? 0 : MAX_ARTICLE_WORDS,
     ...extra,
   };
@@ -159,7 +159,7 @@ router.get('/news', requireLogin, (req, res) => {
     sectionLabels: SECTIONS,
     slotLabels: SLOT_LABELS,
     contentSlots: CONTENT_SLOTS,
-    slotsFor: allowedSlots,
+    slotsFor: () => CONTENT_SLOTS,
   });
 });
 
@@ -234,9 +234,8 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) 
     values.title,
     values.body,
     values.section,
-    // Keep the existing placement unless the (possibly changed) area now
-    // forbids that column - then fall back to the area's own column.
-    values.slot || (allowedSlots(values.section).includes(req.newsItem.slot) ? req.newsItem.slot : defaultSlot(values.section)),
+    // Keep the existing placement - manual layout survives area changes.
+    values.slot || req.newsItem.slot || defaultSlot(values.section),
     req.newsItem.id
   );
   await normalizeFiles(req.contentPhotos);
@@ -291,8 +290,8 @@ router.post('/news/:id/include', requireLayout, (req, res) => {
 router.post('/news/:id/slot', requireLayout, (req, res) => {
   const item = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).render('error', { message: 'News item not found.' });
-  if (!allowedSlots(item.section).includes(req.body.slot)) {
-    return res.status(400).render('error', { message: columnRule(item.section) || 'Invalid template section.' });
+  if (!CONTENT_SLOTS.includes(req.body.slot)) {
+    return res.status(400).render('error', { message: 'Invalid template section.' });
   }
   db.prepare('UPDATE news SET slot = ? WHERE id = ?').run(req.body.slot, item.id);
   res.redirect('/news');
