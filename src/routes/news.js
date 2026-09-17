@@ -293,7 +293,10 @@ router.post('/news/:id/slot', requireLayout, (req, res) => {
   if (!CONTENT_SLOTS.includes(req.body.slot)) {
     return res.status(400).render('error', { message: 'Invalid template section.' });
   }
-  db.prepare('UPDATE news SET slot = ? WHERE id = ?').run(req.body.slot, item.id);
+  const maxOrder = db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM news WHERE week_start = ? AND slot = ?')
+    .get(item.week_start, req.body.slot).m;
+  db.prepare('UPDATE news SET slot = ?, sort_order = ? WHERE id = ?').run(req.body.slot, maxOrder + 10, item.id);
   res.redirect('/news');
 });
 

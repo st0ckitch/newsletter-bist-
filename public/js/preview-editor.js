@@ -99,9 +99,9 @@
       }
       return api('/api/edit/photo/delete', { photo_id: ref });
     },
-    moveSlot: function (newsId, slot) {
-      if (demo) return Promise.resolve(demo.moveSlot(newsId, slot));
-      return api('/api/edit/slot', { news_id: newsId, slot: slot });
+    moveSlot: function (newsId, slot, beforeId) {
+      if (demo) return Promise.resolve(demo.moveSlot(newsId, slot, beforeId));
+      return api('/api/edit/slot', { news_id: newsId, slot: slot, before_id: beforeId });
     },
     setMasthead: function (file) {
       if (demo)
@@ -415,9 +415,12 @@
       if (!dragState || dragState.block === block) return;
       e.preventDefault();
       var target = block.getAttribute('data-slot-block');
+      var targetBar = block.querySelector('[data-drag-bar]');
+      var beforeId = targetBar ? targetBar.getAttribute('data-drag-bar') : null;
       var state = dragState;
       dragState = null;
-      if (target !== state.slot) handle(T.moveSlot(state.id, target), 'Moving section…');
+      // Insert above the block it was dropped on - same section included.
+      if (beforeId !== state.id) handle(T.moveSlot(state.id, target, beforeId), 'Moving section…');
     });
 
     // Articles drag by their colored header bar.

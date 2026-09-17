@@ -20,7 +20,7 @@ function collectWeekData(weekStart) {
   // A story reaches parents only once the SLT member for its area has
   // checked it AND it has been kept in the issue during layout.
   const news = db
-    .prepare("SELECT * FROM news WHERE week_start = ? AND included = 1 AND review_status = 'approved' ORDER BY created_at")
+    .prepare("SELECT * FROM news WHERE week_start = ? AND included = 1 AND review_status = 'approved' ORDER BY sort_order, created_at")
     .all(weekStart);
   const photosByNews = {};
   for (const n of news) {

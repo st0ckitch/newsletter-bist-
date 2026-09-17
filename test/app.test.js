@@ -920,38 +920,40 @@ test('live editor API: drag-and-drop swaps sections within a column; the area ru
   await post('/news', { title: 'Drag Article B', body: 'bbb', section: 'primary', slot: 'F' });
   const idOf = (t) => db.prepare('SELECT id FROM news WHERE title = ?').get(t).id;
   const slotOf = (t) => db.prepare('SELECT slot FROM news WHERE title = ?').get(t).slot;
-  const move = (id, slot) =>
+  const move = (id, slot, beforeId) =>
     fetch(base + '/api/edit/slot', {
       method: 'POST',
       headers: { cookie: cookies, 'content-type': 'application/json', 'x-csrf-token': csrf },
-      body: JSON.stringify({ news_id: id, slot }),
+      body: JSON.stringify({ news_id: id, slot, before_id: beforeId }),
     });
 
-  const res = await move(idOf('Drag Article A'), 'F');
+  // Dropping A on B inserts A ABOVE B in B's section - nothing swaps.
+  const res = await move(idOf('Drag Article A'), 'F', idOf('Drag Article B'));
   assert.strictEqual((await res.json()).ok, true);
-  assert.strictEqual(slotOf('Drag Article A'), 'F', 'dragged article takes the target section');
-  assert.strictEqual(slotOf('Drag Article B'), 'D', 'displaced article takes the vacated section');
+  assert.strictEqual(slotOf('Drag Article A'), 'F');
+  assert.strictEqual(slotOf('Drag Article B'), 'F', 'the drop target stays where it is');
+  let preview = await (await get('/newsletter/preview.html')).text();
+  assert.ok(preview.indexOf('Drag Article A') < preview.indexOf('Drag Article B'), 'dragged story lands above the drop target');
 
-  // moving onto an empty section just moves, and bad slots are rejected
+  // Moving onto an empty section places it there alone; bad slots rejected.
   await move(idOf('Drag Article A'), 'H');
   assert.strictEqual(slotOf('Drag Article A'), 'H');
-  assert.strictEqual(slotOf('Drag Article B'), 'D', 'unrelated article untouched');
+  assert.strictEqual(slotOf('Drag Article B'), 'F', 'unrelated article untouched');
   const bad = await move(idOf('Drag Article A'), 'Z');
   assert.strictEqual(bad.status, 400);
 
-  // Any story drags into any section, whole email wide - the area only
-  // sets the default spot.
+  // Same-section drops reorder the stack.
+  await move(idOf('Drag Article B'), 'H'); // appends below A
+  preview = await (await get('/newsletter/preview.html')).text();
+  assert.ok(preview.indexOf('Drag Article A') < preview.indexOf('Drag Article B'));
+  await move(idOf('Drag Article B'), 'H', idOf('Drag Article A'));
+  preview = await (await get('/newsletter/preview.html')).text();
+  assert.ok(preview.indexOf('Drag Article B') < preview.indexOf('Drag Article A'), 'same-section drop moves it above');
+
+  // Cross-area drops work anywhere - the area only sets the default spot.
   const cross = await move(idOf('Drag Article A'), 'E');
   assert.strictEqual((await cross.json()).ok, true, 'primary story drags into the right column');
   assert.strictEqual(slotOf('Drag Article A'), 'E');
-  // Swaps still displace whatever lives in the target, regardless of area.
-  db.prepare(
-    "INSERT INTO news (title, body, section, slot, review_status, created_by, week_start) VALUES ('Legacy Right', 'x', 'secondary', 'D', 'approved', 1, ?)"
-  ).run(db.prepare('SELECT week_start FROM news WHERE title = ?').get('Drag Article A').week_start);
-  await move(idOf('Legacy Right'), 'E');
-  assert.strictEqual(slotOf('Legacy Right'), 'E');
-  assert.strictEqual(slotOf('Drag Article A'), 'D', 'displaced story takes the vacated section');
-  db.prepare("DELETE FROM news WHERE title = 'Legacy Right'").run();
 
   // not available without a manager session
   const anon = await fetch(base + '/api/edit/slot', {

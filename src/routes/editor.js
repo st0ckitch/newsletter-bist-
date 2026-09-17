@@ -7,7 +7,7 @@ const config = require('../config');
 const { db, getSetting, setSetting } = require('../db');
 const { requireLayout, csrfOk } = require('../auth');
 const { upload, isRealImage, removeFiles, normalizePhoto } = require('../uploads');
-const { MAX_ARTICLE_WORDS, wordCount, CONTENT_SLOTS, DEFAULT_SLOT, allowedSlots, columnRule } = require('../slots');
+const { MAX_ARTICLE_WORDS, wordCount, CONTENT_SLOTS } = require('../slots');
 const { isValidDateStr } = require('../week');
 
 const router = express.Router();
@@ -97,23 +97,24 @@ router.post('/api/edit/text', manager, (req, res) => {
 
 /* ---------------- section drag-and-drop ---------------- */
 
-// Move an article to another template section (D-I). A true section swap:
-// whatever already lives in the target section takes the dragged article's
-// old place, so dragging section E onto G exchanges the two.
+// A dropped article is INSERTED ABOVE the block it was dropped on
+// (before_id) - the rest of that section's stack simply flows down; nothing
+// swaps. Dropping on an empty section places it there alone, and a drop
+// with no target article appends at the bottom of the section.
 router.post('/api/edit/slot', manager, (req, res) => {
-  const { news_id, slot } = req.body || {};
+  const { news_id, slot, before_id } = req.body || {};
   const item = db.prepare('SELECT * FROM news WHERE id = ?').get(news_id);
   if (!item) return bad(res, 'That article no longer exists - reload the preview.', 404);
   if (!CONTENT_SLOTS.includes(slot)) return bad(res, 'Unknown template section.');
-  // The area only decides a story's DEFAULT position - whoever lays the
-  // issue out can drag any story into any section, whole email wide.
-  const from = item.slot || DEFAULT_SLOT;
-  if (from !== slot) {
-    db.prepare(
-      "UPDATE news SET slot = ?, updated_at = datetime('now') WHERE week_start = ? AND slot = ? AND id != ?"
-    ).run(from, item.week_start, slot, item.id);
-    db.prepare("UPDATE news SET slot = ?, updated_at = datetime('now') WHERE id = ?").run(slot, item.id);
-  }
+  const stack = db
+    .prepare('SELECT id FROM news WHERE week_start = ? AND slot = ? AND id != ? ORDER BY sort_order, created_at')
+    .all(item.week_start, slot, item.id)
+    .map((r) => r.id);
+  const at = stack.indexOf(parseInt(before_id, 10));
+  if (at === -1) stack.push(item.id);
+  else stack.splice(at, 0, item.id);
+  const setOrder = db.prepare("UPDATE news SET slot = ?, sort_order = ?, updated_at = datetime('now') WHERE id = ?");
+  stack.forEach((id, i) => setOrder.run(slot, (i + 1) * 10, id));
   res.json({ ok: true });
 });
 

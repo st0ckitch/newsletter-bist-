@@ -233,6 +233,10 @@ ensureColumn('users', 'no_word_limit', 'no_word_limit INTEGER NOT NULL DEFAULT 0
 // Each house tile in the newsletter is a solid block of the house's brand
 // colour. Rows from before the column existed get the school palette by
 // name (see HOUSE_COLORS in routes/houses.js), navy otherwise.
+// Manual ordering within a template section: drag-and-drop inserts a story
+// above the one it was dropped on. 0 = never manually ordered (falls back
+// to created_at).
+ensureColumn('news', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
 ensureColumn('houses', 'color', 'color TEXT');
 db.prepare(
   `UPDATE houses SET color = CASE lower(name)
