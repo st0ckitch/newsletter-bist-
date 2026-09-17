@@ -646,21 +646,21 @@ function renderAwardsBlock(awards, topic, placeholders) {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
       <tr><td style="background:${REWARDS_ORANGE}; border-radius:8px; padding:12px 16px; border-bottom:3px solid ${GOLD};">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-          <td style="font-family:${SANS}; font-size:19px; font-weight:800; color:#ffffff;">\u{1F389} Primary Certificates of Recognition</td>
+          <td style="font-family:${SANS}; font-size:19px; font-weight:800; color:#ffffff;">Primary Certificates of Recognition</td>
           <td align="right" style="font-size:22px; line-height:1;">\u{1F3C6}</td>
         </tr></table>
       </td></tr>
     </table>
     ${
       topic
-        ? `<p style="margin:12px 0 10px 0; font-family:${SANS}; font-size:16px; font-weight:700; line-height:1.35; color:${GOLD_DEEP};">\u2B50 ${escapeHtml(
+        ? `<p style="margin:12px 0 10px 0; font-family:${SANS}; font-size:16px; font-weight:700; line-height:1.35; color:${GOLD_DEEP};">${escapeHtml(
             topic
           )} \u2B50</p>`
         : '<div style="height:12px; font-size:0; line-height:0;">&nbsp;</div>'
     }
     <table role="presentation" class="awards-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; background:#ffffff;">
       ${rows}
-      <tr><td colspan="4" align="center" style="background:${REWARDS_GOLD_BG}; font-family:${SANS}; font-size:13.5px; font-weight:700; font-style:italic; color:#1d47a4; padding:11px 10px; border:1px solid ${REWARDS_BORDER};">\u{1F38A} Congratulations to all our winners! \u{1F38A}</td></tr>
+      <tr><td colspan="4" align="center" style="background:${REWARDS_GOLD_BG}; font-family:${SANS}; font-size:13.5px; font-weight:700; font-style:italic; color:#1d47a4; padding:11px 10px; border:1px solid ${REWARDS_BORDER};">Congratulations to all our winners! \u{1F38A}</td></tr>
     </table>
   </div>`;
 }
