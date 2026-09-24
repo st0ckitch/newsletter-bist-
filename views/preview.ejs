@@ -40,11 +40,13 @@
 <% if (canEdit) { %>
 <div class="card">
   <h2>Email subject for this issue</h2>
-  <p class="muted">This line is <strong>what parents see in their inbox</strong> - tease the most exciting
-  stories of the week to make them open it, e.g. <em>&#127881; Sports Day results, House Points drama &amp; the
-  Y6 trip - The Roar</em>. Keep the key words in the first ~60 characters (phones cut it off there). Leave it
-  blank to fall back to the standard &quot;The Roar - Weekly Newsletter&quot; subject. It is applied to
-  the Mailchimp draft when the issue is generated.</p>
+  <p class="muted"><strong>Optional.</strong> This is what parents see in their inbox - tease the week&#39;s most
+  exciting stories to make them open it. &quot;The Roar - &quot; is always added in front automatically, so just
+  write the teaser: e.g. <em>&#127881; Sports Day results, House Points drama &amp; the Y6 trip</em> becomes
+  <em>The Roar - &#127881; Sports Day results, House Points drama &amp; the Y6 trip</em>. Keep the key words
+  early (phones cut subjects around 60 characters). Left blank, the standard
+  &quot;The Roar - British International School of Tbilisi Weekly Newsletter&quot; is used. Applied to the
+  Mailchimp draft when the issue is generated.</p>
   <% if (subjectSaved) { %><div class="alert alert-ok">Subject saved - it will be used when this week&#39;s issue is generated.</div><% } %>
   <form method="post" action="/newsletter/subject" class="inline-form" style="flex-wrap:wrap; gap:8px;">
     <input type="hidden" name="_csrf" value="<%= csrf %>">

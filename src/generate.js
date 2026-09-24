@@ -299,9 +299,12 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   let campaignWebUrl = null;
   let status = 'local_only';
 
-  // The subject is chosen either way, so the report can nudge for a catchy
-  // one even when Mailchimp is not reachable.
-  const subject = data.emailSubject || `${getSetting('newsletter_name')} - ${getSetting('school_name')} Weekly Newsletter`;
+  // The newsletter's name stays a static prefix on every subject; the
+  // optional weekly line only replaces the generic tail. The subject is
+  // chosen either way, so the report can nudge even without Mailchimp.
+  const subject = data.emailSubject
+    ? `${getSetting('newsletter_name')} - ${data.emailSubject}`
+    : `${getSetting('newsletter_name')} - ${getSetting('school_name')} Weekly Newsletter`;
   step(
     Boolean(data.emailSubject),
     'Catchy email subject set',

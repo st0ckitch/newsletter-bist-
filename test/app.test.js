@@ -1861,7 +1861,7 @@ test('weekly email subject: SLT/principal/marketing edit it, generation uses it'
   let result = await generateIssue({ trigger: 'test-subject' });
   let stepRow = result.steps.find((s) => s.label === 'Catchy email subject set');
   assert.ok(stepRow && stepRow.ok, 'custom subject step is green');
-  assert.match(stepRow.detail, /SLT subject line/);
+  assert.match(stepRow.detail, /The Roar - SLT subject line/, 'the newsletter name stays a static prefix');
   // ...and a missing one as a red nudge using the default.
   await post('/newsletter/subject', { subject: '' });
   result = await generateIssue({ trigger: 'test-subject-default' });
