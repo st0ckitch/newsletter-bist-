@@ -38,6 +38,22 @@
   <div class="alert alert-ok">Demo content removed. Only the sample items were deleted - real submissions were kept.</div>
 <% } %>
 <% if (canEdit) { %>
+<div class="card">
+  <h2>Email subject for this issue</h2>
+  <p class="muted">This line is <strong>what parents see in their inbox</strong> - tease the most exciting
+  stories of the week to make them open it, e.g. <em>&#127881; Sports Day results, House Points drama &amp; the
+  Y6 trip - The Roar</em>. Keep the key words in the first ~60 characters (phones cut it off there). Leave it
+  blank to fall back to the standard &quot;The Roar - Weekly Newsletter&quot; subject. It is applied to
+  the Mailchimp draft when the issue is generated.</p>
+  <% if (subjectSaved) { %><div class="alert alert-ok">Subject saved - it will be used when this week&#39;s issue is generated.</div><% } %>
+  <form method="post" action="/newsletter/subject" class="inline-form" style="flex-wrap:wrap; gap:8px;">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="week" value="<%= weekStart %>">
+    <input type="text" name="subject" value="<%= emailSubject %>" maxlength="150" style="flex:1; min-width:260px; margin:0;"
+      placeholder="e.g. &#127881; Sports Day results, House Points drama &amp; the Y6 trip">
+    <button class="btn btn-primary">Save subject</button>
+  </form>
+</div>
   <p class="muted">Edit directly in the preview: <strong>click any text</strong> to change it (Esc undoes, clicking away saves), <strong>hover a photo</strong> to replace or remove it, and use <strong>+ Add photo</strong> inside an article. The 200-word article limit still applies. Photos move to the Mailchimp CDN when the draft is generated.</p>
 <% } else { %>
   <p class="muted">Live preview - refresh after adding content. Photos show from local uploads until the issue is generated, when they are moved to the Mailchimp CDN.</p>

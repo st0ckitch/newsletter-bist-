@@ -49,13 +49,26 @@ router.get('/newsletter/export.html', requireLogin, (req, res) => {
 
 router.get('/newsletter/preview', requireLogin, (req, res) => {
   const weekStart = isValidDateStr(req.query.week) ? req.query.week : generationWeekStart();
+  const subjectRow = db.prepare('SELECT subject FROM email_subjects WHERE week_start = ?').get(weekStart);
   res.render('preview', {
     weekStart,
     issueWeek: generationWeekStart(),
     submissionWeek: submissionWeekStart(),
     hasDemo: hasDemoData(),
     demo: ['filled', 'cleared'].includes(req.query.demo) ? req.query.demo : null,
+    emailSubject: subjectRow ? subjectRow.subject : '',
+    subjectSaved: req.query.subject_saved === '1',
   });
+});
+
+// The week's email subject line - what parents see in their inbox. Written
+// by SLT, the principal or marketing to tease the issue's best content;
+// blank falls back to the default subject.
+router.post('/newsletter/subject', requireLayout, (req, res) => {
+  const weekStart = isValidDateStr(req.body.week) ? req.body.week : generationWeekStart();
+  const subject = (req.body.subject || '').trim().slice(0, 150);
+  db.prepare('INSERT OR REPLACE INTO email_subjects (week_start, subject) VALUES (?, ?)').run(weekStart, subject);
+  res.redirect(`/newsletter/preview?week=${weekStart}&subject_saved=1`);
 });
 
 // Showcase mode: one click fills every template section (quote, events, all

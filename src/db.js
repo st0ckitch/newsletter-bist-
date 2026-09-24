@@ -137,6 +137,14 @@ CREATE TABLE IF NOT EXISTS award_topics (
   title TEXT NOT NULL DEFAULT ''
 );
 
+-- The week's email subject line, written by SLT/the principal to tease the
+-- issue's best content and lift the open rate. Empty/missing = the default
+-- "<newsletter> - <school> Weekly Newsletter" subject.
+CREATE TABLE IF NOT EXISTS email_subjects (
+  week_start TEXT PRIMARY KEY,
+  subject TEXT NOT NULL DEFAULT ''
+);
+
 `);
 
 // Databases created before a column existed get it added in place.

@@ -111,6 +111,12 @@ async function setCampaignContent(campaignId, html) {
   return request('PUT', `/campaigns/${campaignId}/content`, { html });
 }
 
+// Refresh the subject line of an existing draft (re-generation after SLT
+// set or changed this week's subject).
+async function updateCampaignSubject(campaignId, subject) {
+  return request('PATCH', `/campaigns/${campaignId}`, { settings: { subject_line: subject } });
+}
+
 async function sendCampaign(campaignId) {
   return request('POST', `/campaigns/${campaignId}/actions/send`);
 }
@@ -207,6 +213,7 @@ module.exports = {
   createStaticSegment,
   createCampaign,
   setCampaignContent,
+  updateCampaignSubject,
   sendCampaign,
   getCampaign,
   uploadFile,

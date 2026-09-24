@@ -1835,6 +1835,44 @@ test('principal portrait: pick a saved headshot, and last week\'s carries forwar
   }
 });
 
+test('weekly email subject: SLT/principal/marketing edit it, generation uses it', async () => {
+  const { generationWeekStart } = require('../src/appweek');
+  const week = generationWeekStart();
+
+  // A manager saves this week's subject and the Preview page shows it back.
+  const save = await post('/newsletter/subject', { subject: '🎉 Sports Day results, House Points drama & the Y6 trip' });
+  assert.strictEqual(save.status, 302);
+  assert.strictEqual(
+    db.prepare('SELECT subject FROM email_subjects WHERE week_start = ?').get(week).subject,
+    '🎉 Sports Day results, House Points drama & the Y6 trip'
+  );
+  const page = await (await get('/newsletter/preview')).text();
+  assert.match(page, /Email subject for this issue/);
+  assert.ok(page.includes('Sports Day results, House Points drama'), 'saved subject shown in the field');
+
+  // An SLT member may edit it; plain staff may not.
+  const slt = await makeUser('Subject Slt', 'subject.slt@test.local', 'slt', 'primary');
+  assert.strictEqual((await slt.post('/newsletter/subject', { subject: 'SLT subject line' })).status, 302);
+  const teacher = await makeUser('Subject Staff', 'subject.staff@test.local', 'staff');
+  assert.strictEqual((await teacher.post('/newsletter/subject', { subject: 'nope' })).status, 403);
+
+  // Generation reports a custom subject as a green step...
+  const { generateIssue } = require('../src/generate');
+  let result = await generateIssue({ trigger: 'test-subject' });
+  let stepRow = result.steps.find((s) => s.label === 'Catchy email subject set');
+  assert.ok(stepRow && stepRow.ok, 'custom subject step is green');
+  assert.match(stepRow.detail, /SLT subject line/);
+  // ...and a missing one as a red nudge using the default.
+  await post('/newsletter/subject', { subject: '' });
+  result = await generateIssue({ trigger: 'test-subject-default' });
+  stepRow = result.steps.find((s) => s.label === 'Catchy email subject set');
+  assert.ok(stepRow && !stepRow.ok, 'default subject step nudges');
+  assert.match(stepRow.detail, /Weekly Newsletter/);
+
+  db.prepare('DELETE FROM email_subjects WHERE week_start = ?').run(week);
+  db.prepare("DELETE FROM users WHERE email IN ('subject.slt@test.local', 'subject.staff@test.local')").run();
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

@@ -37,9 +37,11 @@ function collectWeekData(weekStart) {
   const houses = db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all();
   const housePointsHidden = getSetting('house_points_visible') === '0';
   const awards = db.prepare('SELECT * FROM awards WHERE week_start = ? ORDER BY id').all(weekStart);
+  const subjectRow = db.prepare('SELECT subject FROM email_subjects WHERE week_start = ?').get(weekStart);
+  const emailSubject = subjectRow ? subjectRow.subject.trim() : '';
   const topicRow = db.prepare('SELECT title FROM award_topics WHERE week_start = ?').get(weekStart);
   const awardTopic = topicRow ? topicRow.title : '';
-  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview, menus, houses, housePointsHidden, awards, awardTopic };
+  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview, menus, houses, housePointsHidden, awards, awardTopic, emailSubject };
 }
 
 function photoPublicUrl(photo, baseUrl = publicBaseUrl()) {
@@ -297,6 +299,17 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   let campaignWebUrl = null;
   let status = 'local_only';
 
+  // The subject is chosen either way, so the report can nudge for a catchy
+  // one even when Mailchimp is not reachable.
+  const subject = data.emailSubject || `${getSetting('newsletter_name')} - ${getSetting('school_name')} Weekly Newsletter`;
+  step(
+    Boolean(data.emailSubject),
+    'Catchy email subject set',
+    data.emailSubject
+      ? `"${subject}"`
+      : `using the default "${subject}" - SLT or the principal can write this week's subject on the Preview page to lift the open rate`
+  );
+
   if (!mailchimp.isConfigured()) {
     warnings.push('Mailchimp is not configured - the draft was saved locally but no Mailchimp campaign was created.');
     step(false, 'Draft campaign in Mailchimp', 'NOT created - Mailchimp is not configured');
@@ -304,7 +317,6 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
     warnings.push('MAILCHIMP_AUDIENCE_ID is not set - no Mailchimp campaign was created.');
     step(false, 'Draft campaign in Mailchimp', 'NOT created - MAILCHIMP_AUDIENCE_ID is not set');
   } else {
-    const subject = `${getSetting('newsletter_name')} - ${getSetting('school_name')} Weekly Newsletter`;
     const title = `${getSetting('newsletter_name')} ${data.issueDate}`;
     const existing = db
       .prepare('SELECT * FROM issues WHERE week_start = ? AND campaign_id IS NOT NULL ORDER BY id DESC')
@@ -314,6 +326,8 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
         // Re-generation: try to refresh the existing draft in place.
         try {
           await mailchimp.setCampaignContent(existing.campaign_id, html);
+          // The subject may have been set/changed since the draft was made.
+          await mailchimp.updateCampaignSubject(existing.campaign_id, subject);
           campaignId = existing.campaign_id;
           campaignWebUrl = existing.campaign_web_url;
         } catch (err) {
