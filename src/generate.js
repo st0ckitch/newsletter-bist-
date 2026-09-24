@@ -36,7 +36,7 @@ function collectWeekData(weekStart) {
   // House standings (leader first) and this week's Primary Awards rows.
   const houses = db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all();
   const housePointsHidden = getSetting('house_points_visible') === '0';
-  const awards = db.prepare('SELECT * FROM awards WHERE week_start = ? ORDER BY id').all(weekStart);
+  const awards = db.prepare('SELECT * FROM awards WHERE week_start = ? ORDER BY sort_order, id').all(weekStart);
   const subjectRow = db.prepare('SELECT subject FROM email_subjects WHERE week_start = ?').get(weekStart);
   const emailSubject = subjectRow ? subjectRow.subject.trim() : '';
   const topicRow = db.prepare('SELECT title FROM award_topics WHERE week_start = ?').get(weekStart);

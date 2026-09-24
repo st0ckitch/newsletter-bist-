@@ -1873,6 +1873,35 @@ test('weekly email subject: SLT/principal/marketing edit it, generation uses it'
   db.prepare("DELETE FROM users WHERE email IN ('subject.slt@test.local', 'subject.staff@test.local')").run();
 });
 
+test('certificate rows reorder by drag-and-drop and the email follows', async () => {
+  for (const [c, s] of [['Zed Alpha', 'Ana'], ['Zed Beta', 'Ben'], ['Zed Gamma', 'Gia']]) {
+    await post('/awards', { class_name: c, students: s });
+  }
+  const ids = db
+    .prepare("SELECT id FROM awards WHERE grade_stage LIKE 'Zed %' ORDER BY id")
+    .all()
+    .map((r) => r.id);
+
+  // The page renders draggable rows with grips.
+  const page = await (await get('/awards')).text();
+  assert.match(page, /data-award-row/);
+  assert.match(page, /drag-grip/);
+
+  // Reversing the order via the reorder endpoint flips the email table.
+  const res = await fetch(base + '/awards/reorder', {
+    method: 'POST',
+    headers: { cookie: cookies, 'content-type': 'application/json', 'x-csrf-token': csrf },
+    body: JSON.stringify({ ids: [...ids].reverse() }),
+  });
+  assert.strictEqual((await res.json()).ok, true);
+  const preview = await (await get('/newsletter/preview.html')).text();
+  const at = (s) => preview.indexOf(s);
+  assert.ok(at('Zed Gamma') > -1 && at('Zed Gamma') < at('Zed Beta') && at('Zed Beta') < at('Zed Alpha'),
+    'newsletter table follows the dragged order');
+
+  db.prepare("DELETE FROM awards WHERE grade_stage LIKE 'Zed %'").run();
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

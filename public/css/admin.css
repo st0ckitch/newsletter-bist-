@@ -147,6 +147,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); bord
 
 .row-excluded td { opacity: 0.55; }
 .tag-slot { background: #f6ecd9; color: #8a6210; font-weight: 800; }
+.row-drop td { border-top: 3px solid var(--gold) !important; }
 .slot-select { max-width: 210px; padding: 5px 8px; font-size: 12.5px; margin: 0; display: inline-block; width: auto; }
 
 /* ---------------- phones ----------------

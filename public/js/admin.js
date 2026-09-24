@@ -318,3 +318,69 @@ document.addEventListener('click', function (e) {
     })();
   });
 })();
+
+// Drag-and-drop ordering of the certificates table (/awards): grab a row's
+// grip, drop it on another row to slide it in above that row, and the new
+// order is saved immediately - the newsletter table follows it.
+(function () {
+  var rows = document.querySelectorAll('tr[data-award-row]');
+  if (!rows.length) return;
+  var tbody = rows[0].parentElement;
+  var csrfEl = document.querySelector('input[name=_csrf]');
+  var dragging = null;
+
+  function saveOrder() {
+    var ids = Array.prototype.map.call(tbody.querySelectorAll('tr[data-award-row]'), function (r) {
+      return parseInt(r.getAttribute('data-award-row'), 10);
+    });
+    fetch('/awards/reorder', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-csrf-token': csrfEl ? csrfEl.value : '' },
+      body: JSON.stringify({ ids: ids }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (!j.ok) throw new Error(); })
+      .catch(function () {
+        window.alert('Could not save the new order - reloading the page.');
+        window.location.reload();
+      });
+  }
+
+  Array.prototype.forEach.call(rows, function (tr) {
+    var grip = tr.querySelector('.drag-grip');
+    if (!grip) return;
+    grip.setAttribute('draggable', 'true');
+    grip.addEventListener('dragstart', function (e) {
+      dragging = tr;
+      tr.style.opacity = '0.4';
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', tr.getAttribute('data-award-row'));
+      }
+    });
+    grip.addEventListener('dragend', function () {
+      if (dragging) dragging.style.opacity = '';
+      Array.prototype.forEach.call(document.querySelectorAll('tr.row-drop'), function (r) {
+        r.classList.remove('row-drop');
+      });
+      dragging = null;
+    });
+    tr.addEventListener('dragover', function (e) {
+      if (!dragging || dragging === tr) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      tr.classList.add('row-drop');
+    });
+    tr.addEventListener('dragleave', function () {
+      tr.classList.remove('row-drop');
+    });
+    tr.addEventListener('drop', function (e) {
+      tr.classList.remove('row-drop');
+      if (!dragging || dragging === tr) return;
+      e.preventDefault();
+      tbody.insertBefore(dragging, tr); // lands above the row it was dropped on
+      dragging.style.opacity = '';
+      saveOrder();
+    });
+  });
+})();

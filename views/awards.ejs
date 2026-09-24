@@ -37,11 +37,14 @@
     <p class="muted">No rows for this issue yet - the Primary Certificates of Recognition block only appears in the newsletter once
     at least one class is added.</p>
   <% } else { %>
+  <p class="muted">Drag the <strong>&#8942;&#8942;</strong> grip to change the order of the classes - the
+  newsletter table follows it exactly.</p>
   <table class="table">
-    <thead><tr><th>Class</th><th>Students</th><th>Added by</th><th></th></tr></thead>
+    <thead><tr><th style="width:28px"></th><th>Class</th><th>Students</th><th>Added by</th><th></th></tr></thead>
     <tbody>
       <% rows.forEach(function(r) { %>
-        <tr>
+        <tr data-award-row="<%= r.id %>">
+          <td class="drag-grip" title="Drag to reorder" style="cursor:grab; color:#a5adc2; user-select:none; font-size:15px;">&#8942;&#8942;</td>
           <% if (r.canEdit) { %>
           <td colspan="2">
             <form method="post" action="/awards/<%= r.id %>" class="inline-form">

@@ -245,6 +245,8 @@ ensureColumn('users', 'no_word_limit', 'no_word_limit INTEGER NOT NULL DEFAULT 0
 // above the one it was dropped on. 0 = never manually ordered (falls back
 // to created_at).
 ensureColumn('news', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
+// Same manual ordering for the certificates table rows (Awards page).
+ensureColumn('awards', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
 ensureColumn('houses', 'color', 'color TEXT');
 db.prepare(
   `UPDATE houses SET color = CASE lower(name)

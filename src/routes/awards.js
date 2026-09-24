@@ -27,7 +27,7 @@ function awardsLocals(req, extra = {}) {
     .prepare(
       `SELECT a.*, u.name AS author FROM awards a
        LEFT JOIN users u ON u.id = a.created_by
-       WHERE a.week_start >= ? ORDER BY a.week_start, a.id`
+       WHERE a.week_start >= ? ORDER BY a.week_start, a.sort_order, a.id`
     )
     .all(issueWeek)
     .map((r) => ({ ...r, canEdit: canEditRecord(req.user, r) }));
@@ -60,6 +60,16 @@ router.post('/awards', requireLogin, (req, res) => {
     "INSERT INTO awards (week_start, award, grade_stage, student_name, award_title, created_by) VALUES (?, '', ?, ?, '', ?)"
   ).run(submissionWeekStart(), className, students, req.user.id);
   res.redirect('/awards');
+});
+
+// Drag-and-drop ordering of the table: the body carries the full id list
+// in the new top-to-bottom order. Only current/upcoming weeks are touched.
+router.post('/awards/reorder', requireLogin, (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
+  const issueWeek = generationWeekStart();
+  const set = db.prepare('UPDATE awards SET sort_order = ? WHERE id = ? AND week_start >= ?');
+  ids.forEach((id, i) => set.run((i + 1) * 10, id, issueWeek));
+  res.json({ ok: true });
 });
 
 function loadAward(req, res, next) {
