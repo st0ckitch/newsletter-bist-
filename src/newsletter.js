@@ -465,7 +465,7 @@ function renderArticle(article, barColor, slotLetter, editable) {
   )}>${escapeHtml(article.title)}</span></td>
             ${
               article.sectionLabel
-                ? `<td align="right" valign="top" style="font-family:${SANS}; font-size:8px; font-weight:600; letter-spacing:2px; color:#ffffff; opacity:0.75; padding-left:8px; white-space:nowrap;">${escapeHtml(
+                ? `<td align="right" valign="top" style="font-family:${SANS}; font-size:11px; font-weight:700; letter-spacing:2px; color:#ffffff; opacity:0.95; padding-left:8px; white-space:nowrap;">${escapeHtml(
                     article.sectionLabel.toUpperCase()
                   )}</td>`
                 : ''
