@@ -534,7 +534,7 @@ function renderMenusBlock(menus, placeholders) {
       <tr>
         <td style="background:${NAVY}; border-radius:10px; padding:14px 16px 16px 16px;">
           <p style="margin:0; font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:3px; color:${GOLD};">SCHOOL MENUS</p>
-          <p style="margin:6px 0 0 0; font-family:${SANS}; font-size:12.5px; color:${GOLD_SOFT};">What&rsquo;s on the table this week &mdash; pick your year group:</p>
+          <p style="margin:6px 0 0 0; font-family:${SANS}; font-size:12.5px; color:${GOLD_SOFT};">What&rsquo;s on the table this week - pick your year group:</p>
           ${buttons}
         </td>
       </tr>
