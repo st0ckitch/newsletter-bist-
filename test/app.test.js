@@ -921,6 +921,77 @@ test('uploaded photos keep their whole frame - nothing is cropped', async () => 
   db.prepare('DELETE FROM photos WHERE id = ?').run(turned.row.id);
 });
 
+test('restore full photos: an original finds its old 4:3 crop and replaces it', async () => {
+  const sharp = require('sharp');
+  const fs = require('fs');
+  const path = require('path');
+  const { legacyCrop } = require('../src/restore');
+  const uploads = path.join(process.env.DATA_DIR, 'uploads');
+  // A detailed made-up "photo" - shapes on a gradient, different per seed.
+  const scene = (seed, w, h) => {
+    let x = seed;
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647;
+    let shapes = '';
+    for (let i = 0; i < 40; i++) {
+      shapes += `<circle cx="${rnd() * w}" cy="${rnd() * h}" r="${10 + rnd() * w * 0.15}" fill="hsl(${Math.floor(rnd() * 360)},60%,${Math.floor(25 + rnd() * 50)}%)"/>`;
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="hsl(${seed % 360},40%,50%)"/>${shapes}</svg>`;
+    return sharp(Buffer.from(svg)).jpeg({ quality: 90 }).toBuffer();
+  };
+  const send = async (buf) => {
+    const form = new FormData();
+    form.append('_csrf', csrf);
+    form.append('name', 'IMG_0001.jpg');
+    form.append('photo', new Blob([buf], { type: 'image/jpeg' }), 'IMG_0001.jpg');
+    const res = await fetch(base + '/api/photos/restore', { method: 'POST', headers: { cookie: cookies }, body: form });
+    return res.json();
+  };
+
+  // What the old upload code stored for a portrait: only its top 4:3.
+  const original = await scene(11, 900, 1200);
+  const c = legacyCrop(900, 1200);
+  assert.deepStrictEqual(c, { cw: 900, ch: 675, position: 'top' });
+  await post('/news', { title: 'Restore Story', body: 'x', section: 'primary' });
+  const story = db.prepare("SELECT * FROM news WHERE title = 'Restore Story'").get();
+  fs.writeFileSync(
+    path.join(uploads, 'legacy-crop-1.jpg'),
+    await sharp(original).resize(c.cw, c.ch, { fit: 'cover', position: c.position }).jpeg({ quality: 82 }).toBuffer()
+  );
+  db.prepare(
+    "INSERT INTO photos (news_id, filename, original_name, mime, normalized, mailchimp_url) VALUES (?, 'legacy-crop-1.jpg', 'IMG_0001.jpg', 'image/jpeg', 1, 'https://cdn.example/old.jpg')"
+  ).run(story.id);
+  assert.match(await (await get('/photos/restore')).text(), /Restore full photos/);
+  assert.match(await (await get('/newsletter/preview')).text(), /href="\/photos\/restore"/, 'linked from the Preview page');
+
+  // An unrelated picture matches nothing and changes nothing.
+  let result = await send(await scene(99, 900, 1200));
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(db.prepare('SELECT filename FROM photos WHERE news_id = ?').get(story.id).filename, 'legacy-crop-1.jpg');
+
+  // The original - even as the smaller copy a browser sends - is matched and
+  // the full portrait takes the cropped photo's place.
+  result = await send(await sharp(original).resize(600).jpeg({ quality: 85 }).toBuffer());
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.match(result.matched, /Restore Story.*photo 1/);
+  const row = db.prepare('SELECT * FROM photos WHERE news_id = ?').get(story.id);
+  assert.notStrictEqual(row.filename, 'legacy-crop-1.jpg');
+  assert.strictEqual(row.mailchimp_url, null, 'the CDN copy is refreshed on the next generation');
+  const meta = await sharp(path.join(uploads, row.filename)).metadata();
+  assert.ok(Math.abs(meta.width / meta.height - 0.75) < 0.01, `the full 3:4 frame is back (${meta.width}x${meta.height})`);
+
+  // Nothing is left to restore for it, and a 4:3 picture was never cut.
+  assert.strictEqual((await send(original)).ok, false);
+  const wide = await send(await scene(5, 1200, 900));
+  assert.strictEqual(wide.ok, false);
+  assert.match(wide.reason, /nothing was ever cut off/);
+
+  // Restoring is for the people who lay out the newsletter.
+  const teacher = await makeUser('Restore Staff', 'restore.staff@test.local', 'staff');
+  assert.strictEqual((await teacher.get('/photos/restore')).status, 403);
+  db.prepare("DELETE FROM news WHERE title = 'Restore Story'").run();
+  db.prepare("DELETE FROM users WHERE email = 'restore.staff@test.local'").run();
+});
+
 test('live editor API: drag-and-drop swaps sections within a column; the area rule guards drags', async () => {
   await post('/news', { title: 'Drag Article A', body: 'aaa', section: 'primary', slot: 'D' });
   await post('/news', { title: 'Drag Article B', body: 'bbb', section: 'primary', slot: 'F' });

@@ -219,6 +219,40 @@ document.addEventListener('click', function (e) {
     });
 });
 
+// Decodes a picked image file upright (EXIF rotation applied) and re-encodes
+// it as a JPEG no larger than maxSide, so big originals never travel in full.
+function decodeImage(file) {
+  if (window.createImageBitmap) {
+    return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () {
+      return createImageBitmap(file);
+    });
+  }
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+    img.onload = function () { resolve(img); };
+    img.onerror = function () { reject(new Error('unreadable image')); };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function shrinkImage(file, maxSide, quality) {
+  return decodeImage(file).then(function (img) {
+    var w = img.width;
+    var h = img.height;
+    var scale = Math.min(1, maxSide / Math.max(w, h));
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (blob) resolve(blob);
+        else reject(new Error('could not convert the image'));
+      }, 'image/jpeg', quality);
+    });
+  });
+}
+
 // Bulk headshot import: each selected photo is downscaled in the browser
 // (~700px JPEG - so folders of multi-MB originals never travel in full),
 // then sent one at a time to /api/headshots/import, where the file name is
@@ -238,38 +272,6 @@ document.addEventListener('click', function (e) {
     if (color) p.style.color = color;
     out.appendChild(p);
     out.scrollTop = out.scrollHeight;
-  }
-
-  function decode(file) {
-    if (window.createImageBitmap) {
-      return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () {
-        return createImageBitmap(file);
-      });
-    }
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      img.onload = function () { resolve(img); };
-      img.onerror = function () { reject(new Error('unreadable image')); };
-      img.src = URL.createObjectURL(file);
-    });
-  }
-
-  function shrink(file) {
-    return decode(file).then(function (img) {
-      var w = img.width;
-      var h = img.height;
-      var scale = Math.min(1, 700 / Math.max(w, h));
-      var canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(w * scale));
-      canvas.height = Math.max(1, Math.round(h * scale));
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      return new Promise(function (resolve, reject) {
-        canvas.toBlob(function (blob) {
-          if (blob) resolve(blob);
-          else reject(new Error('could not convert the image'));
-        }, 'image/jpeg', 0.85);
-      });
-    });
   }
 
   form.addEventListener('submit', function (e) {
@@ -292,7 +294,7 @@ document.addEventListener('click', function (e) {
       }
       var file = files[i++];
       btn.textContent = 'Importing ' + i + ' / ' + files.length + '…';
-      shrink(file)
+      shrinkImage(file, 700, 0.85)
         .then(function (blob) {
           var fd = new FormData();
           fd.append('_csrf', csrfValue);
@@ -434,6 +436,74 @@ document.addEventListener('click', function (e) {
     if (stage.clientWidth !== lastWidth) fit();
   });
   render();
+})();
+
+// Restore full photos (/photos/restore): each original picked is shrunk in
+// the browser and sent on its own; the server finds the cropped newsletter
+// photo it belongs to and swaps in the full frame. Results stream into the log.
+(function () {
+  var form = document.getElementById('photo-restore');
+  if (!form) return;
+  var input = form.querySelector('input[type=file]');
+  var out = document.getElementById('photo-restore-log');
+  var csrfValue = form.querySelector('input[name=_csrf]').value;
+  var btn = form.querySelector('button[type=submit]');
+
+  function log(line, color) {
+    var p = document.createElement('p');
+    p.textContent = line;
+    p.style.margin = '2px 0';
+    if (color) p.style.color = color;
+    out.appendChild(p);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var files = Array.prototype.slice.call(input.files || []);
+    if (!files.length) return log('Choose the original photos first.', '#75809a');
+    out.textContent = '';
+    btn.disabled = true;
+    var i = 0;
+    var restored = 0;
+    var skipped = 0;
+
+    (function next() {
+      if (i >= files.length) {
+        btn.disabled = false;
+        btn.textContent = 'Restore photos';
+        log('Done: ' + restored + ' restored, ' + skipped + ' skipped (of ' + files.length + ').', '#1d3061');
+        return;
+      }
+      var file = files[i++];
+      btn.textContent = 'Restoring ' + i + ' / ' + files.length + '…';
+      shrinkImage(file, 1600, 0.9)
+        .catch(function () {
+          throw new Error("this browser can't open the file (iPhone HEIC photos: export them as JPEG first)");
+        })
+        .then(function (blob) {
+          var fd = new FormData();
+          fd.append('_csrf', csrfValue);
+          fd.append('name', file.name);
+          fd.append('photo', blob, file.name.replace(/\.[^.]+$/, '') + '.jpg');
+          return fetch('/api/photos/restore', { method: 'POST', body: fd }).then(function (r) { return r.json(); });
+        })
+        .then(function (result) {
+          if (result.ok) {
+            restored++;
+            log('✓ ' + file.name + ' → ' + result.matched + ' now shows in full', '#2e7d52');
+          } else {
+            skipped++;
+            log('✗ ' + file.name + ' - ' + (result.reason || result.error || 'failed'), '#c4432e');
+          }
+        })
+        .catch(function (err) {
+          skipped++;
+          log('✗ ' + file.name + ' - ' + err.message, '#c4432e');
+        })
+        .then(next);
+    })();
+  });
 })();
 
 // Drag-and-drop ordering of the certificates table (/awards): grab a row's

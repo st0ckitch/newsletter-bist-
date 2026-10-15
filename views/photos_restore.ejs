@@ -1,0 +1,30 @@
+<%- include('partials/head', { title: 'Restore full photos' }) %>
+<div class="page-head">
+  <h1>Restore full photos</h1>
+  <div class="page-actions"><a class="btn btn-secondary" href="/newsletter/preview">Back to the preview</a></div>
+</div>
+
+<div class="card card-narrow">
+  <h2>Why some photos look cut off</h2>
+  <p class="muted">Until 15 October 2026 the panel trimmed every uploaded photo to a 4:3 rectangle, keeping the top -
+  so in portrait shots the bottom (often the people) was cut off, and only the trimmed copy was saved. New uploads
+  are never trimmed any more.</p>
+
+  <h2>Bring the full photos back</h2>
+  <p class="muted">Select the <strong>original photos</strong> - from your computer, phone or a Google Drive / WhatsApp
+  download - several or all at once, in any order. Each one is <strong>matched automatically</strong> to the trimmed
+  photo it came from in this week&#39;s or an upcoming issue, and that photo is swapped for the full version in the
+  same place. Pictures that match nothing are skipped and listed, so nothing is ever guessed. Your browser shrinks each
+  photo before sending, so big originals upload quickly.</p>
+  <form id="photo-restore">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Original photos (select them all at once)
+      <input type="file" name="photos" accept="image/*" multiple>
+    </label>
+    <div class="btn-row"><button type="submit" class="btn btn-primary">Restore photos</button></div>
+  </form>
+  <div id="photo-restore-log" style="margin-top:14px; font-size:13.5px; max-height:420px; overflow-y:auto;"></div>
+  <p class="muted">Then check the <a href="/newsletter/preview">Preview</a>. If this week&#39;s Mailchimp draft was already
+  generated, press <strong>Generate Mailchimp draft</strong> there again so the draft gets the full photos.</p>
+</div>
+<%- include('partials/foot') %>

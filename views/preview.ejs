@@ -68,6 +68,10 @@
 </div>
 <% } %>
 
+<% if (canEdit) { %>
+<p class="muted">Photos uploaded before 15 October 2026 were trimmed to 4:3 on upload, which can cut people off.
+<a href="/photos/restore">Restore full photos</a> - pick the originals and they are matched and swapped in automatically.</p>
+<% } %>
 <div class="preview-toolbar" data-preview-toolbar data-src-edit="<%= frameSrc.edit %>" data-src-final="<%= frameSrc.final %>">
   <div class="seg" role="group" aria-label="Screen size">
     <a class="seg-btn<%= device === 'desktop' ? ' is-on' : '' %>" href="<%= pageHref('desktop', view) %>" data-set-device="desktop">

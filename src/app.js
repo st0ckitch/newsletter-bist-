@@ -73,6 +73,7 @@ function createApp() {
   app.use(require('./routes/principal'));
   app.use(require('./routes/newsletter'));
   app.use(require('./routes/editor'));
+  app.use(require('./routes/photos'));
   app.use(require('./routes/users'));
   app.use(require('./routes/settings'));
 
