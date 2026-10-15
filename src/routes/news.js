@@ -8,6 +8,7 @@ const { addDays, isValidDateStr } = require('../week');
 const { CONTENT_SLOTS, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount, allowedSlots, defaultSlot, columnRule } = require('../slots');
 const { upload, isRealImage, removeFiles, normalizeFiles, copyUpload } = require('../uploads');
 const { renderArticlePreview } = require('../newsletter');
+const { uploadSize, dataUriSize } = require('../imagesize');
 
 const router = express.Router();
 
@@ -16,7 +17,14 @@ const router = express.Router();
 // selected files) from JSON; nothing is stored.
 router.post('/news/preview.html', requireLogin, (req, res) => {
   const { title, body, sectionLabel, photos } = req.body || {};
-  res.type('html').send(renderArticlePreview({ title, body, sectionLabel, photos }));
+  // Photos arrive as URLs (saved ones) or data: URIs (just picked); their
+  // real sizes let the preview lay them out exactly like the newsletter.
+  const sized = (Array.isArray(photos) ? photos : []).slice(0, 12).map((url) => {
+    if (typeof url !== 'string') return null;
+    const size = url.startsWith('/uploads/') ? uploadSize(url.slice('/uploads/'.length)) : dataUriSize(url);
+    return { url, ...size };
+  });
+  res.type('html').send(renderArticlePreview({ title, body, sectionLabel, photos: sized }));
 });
 
 // Parses the multipart body (multer), then verifies the CSRF token from it

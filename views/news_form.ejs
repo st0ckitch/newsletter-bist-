@@ -85,9 +85,10 @@
     <label>Photos (JPEG/PNG/WebP/GIF, up to 4, max 10&nbsp;MB each)
       <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
     </label>
-    <p class="muted">These appear <strong>after the article text</strong>: the first becomes the large hero image,
-    the rest pair up in a two-column grid. Every photo is auto-cropped to the same 4:3 shape so rows line up.<br>
-    <strong>Recommended:</strong> landscape photos around <strong>1200 × 800 px</strong> (minimum 800 px wide), JPEG, under <strong>2 MB</strong> each - that is sharp on retina screens (photos run full-width on phones) and keeps the email fast to load. Phone photos work fine; avoid tiny thumbnails and heavy 10 MB originals.</p>
+    <p class="muted">These appear <strong>after the article text</strong>, always <strong>in full - nothing is cropped</strong>.
+    With an odd number the first photo stands on its own; the rest pair up, two to a row at the same height.
+    Tall (portrait) photos are shown smaller and centred, so they never take over the page.<br>
+    <strong>Recommended:</strong> photos at least <strong>800 px wide</strong>, JPEG, under <strong>2 MB</strong> each - sharp on retina screens and quick to load. Landscape photos fill the width best. Phone photos work fine; avoid tiny thumbnails and heavy 10 MB originals.</p>
     <div class="btn-row">
       <button type="submit" class="btn btn-primary"><%= item && item.id ? 'Save changes' : 'Add article' %></button>
       <a class="btn btn-secondary" href="/news">Cancel</a>

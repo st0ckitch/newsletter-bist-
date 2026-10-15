@@ -50,43 +50,22 @@ function removeFiles(filenames) {
   }
 }
 
-// Article photos are cropped to a uniform 4:3 and capped at 1200px wide, so
-// the hero and
-// every two-up pair in the newsletter line up at the same height whatever
-// people upload. Email clients cannot crop (no object-fit in Outlook/Gmail),
-// so the crop has to happen here. Returns the new filename (a JPEG); on any
+// Article photos keep their WHOLE frame - nothing is ever cropped, so no
+// face, head or team photo gets cut off. Each upload is turned upright (EXIF
+// orientation baked in), scaled to fit within 1200x1200 and re-encoded as a
+// JPEG, which also strips EXIF/GPS metadata. The newsletter lays photos out
+// by their real shape (see renderPhotos). Returns the new filename; on any
 // processing error the original file is kept untouched.
 const sharp = require('sharp');
 
 async function normalizePhoto(filename) {
   const src = path.join(config.uploadDir, filename);
   try {
-    const buf = await sharp(src).rotate().toBuffer(); // bake in EXIF orientation
-    const meta = await sharp(buf).metadata();
-    // Only camera-like shots (ratio 0.6-1.6) are cropped to the uniform 4:3
-    // that makes photo rows line up. Extreme shapes - wide banners/logos,
-    // 16:9 slides, tall screenshots - keep their FULL frame: cropping a
-    // logo to 4:3 chops its sides off. Both paths re-encode, which caps
-    // the size and strips EXIF/GPS metadata.
-    const ratio = meta.width / meta.height;
-    let out;
-    if (ratio >= 0.6 && ratio <= 1.6) {
-      const cw = Math.max(1, Math.min(meta.width, Math.floor((meta.height * 4) / 3), 1200));
-      const ch = Math.max(1, Math.floor((cw * 3) / 4));
-      // A crop that removes height keeps the TOP of the photo: in people
-      // shots the face is up there, and a top-anchored crop can never cut a
-      // head off. A crop that removes width stays centred.
-      const cropsVertically = Math.floor((meta.height * 4) / 3) >= meta.width;
-      out = await sharp(buf)
-        .resize(cw, ch, { fit: 'cover', position: cropsVertically ? 'top' : 'centre' })
-        .jpeg({ quality: 82, mozjpeg: true })
-        .toBuffer();
-    } else {
-      out = await sharp(buf)
-        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 82, mozjpeg: true })
-        .toBuffer();
-    }
+    const out = await sharp(src)
+      .rotate()
+      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
     const newName = `${crypto.randomBytes(16).toString('hex')}.jpg`;
     fs.writeFileSync(path.join(config.uploadDir, newName), out);
     removeFiles([filename]);

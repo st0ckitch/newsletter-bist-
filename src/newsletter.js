@@ -52,18 +52,19 @@ function fontFaceCss(base) {
 // Column geometry: 680px sheet, 14px outer padding, 16px gutter.
 const COL_W = 318;
 const CARD_TEXT_W = COL_W - 2 - 28; // 1px borders + 14px card padding => 288
-const PAIR_W = Math.floor((CARD_TEXT_W - 10) / 2); // two-up photo => 139
+const PHOTO_GAP = 8; // between two photos in a row
+const PAIR_W = Math.floor((CARD_TEXT_W - PHOTO_GAP) / 2); // two same-shape photos side by side => 140
 // Full-width band articles (W/X/Y) span both columns plus the gutter, so
-// their photos need their own, wider sizes - the column-based caps above
-// would leave small photos floating in half-empty cells.
+// their photos get the wider rows.
 const FULL_W = COL_W * 2 + 16; // both columns + gutter => 652
 const FULL_CARD_TEXT_W = FULL_W - 2 - 28; // => 622
-const FULL_PAIR_W = Math.floor((FULL_CARD_TEXT_W - 10) / 2); // => 306
 
 // Responsive rules for phones (<=640px): the two columns stack into one,
-// photos stretch to the full screen width, running text steps up a size and
-// the masthead/footer reflow. Desktop and tablet keep the fixed two-column
-// sheet; Outlook ignores media queries and always gets the desktop layout.
+// photo rows stretch to the full screen width (a lone photo stays at most
+// 400px tall, so portrait shots don't fill the whole screen), running text
+// steps up a size and the masthead/footer reflow. Desktop and tablet keep
+// the fixed two-column sheet; Outlook ignores media queries and always gets
+// the desktop layout.
 const MOBILE_CSS = `
   @media only screen and (max-width: 640px) {
     .sheet { width: 100% !important; }
@@ -76,7 +77,8 @@ const MOBILE_CSS = `
     .quote-pad { padding: 24px 18px 22px 18px !important; }
     .wrap-pad { padding: 14px 10px 2px 10px !important; }
     .atext p { font-size: 16px !important; line-height: 1.7 !important; }
-    .ph-hero, .ph-pair { width: 100% !important; max-width: 100% !important; }
+    .ph-row { width: 100% !important; }
+    .ph-one { width: auto !important; max-width: 100% !important; max-height: 400px !important; }
     .mob-principal { display: block !important; max-height: none !important; overflow: visible !important; }
     .desk-principal { display: none !important; }
     .dir-table, .dir-table tbody, .dir-table tr { display: block !important; width: 100% !important; }
@@ -389,50 +391,63 @@ function renderPrincipalBlock(principalMessage, editable) {
 
 const photoUrl = (p) => (typeof p === 'string' ? p : p.url);
 const photoAttr = (p, editable) => (editable && typeof p !== 'string' && p.id ? ` data-photo="${p.id}"` : '');
+// Width/height ratio from the photo's real size; unknown sizes count as 4:3.
+const photoRatio = (p) => (p && p.w > 0 && p.h > 0 ? p.w / p.h : 4 / 3);
 
+// Photos are never cropped - every one shows its whole frame. They sit in
+// rows of one or two: two photos side by side share one height, each as wide
+// as its shape needs, and no row grows taller than a landscape photo filling
+// the width (a bit more in the narrow columns). Portrait shots therefore come
+// out smaller and centred instead of cut off or towering over the text.
 function renderPhotos(photos, editable, wide) {
   if (!photos || !photos.length) return '';
-  const heroW = wide ? FULL_CARD_TEXT_W : CARD_TEXT_W;
-  const pairW = wide ? FULL_PAIR_W : PAIR_W;
+  const rowW = wide ? FULL_CARD_TEXT_W : CARD_TEXT_W;
+  const maxH = wide ? Math.ceil(FULL_CARD_TEXT_W * 0.75) : 300;
   let first = true;
-  const gap = () => {
-    const m = first ? 10 : 8;
-    first = false;
-    return m;
-  };
-  const fullRow = (p) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:${gap()}px;">
-      <tr><td style="padding:0;">
-        <img src="${escapeHtml(photoUrl(p))}"${photoAttr(
-    p,
-    editable
-  )} alt="Newsletter photo" class="ph-hero" width="${heroW}" style="width:100%; max-width:${heroW}px; height:auto; display:block; border-radius:9px;">
-      </td></tr>
-    </table>`;
-  const pairRow = (a, b) => `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:${gap()}px;">
-      <tr>
-        ${[a, b]
-          .map(
-            (p) => `
-        <td width="50%" valign="top" style="padding:0 4px;">
-          <img src="${escapeHtml(photoUrl(p))}"${photoAttr(
-              p,
-              editable
-            )} alt="Newsletter photo" class="ph-pair" width="${pairW}" style="width:100%; max-width:${pairW}px; height:auto; display:block; border-radius:8px;">
+  const row = (items) => {
+    const ratios = items.map(photoRatio);
+    const gaps = PHOTO_GAP * (items.length - 1);
+    // One shared height: what fills the row, unless that is too tall - then
+    // the row is narrower and centred.
+    const h = Math.min((rowW - gaps) / ratios.reduce((sum, r) => sum + r, 0), maxH);
+    const exact = ratios.map((r) => h * r);
+    const exactTotal = exact.reduce((sum, w) => sum + w, 0) + gaps;
+    const total = Math.round(exactTotal);
+    const widths = exact.map((w) => Math.max(1, Math.round(w)));
+    widths[widths.length - 1] = Math.max(1, total - gaps - widths.slice(0, -1).reduce((sum, w) => sum + w, 0));
+    // Exact shares, so both photos keep one height at any row width.
+    const pct = (w) => `${((w / exactTotal) * 100).toFixed(3)}%`;
+    const one = items.length === 1;
+    // Outlook sizes by the width/height attributes; everyone else by the
+    // percentages, which keep both photos the same height as a row shrinks.
+    const cells = items.map(
+      (p, i) => `
+        <td width="${widths[i]}" align="center" valign="top" style="width:${pct(exact[i])}; padding:0;">
+          <img src="${escapeHtml(photoUrl(p))}"${photoAttr(p, editable)} alt="Newsletter photo" class="${
+            one ? 'ph-one' : 'ph-two'
+          }" width="${widths[i]}" height="${Math.round(h)}" style="display:block; width:100%; height:auto; margin:0 auto; border-radius:${
+            one ? 9 : 8
+          }px;">
         </td>`
-          )
-          .join('')}
+    );
+    const gapCell = `
+        <td width="${PHOTO_GAP}" style="width:${pct(PHOTO_GAP)}; padding:0; font-size:0; line-height:0;">&nbsp;</td>`;
+    const margin = first ? 10 : 8;
+    first = false;
+    return `
+    <table role="presentation" class="ph-row" align="center" width="${total}" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:${total}px; max-width:100%; margin:${margin}px auto 0 auto;">
+      <tr>${cells.join(gapCell)}
       </tr>
     </table>`;
-  // The layout follows the count: an odd number leads with a full-width
-  // hero and pairs the rest; an even number pairs up completely - so two
-  // photos sit side by side in one row and no photo is ever left alone in
-  // a half-empty row.
+  };
+  // The layout follows the count: an odd number leads with one photo on its
+  // own and pairs the rest; an even number pairs up completely - so two
+  // photos sit side by side in one row and no photo is left alone in a
+  // half-empty row.
   const list = [...photos];
   let html = '';
-  if (list.length % 2 === 1) html += fullRow(list.shift());
-  for (let i = 0; i < list.length; i += 2) html += pairRow(list[i], list[i + 1]);
+  if (list.length % 2 === 1) html += row([list.shift()]);
+  for (let i = 0; i < list.length; i += 2) html += row([list[i], list[i + 1]]);
   return html;
 }
 
@@ -926,10 +941,12 @@ ${fontFaceCss(fontBase)}
 // width - the live preview beside the news form. Photo sources are limited
 // to data URIs, local uploads and http(s) images.
 function renderArticlePreview({ title, body, sectionLabel = '', photos = [] } = {}) {
+  // Each photo is a URL string, or {url, w, h} when its size is known.
   const safePhotos = (Array.isArray(photos) ? photos : [])
-    .filter((u) => typeof u === 'string' && /^(data:image\/|\/uploads\/|https?:\/\/)/.test(u))
+    .map((p) => (typeof p === 'string' ? { url: p } : p || {}))
+    .filter((p) => typeof p.url === 'string' && /^(data:image\/|\/uploads\/|https?:\/\/)/.test(p.url))
     .slice(0, 12)
-    .map((url) => ({ id: null, url }));
+    .map((p) => ({ id: null, url: p.url, w: Number(p.w) || 0, h: Number(p.h) || 0 }));
   const article = {
     id: null,
     title: String(title || '').slice(0, 200) || 'Untitled article',

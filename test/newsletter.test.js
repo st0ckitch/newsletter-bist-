@@ -82,13 +82,46 @@ test('renderNewsletter escapes user content', () => {
   assert.ok(html.includes('We won &amp; celebrated.'));
 });
 
-test('photos render as hero + pair grid at column widths', () => {
+test('photos render as one full-width photo + a pair at column widths', () => {
   const html = renderNewsletter(baseData);
   const imgs = html.match(/<img /g) || [];
   assert.strictEqual(imgs.length, 3);
   assert.ok(html.indexOf('a.jpg') < html.indexOf('b.jpg'));
-  assert.match(html, new RegExp(`width="${WIDTHS.CARD_TEXT_W}"`));
-  assert.match(html, new RegExp(`width="${WIDTHS.PAIR_W}"`));
+  // Sizes unknown here, so they count as 4:3 landscape: the lone photo fills
+  // the column and the pair splits it.
+  assert.match(html, new RegExp(`class="ph-one" width="${WIDTHS.CARD_TEXT_W}"`));
+  assert.match(html, new RegExp(`class="ph-two" width="${WIDTHS.PAIR_W}"`));
+});
+
+test('photos keep their whole frame: pairs share a height, tall photos shrink', () => {
+  const render = (photos, slot = 'D') =>
+    renderNewsletter({ ...baseData, articles: [{ title: 'Shapes', body: 'x', slot, sectionLabel: 'Primary', photos }] });
+  const imgs = (html) =>
+    [...html.matchAll(/class="ph-(?:one|two)" width="(\d+)" height="(\d+)"/g)].map((m) => ({ w: +m[1], h: +m[2] }));
+
+  // A landscape beside a portrait: one shared height, widths follow the
+  // shapes and fill the column (288 = 2 photos + 8px gap).
+  const mixed = imgs(render([{ url: 'http://x/l.jpg', w: 1200, h: 900 }, { url: 'http://x/p.jpg', w: 900, h: 1200 }]));
+  assert.strictEqual(mixed.length, 2);
+  assert.ok(Math.abs(mixed[0].h - mixed[1].h) <= 1, `same height (${mixed[0].h} vs ${mixed[1].h})`);
+  assert.ok(mixed[0].w > mixed[1].w, 'the landscape photo is the wider one');
+  assert.strictEqual(mixed[0].w + mixed[1].w + 8, 288);
+
+  // A lone portrait is not cropped and not stretched to full width: it keeps
+  // its 3:4 shape, at most 300px tall in a column, centred.
+  const [tall] = imgs(render([{ url: 'http://x/p.jpg', w: 900, h: 1200 }]));
+  assert.deepStrictEqual(tall, { w: 225, h: 300 });
+  assert.match(render([{ url: 'http://x/p.jpg', w: 900, h: 1200 }]), /class="ph-row" align="center" width="225"/);
+  // A full-width band allows up to the height of a 4:3 photo filling it.
+  const [bandTall] = imgs(render([{ url: 'http://x/p.jpg', w: 900, h: 1200 }], 'W'));
+  assert.deepStrictEqual(bandTall, { w: 350, h: 467 });
+  const [bandWide] = imgs(render([{ url: 'http://x/l.jpg', w: 1200, h: 900 }], 'W'));
+  assert.deepStrictEqual(bandWide, { w: 622, h: 467 });
+
+  // Phones: rows stretch to the screen, a lone photo stays at most 400px tall.
+  const html = render([{ url: 'http://x/p.jpg', w: 900, h: 1200 }]);
+  assert.match(html, /\.ph-row \{ width: 100% !important; \}/);
+  assert.match(html, /\.ph-one \{[^}]*max-height: 400px !important;/);
 });
 
 test('empty data renders without placeholders by default', () => {
@@ -170,19 +203,20 @@ test('renderReminderEmail renders heading, button and school name', () => {
   assert.match(html, /BIST/);
 });
 
-test('mobile: media query stacks the columns and stretches photos full-width', () => {
+test('mobile: media query stacks the columns and stretches photo rows to the screen', () => {
   const html = renderNewsletter(baseData);
   // The stylesheet rules phones get (<=640px)...
   assert.match(html, /@media only screen and \(max-width: 640px\)/);
   assert.match(html, /\.col \{ display: block !important; width: 100% !important; \}/);
   assert.match(html, /\.gutter \{ display: none !important; \}/);
-  assert.match(html, /\.ph-hero, \.ph-pair \{ width: 100% !important; max-width: 100% !important; \}/);
+  assert.match(html, /\.ph-row \{ width: 100% !important; \}/);
   assert.match(html, /\.atext p \{ font-size: 16px !important;/);
   assert.match(html, /\.mast-title \{ font-size: 34px !important;/);
   // ...and the class hooks those rules target.
   assert.match(html, /class="sheet"/);
-  assert.match(html, /class="ph-hero"/);
-  assert.match(html, /class="ph-pair"/);
+  assert.match(html, /class="ph-row"/);
+  assert.match(html, /class="ph-one"/);
+  assert.match(html, /class="ph-two"/);
   assert.match(html, /class="atext"/);
   assert.match(html, /class="mast-title"/);
   assert.match(html, /class="dir-cell"/);

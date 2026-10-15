@@ -7,6 +7,7 @@ const config = require('./config');
 const { publicBaseUrl, isPublicUrl } = require('./baseurl');
 const mailchimp = require('./mailchimp');
 const { renderNewsletter } = require('./newsletter');
+const { uploadSize } = require('./imagesize');
 const { generationWeekStart, generationDay } = require('./appweek');
 
 const { SECTIONS: SECTION_LABELS } = require('./sections');
@@ -120,7 +121,12 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
     slot: n.slot,
     sectionLabel: SECTION_LABELS[n.section] || '',
     leadPhotoUrl: n.lead_photo ? n.lead_photo_mailchimp_url || `${baseUrl}/uploads/${n.lead_photo}` : null,
-    photos: (data.photosByNews[n.id] || []).map((p) => ({ id: p.id, url: photoPublicUrl(p, baseUrl) })),
+    // w/h: the photo's real size - the layout follows each photo's shape.
+    photos: (data.photosByNews[n.id] || []).map((p) => ({
+      id: p.id,
+      url: photoPublicUrl(p, baseUrl),
+      ...uploadSize(p.filename),
+    })),
   }));
 
   const mastheadPhoto = getSetting('masthead_photo');

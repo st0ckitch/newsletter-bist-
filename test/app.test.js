@@ -787,9 +787,9 @@ test('band articles get wide photos; head-of-grade portrait sits at the top; 4-p
   assert.ok(headIdx > -1, 'section head portrait renders');
   assert.ok(headIdx < card.indexOf('Wide photos please.'), 'portrait sits above the text');
   assert.match(card, /alt="Section head" width="96"/);
-  // Band photos use the wide sizes: hero 622, pairs 306 (not 288/139).
-  assert.match(card, /class="ph-hero" width="622"/);
-  assert.match(card, /class="ph-pair" width="306"/);
+  // Band photos use the wide rows: a lone 4:3 photo fills 622, a pair 307 each.
+  assert.match(card, /class="ph-one" width="622"/);
+  assert.match(card, /class="ph-two" width="307"/);
   // A column story keeps the narrow sizes.
   const imgN = await png(800, 600, '#224422');
   await mp('/news', { title: 'Column Photo Story', body: 'Narrow photos.', section: 'primary' }, [
@@ -800,11 +800,11 @@ test('band articles get wide photos; head-of-grade portrait sits at the top; 4-p
   const preview2 = await (await get('/newsletter/preview.html')).text();
   const colStart = preview2.indexOf('Column Photo Story');
   const colCard = preview2.slice(colStart, colStart + 6000);
-  assert.match(colCard, /class="ph-hero" width="288"/);
-  assert.match(colCard, /class="ph-pair" width="139"/);
+  assert.match(colCard, /class="ph-one" width="288"/);
+  assert.match(colCard, /class="ph-two" width="140"/);
   // 3 photos = hero + one complete pair - no dangling half-empty rows, and a
   // 2-photo article pairs both side by side in one row.
-  assert.strictEqual((colCard.match(/class="ph-pair"/g) || []).length, 2);
+  assert.strictEqual((colCard.match(/class="ph-two"/g) || []).length, 2);
   const imgT = await png(800, 600, '#553311');
   await mp('/news', { title: 'Two Photo Story', body: 'Two.', section: 'primary' }, [
     ['photos', imgT, 't1.png'],
@@ -813,8 +813,8 @@ test('band articles get wide photos; head-of-grade portrait sits at the top; 4-p
   const preview3 = await (await get('/newsletter/preview.html')).text();
   const twoStart = preview3.indexOf('Two Photo Story');
   const twoCard = preview3.slice(twoStart, twoStart + 6000);
-  assert.strictEqual((twoCard.match(/class="ph-hero"/g) || []).length, 0, 'even counts have no lone hero');
-  assert.strictEqual((twoCard.match(/class="ph-pair"/g) || []).length, 2, 'two photos share one row');
+  assert.strictEqual((twoCard.match(/class="ph-one"/g) || []).length, 0, 'even counts have no lone photo');
+  assert.strictEqual((twoCard.match(/class="ph-two"/g) || []).length, 2, 'two photos share one row');
   db.prepare("DELETE FROM news WHERE title = 'Two Photo Story'").run();
 
   // Content photos are capped at 4: a fifth is refused outright by the form...
@@ -858,61 +858,67 @@ test('band articles get wide photos; head-of-grade portrait sits at the top; 4-p
   db.prepare("DELETE FROM news WHERE title IN ('Band Photo Story', 'Column Photo Story', 'Two Photo Story')").run();
 });
 
-test('uploaded photos are cropped to a uniform 4:3 so pairs line up', async () => {
+test('uploaded photos keep their whole frame - nothing is cropped', async () => {
   const sharp = require('sharp');
+  const path = require('path');
   const edit = await (await get('/newsletter/preview.html?edit=1')).text();
   const newsId = edit.match(/data-edit="news:(\d+):title"/)[1];
-  const tall = await sharp({ create: { width: 300, height: 400, channels: 3, background: '#123456' } })
+  const addPhoto = async (buf, type = 'image/png') => {
+    const form = new FormData();
+    form.append('news_id', newsId);
+    form.append('photo', new Blob([buf], { type }), type === 'image/png' ? 'photo.png' : 'photo.jpg');
+    const res = await fetch(base + '/api/edit/photo/add', {
+      method: 'POST',
+      headers: { cookie: cookies, 'x-csrf-token': csrf },
+      body: form,
+    });
+    assert.strictEqual((await res.json()).ok, true);
+    const row = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id DESC').get(newsId);
+    return { row, file: path.join(process.env.DATA_DIR, 'uploads', row.filename) };
+  };
+
+  // A portrait team photo: red sky on top, the blue "team" along the bottom.
+  // Both ends survive - the bottom is exactly where a crop used to cut.
+  const team = await sharp({ create: { width: 300, height: 400, channels: 3, background: '#ff0000' } })
+    .composite([{ input: { create: { width: 300, height: 120, channels: 3, background: '#0000ff' } }, top: 280, left: 0 }])
     .png()
     .toBuffer();
-  const form = new FormData();
-  form.append('news_id', newsId);
-  form.append('photo', new Blob([tall], { type: 'image/png' }), 'tall.png');
-  const res = await fetch(base + '/api/edit/photo/add', {
-    method: 'POST',
-    headers: { cookie: cookies, 'x-csrf-token': csrf },
-    body: form,
-  });
-  assert.strictEqual((await res.json()).ok, true);
-  const photo = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id DESC').get(newsId);
-  assert.match(photo.filename, /\.jpg$/);
-  assert.strictEqual(photo.normalized, 1);
-  const stored = require('path').join(process.env.DATA_DIR, 'uploads', photo.filename);
-  const meta = await sharp(stored).metadata();
+  const { row, file } = await addPhoto(team);
+  assert.match(row.filename, /\.jpg$/);
+  assert.strictEqual(row.normalized, 1);
+  const meta = await sharp(file).metadata();
   assert.strictEqual(meta.format, 'jpeg');
-  assert.strictEqual(meta.width, 300);
-  assert.strictEqual(meta.height, 225, 'camera portrait is cropped to 4:3');
-  db.prepare('DELETE FROM photos WHERE id = ?').run(photo.id);
+  assert.deepStrictEqual([meta.width, meta.height], [300, 400], 'the portrait keeps its full frame');
+  const strip = await sharp(file).extract({ left: 0, top: 380, width: 300, height: 20 }).toBuffer();
+  const bottom = await sharp(strip).stats();
+  assert.ok(bottom.channels[2].mean > 200 && bottom.channels[0].mean < 60, 'the bottom of the photo is still there');
+  // The newsletter lays it out by its real shape: taller than wide.
+  const preview = await (await get('/newsletter/preview.html?edit=1')).text();
+  const tag = preview.match(new RegExp(`<img[^>]*data-photo="${row.id}"[^>]*>`))[0];
+  const [w, h] = [/ width="(\d+)"/, / height="(\d+)"/].map((re) => Number(tag.match(re)[1]));
+  assert.ok(h > w, `rendered as a portrait (${w}x${h})`);
+  db.prepare('DELETE FROM photos WHERE id = ?').run(row.id);
 
-  // Extreme shapes are NOT cropped: a wide banner/logo and a tall
-  // screenshot keep their full frame (just re-encoded).
-  for (const [w, h] of [[1600, 500], [200, 800]]) {
-    const img = await sharp({ create: { width: w, height: h, channels: 3, background: '#334455' } }).png().toBuffer();
-    const f = new FormData();
-    f.append('news_id', newsId);
-    f.append('photo', new Blob([img], { type: 'image/png' }), 'shape.png');
-    await fetch(base + '/api/edit/photo/add', { method: 'POST', headers: { cookie: cookies, 'x-csrf-token': csrf }, body: f });
-    const row = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id DESC').get(newsId);
-    const m = await sharp(require('path').join(process.env.DATA_DIR, 'uploads', row.filename)).metadata();
-    assert.ok(Math.abs(m.width / m.height - w / h) < 0.02, `a ${w}x${h} image keeps its shape (got ${m.width}x${m.height})`);
+  // Every shape keeps its proportions; big photos are only scaled down to 1200px.
+  for (const [width, height] of [[2400, 1800], [1600, 500], [200, 800], [900, 1600]]) {
+    const img = await sharp({ create: { width, height, channels: 3, background: '#334455' } }).png().toBuffer();
+    const added = await addPhoto(img);
+    const m = await sharp(added.file).metadata();
+    assert.ok(Math.abs(m.width / m.height - width / height) < 0.02, `${width}x${height} keeps its shape (got ${m.width}x${m.height})`);
     assert.ok(m.width <= 1200 && m.height <= 1200, 'capped to 1200px');
-    db.prepare('DELETE FROM photos WHERE id = ?').run(row.id);
+    db.prepare('DELETE FROM photos WHERE id = ?').run(added.row.id);
   }
 
-  // The crop is anchored to the TOP of a portrait photo - the "head end" -
-  // never the busy middle. Red band on top, blue below: the crop keeps red.
-  const headshot = await sharp({ create: { width: 300, height: 400, channels: 3, background: '#0000ff' } })
-    .composite([{ input: { create: { width: 300, height: 220, channels: 3, background: '#ff0000' } }, top: 0, left: 0 }])
-    .png()
+  // A phone photo stored sideways with an EXIF rotation flag comes out upright.
+  const sideways = await sharp({ create: { width: 400, height: 300, channels: 3, background: '#556677' } })
+    .jpeg()
+    .withMetadata({ orientation: 6 })
     .toBuffer();
-  const form2 = new FormData();
-  form2.append('news_id', newsId);
-  form2.append('photo', new Blob([headshot], { type: 'image/png' }), 'headshot.png');
-  await fetch(base + '/api/edit/photo/add', { method: 'POST', headers: { cookie: cookies, 'x-csrf-token': csrf }, body: form2 });
-  const photo2 = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id DESC').get(newsId);
-  const stats = await sharp(require('path').join(process.env.DATA_DIR, 'uploads', photo2.filename)).stats();
-  assert.ok(stats.channels[0].mean > 200 && stats.channels[2].mean < 60, 'the top of the photo survives the crop');
-  db.prepare('DELETE FROM photos WHERE id = ?').run(photo2.id);
+  const turned = await addPhoto(sideways, 'image/jpeg');
+  const tm = await sharp(turned.file).metadata();
+  assert.deepStrictEqual([tm.width, tm.height], [300, 400], 'EXIF rotation is applied');
+  assert.ok(!tm.orientation || tm.orientation === 1, 'no rotation flag left behind');
+  db.prepare('DELETE FROM photos WHERE id = ?').run(turned.row.id);
 });
 
 test('live editor API: drag-and-drop swaps sections within a column; the area rule guards drags', async () => {

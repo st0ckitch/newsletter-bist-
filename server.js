@@ -6,13 +6,14 @@ const scheduler = require('./src/scheduler');
 
 seedAdmin();
 
-// One-time catch-up: photos uploaded before the 4:3 crop existed get cropped
-// in the background, so old articles line up too. Clearing mailchimp_url
-// makes the next generation push the cropped copies to the CDN.
+// One-time catch-up: photos uploaded before uploads were processed get
+// turned upright, downsized and stripped of metadata in the background (never
+// cropped). Clearing mailchimp_url makes the next generation push the new
+// copies to the CDN.
 async function normalizeOldPhotos() {
   const rows = db.prepare('SELECT id, filename FROM photos WHERE normalized = 0').all();
   if (!rows.length) return;
-  console.log(`[uploads] Cropping ${rows.length} existing photo(s) to the uniform 4:3...`);
+  console.log(`[uploads] Processing ${rows.length} older photo(s)...`);
   for (const row of rows) {
     const newName = await normalizePhoto(row.filename);
     db.prepare(
