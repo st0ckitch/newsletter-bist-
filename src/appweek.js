@@ -5,7 +5,7 @@
 // regenerating after the cutoff or over the weekend rebuilds the finished
 // week.
 const { getSetting } = require('./db');
-const { currentWeekStart, issueWeekStart, parseCronTime, weekDeadline } = require('./week');
+const { currentWeekStart, issueWeekStart, parseCronTime, weekDeadline, addDays } = require('./week');
 
 function generationCron() {
   return parseCronTime(getSetting('friday_generate_cron'));
@@ -31,4 +31,24 @@ function generationTimeLabel() {
   return `${String(c.hour).padStart(2, '0')}:${String(c.minute).padStart(2, '0')}`;
 }
 
-module.exports = { submissionWeekStart, generationWeekStart, generationDay, generationTimeLabel };
+// "Thursday 18:00" - the submission deadline for an issue.
+function cutoffLabel() {
+  const days = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  return `${days[generationCron().dow]} ${generationTimeLabel()}`;
+}
+
+// The issues a story can be filed under: the one assembled this week and the
+// three after it. Wherever new submissions currently land is always among them.
+function issueWeekChoices(date = new Date()) {
+  const first = generationWeekStart(date);
+  return [0, 7, 14, 21].map((days) => addDays(first, days));
+}
+
+module.exports = {
+  submissionWeekStart,
+  generationWeekStart,
+  generationDay,
+  generationTimeLabel,
+  cutoffLabel,
+  issueWeekChoices,
+};

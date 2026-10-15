@@ -1433,11 +1433,12 @@ test('news list labels weeks and hides past stories behind a toggle', async () =
   const page = await (await get('/news')).text();
   assert.ok(!page.includes('Ancient Story'), 'past weeks are hidden by default');
   assert.match(page, /older stor(y is|ies are) hidden/);
-  assert.match(page, /this week&#39;s issue|this week's issue/);
+  // Managers see each story's issue as a Week picker.
+  assert.match(page, /selected>This week - \d+ \w+</);
 
   const allPage = await (await get('/news?all=1')).text();
   assert.ok(allPage.includes('Ancient Story'), 'the toggle reveals past stories');
-  assert.match(allPage, /past · week of 2025-09-01/);
+  assert.match(allPage, /<option value="2025-09-01" selected>Past - 1 Sep/);
   assert.match(allPage, /Hide older stories/);
   db.prepare("DELETE FROM news WHERE title = 'Ancient Story'").run();
 });
@@ -1938,6 +1939,69 @@ test('preview switches: final email without highlights, desktop or mobile', asyn
   assert.ok(staffPage.includes(`data-src-edit="/newsletter/preview.html?week=${week}"`), 'no editor for staff');
   assert.strictEqual((await teacher.get('/newsletter/preview.html?final=1')).status, 200);
   db.prepare("DELETE FROM users WHERE email = 'preview.staff@test.local'").run();
+});
+
+test('stories go into a chosen issue; after the deadline only the layout team picks this week', async () => {
+  const { generationWeekStart } = require('../src/appweek');
+  const { addDays } = require('../src/week');
+  const thisWeek = generationWeekStart();
+  const nextWeek = addDays(thisWeek, 7);
+  const later = addDays(thisWeek, 21);
+  const weekOf = (title) => db.prepare('SELECT * FROM news WHERE title = ?').get(title);
+  // A Monday 00:00 deadline means every moment is past it - the situation
+  // from Thursday 18:00 onwards, when new stories roll into next week.
+  setSetting('friday_generate_cron', '0 0 * * 1');
+  try {
+    const form = await (await get('/news/new')).text();
+    assert.match(form, /This week&#39;s issue - week of [^<]*\(deadline passed\)/, 'managers may still pick this week');
+    assert.ok(form.includes(`<option value="${nextWeek}" selected>`), 'next week is the default after the deadline');
+
+    // The default keeps today's behaviour: the story rolls into next week...
+    await post('/news', { title: 'Week Menu Story', body: 'New menu.', section: 'primary' });
+    assert.strictEqual(weekOf('Week Menu Story').week_start, nextWeek);
+    // ...and one click in the News list moves it back into this week's issue.
+    await generateIssue({ trigger: 'test-week-move' });
+    const moved = await post(`/news/${weekOf('Week Menu Story').id}/week`, { week: thisWeek });
+    assert.strictEqual(moved.status, 302);
+    assert.strictEqual(weekOf('Week Menu Story').week_start, thisWeek);
+    assert.strictEqual(weekOf('Week Menu Story').review_status, 'approved', 'moving is not a rewrite');
+    const list = await (await get(moved.headers.get('location'))).text();
+    assert.match(list, /is now in <strong>This week&#39;s issue/);
+    assert.match(list, /Generate Mailchimp draft/, 'the already generated draft needs regenerating');
+    assert.match(await (await get('/newsletter/preview.html')).text(), /Week Menu Story/);
+
+    // Picking the week in the form files a new story there directly.
+    await post('/news', { title: 'Week Picked Story', body: 'x', section: 'primary', week: thisWeek });
+    assert.strictEqual(weekOf('Week Picked Story').week_start, thisWeek);
+
+    // Changing only the week on the edit form keeps the SLT check; a rewrite
+    // by someone who cannot check the area still sends it back.
+    const marketing = await makeUser('Week Marketing', 'week.marketing@test.local', 'marketing');
+    const id = weekOf('Week Menu Story').id;
+    const edit = await marketing.post(`/news/${id}`, { title: 'Week Menu Story', body: 'New menu.', section: 'primary', week: nextWeek });
+    assert.strictEqual(edit.headers.get('location'), `/news/${id}/edit?moved_from=${thisWeek}`);
+    assert.strictEqual(weekOf('Week Menu Story').week_start, nextWeek);
+    assert.strictEqual(weekOf('Week Menu Story').review_status, 'approved');
+    assert.match(await (await marketing.get(edit.headers.get('location'))).text(), /is now in <strong>Next week&#39;s issue/);
+    await marketing.post(`/news/${id}`, { title: 'Week Menu Story', body: 'New menu, updated.', section: 'primary', week: nextWeek });
+    assert.strictEqual(weekOf('Week Menu Story').review_status, 'pending');
+
+    // Staff can schedule ahead, but the issue being proofed is not theirs to pick.
+    const teacher = await makeUser('Week Staff', 'week.staff@test.local', 'staff');
+    const staffForm = await (await teacher.get('/news/new')).text();
+    assert.ok(!staffForm.includes(`<option value="${thisWeek}"`), 'this week is not offered to staff');
+    assert.match(staffForm, /ask marketing/);
+    await teacher.post('/news', { title: 'Week Staff Late', body: 'x', section: 'primary', week: thisWeek });
+    assert.strictEqual(weekOf('Week Staff Late').week_start, nextWeek, 'a forged pick falls back to the default');
+    await teacher.post('/news', { title: 'Week Staff Ahead', body: 'x', section: 'primary', week: later });
+    assert.strictEqual(weekOf('Week Staff Ahead').week_start, later);
+    assert.strictEqual((await teacher.post(`/news/${id}/week`, { week: later })).status, 403, 'list moves are for the layout team');
+    assert.strictEqual((await post(`/news/${id}/week`, { week: '2020-01-06' })).status, 400, 'only offered weeks');
+  } finally {
+    setSetting('friday_generate_cron', '59 23 * * 7');
+    db.prepare("DELETE FROM news WHERE title LIKE 'Week %'").run();
+    db.prepare("DELETE FROM users WHERE email IN ('week.marketing@test.local', 'week.staff@test.local')").run();
+  }
 });
 
 // Keep this test LAST: recreating the admin row invalidates the shared session.

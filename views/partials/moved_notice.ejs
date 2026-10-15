@@ -1,0 +1,7 @@
+<div class="alert alert-ok">
+  &ldquo;<%= moved.title %>&rdquo; is now in <strong><%= moved.label %></strong>.
+  <% if (moved.regenerate) { %>This week&#39;s Mailchimp draft was generated before the change - press
+  <strong>Generate Mailchimp draft</strong> on the <a href="/newsletter/preview">Preview</a> page to update it.<% } %>
+  <% if (moved.pending) { %>It appears in the newsletter once its SLT check is done.<% } %>
+  <% if (moved.excluded) { %>It is currently left out of the issue - switch <strong>Included</strong> back on to show it.<% } %>
+</div>

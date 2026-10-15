@@ -188,6 +188,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); bord
 .tag-slot { background: #f6ecd9; color: #8a6210; font-weight: 800; }
 .row-drop td { border-top: 3px solid var(--gold) !important; }
 .slot-select { max-width: 210px; padding: 5px 8px; font-size: 12.5px; margin: 0; display: inline-block; width: auto; }
+.stack-form { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 0; }
+/* Wide tables (News) scroll inside their card instead of spilling past it. */
+.table-scroll { overflow-x: auto; }
+.page-wide .container, .page-wide .topbar-inner { max-width: 1440px; }
 
 /* ---------------- phones ----------------
    The panel is used from phones between lessons: the menu collapses into one

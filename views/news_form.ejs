@@ -3,6 +3,7 @@
 <div class="card">
   <h1><%= item && item.id ? 'Edit news article' : 'Add a news article' %></h1>
   <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+  <% if (moved) { %><%- include('partials/moved_notice', { moved: moved }) %><% } %>
   <form method="post" action="<%= item && item.id ? '/news/' + item.id : '/news' %>" enctype="multipart/form-data">
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <label>Title *
@@ -16,6 +17,25 @@
       </select>
     </label>
     <p class="muted">The SLT member responsible for this area checks the story before it goes into the newsletter.</p>
+    <label>Which issue? *
+      <select name="week">
+        <% weekOptions.forEach(function(c) { %>
+          <option value="<%= c.value %>" <%= c.value === selectedWeek ? 'selected' : '' %>><%= c.label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <p class="muted">
+    <% if (!pastCutoff) { %>
+      New stories go into <strong>this week&#39;s issue</strong> until the <%= cutoff %> deadline. Pick a later issue to schedule a story ahead.
+    <% } else if (isManager) { %>
+      The <%= cutoff %> deadline has passed, so new stories go into <strong>next week&#39;s issue</strong> by default -
+      but you can still put one into <strong>this week&#39;s issue</strong>. If this week&#39;s Mailchimp draft was already
+      generated, press <strong>Generate Mailchimp draft</strong> on the Preview page afterwards to include it.
+    <% } else { %>
+      The <%= cutoff %> deadline for this week&#39;s issue has passed, so new stories go into <strong>next week&#39;s issue</strong>
+      (or a later one you pick). If a story must still make this week&#39;s issue, ask marketing - they can move it.
+    <% } %>
+    </p>
     <label>Article text * <%= maxWords ? '(max ' + maxWords + ' words)' : '(no word limit for your account)' %>
       <textarea name="body" rows="10" required <%- maxWords ? 'data-word-limit="' + maxWords + '"' : '' %> placeholder="Write the article. Leave an empty line between paragraphs."><%= item ? item.body : '' %></textarea>
     </label>

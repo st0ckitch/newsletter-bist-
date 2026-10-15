@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/css/admin.css">
   <script src="/js/admin.js" defer></script>
 </head>
-<body>
+<body<%- typeof wide !== 'undefined' && wide ? ' class="page-wide"' : '' %>>
 <% const currentUser = locals.currentUser || null; const csrf = locals.csrf || ''; %>
 <% if (currentUser) { %>
 <header class="topbar">

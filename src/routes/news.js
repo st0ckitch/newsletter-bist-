@@ -3,7 +3,8 @@ const { db } = require('../db');
 const { requireLogin, requireLayout, requireReviewer, csrfOk, canEditRecord, canManage } = require('../auth');
 const { canReviewSection, isReviewer, canLayout } = require('../roles');
 const { SECTION_KEYS, SECTIONS, isSection } = require('../sections');
-const { submissionWeekStart, generationWeekStart } = require('../appweek');
+const { submissionWeekStart, generationWeekStart, issueWeekChoices, cutoffLabel } = require('../appweek');
+const { addDays, isValidDateStr } = require('../week');
 const { CONTENT_SLOTS, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount, allowedSlots, defaultSlot, columnRule } = require('../slots');
 const { upload, isRealImage, removeFiles, normalizeFiles, copyUpload } = require('../uploads');
 const { renderArticlePreview } = require('../newsletter');
@@ -74,6 +75,65 @@ function loadNews(req, res, next) {
   next();
 }
 
+// Which issue a story goes into. New stories default to the week accepting
+// submissions - next week's once the Thursday deadline has passed - and any
+// writer may schedule one for a later issue. After the deadline, the issue
+// being proofed stays open to the layout team only. A story's current week
+// is always offered, so editing it never moves it by accident.
+function weekContext(user) {
+  const issueWeek = generationWeekStart();
+  const pastCutoff = submissionWeekStart() !== issueWeek;
+  const open = issueWeekChoices().filter((w) => !(pastCutoff && w === issueWeek && !canLayout(user)));
+  return { issueWeek, pastCutoff, open };
+}
+
+function labelWeek(week, ctx) {
+  const [y, m, d] = week.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  if (week < ctx.issueWeek) return { value: week, label: `Past issue - week of ${date}`, short: `Past - ${date}` };
+  if (week === ctx.issueWeek) {
+    return {
+      value: week,
+      label: `This week's issue - week of ${date}${ctx.pastCutoff ? ' (deadline passed)' : ''}`,
+      short: `This week - ${date}`,
+    };
+  }
+  if (week === addDays(ctx.issueWeek, 7)) {
+    return { value: week, label: `Next week's issue - week of ${date}`, short: `Next week - ${date}` };
+  }
+  return { value: week, label: `Issue for the week of ${date}`, short: `Week of ${date}` };
+}
+
+function weekChoices(ctx, currentWeek) {
+  const weeks = ctx.open.slice();
+  if (currentWeek && !weeks.includes(currentWeek)) weeks.push(currentWeek);
+  return weeks.sort().map((w) => labelWeek(w, ctx));
+}
+
+// A story moved to another issue joins the end of its section there.
+function moveToWeek(id, slot, week) {
+  const maxOrder = db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM news WHERE week_start = ? AND slot = ? AND id != ?')
+    .get(week, slot, id).m;
+  db.prepare('UPDATE news SET week_start = ?, sort_order = ? WHERE id = ?').run(week, maxOrder + 10, id);
+}
+
+// Confirmation after a story changes issue. The Mailchimp draft is a
+// snapshot: if this week's was already generated, it only reflects the move
+// once it is generated again.
+function movedNotice(id, fromWeek, ctx) {
+  const item = db.prepare('SELECT title, week_start, review_status, included FROM news WHERE id = ?').get(id);
+  if (!item) return null;
+  const touchesIssue = item.week_start === ctx.issueWeek || fromWeek === ctx.issueWeek;
+  return {
+    title: item.title,
+    label: labelWeek(item.week_start, ctx).label,
+    regenerate: touchesIssue && Boolean(db.prepare('SELECT 1 FROM issues WHERE week_start = ?').get(ctx.issueWeek)),
+    pending: item.review_status !== 'approved',
+    excluded: !item.included,
+  };
+}
+
 function validate(body, user, existing) {
   const errors = [];
   const title = (body.title || '').trim();
@@ -97,7 +157,9 @@ function validate(body, user, existing) {
   // Template placement belongs to whoever lays the issue out; the area only
   // sets the default position, any content section is a valid choice.
   const slot = canLayout(user) && CONTENT_SLOTS.includes(body.slot) ? body.slot : null;
-  return { errors, values: { title, body: bodyText, section, slot } };
+  const weeks = weekChoices(weekContext(user), existing && existing.week_start).map((c) => c.value);
+  const week = weeks.includes(body.week) ? body.week : existing ? existing.week_start : submissionWeekStart();
+  return { errors, values: { title, body: bodyText, section, slot, week } };
 }
 
 function savePhotos(newsId, files) {
@@ -116,7 +178,14 @@ function headshotCopy(leadUserId) {
 }
 
 function formLocals(req, extra) {
+  const ctx = weekContext(req.user);
+  const item = extra.item;
   return {
+    weekOptions: weekChoices(ctx, extra.currentWeek || null),
+    selectedWeek: (item && (item.week || item.week_start)) || submissionWeekStart(),
+    pastCutoff: ctx.pastCutoff,
+    cutoff: cutoffLabel(),
+    moved: null,
     sections: allowedSections(),
     savedHeadshots: db.prepare('SELECT id, name, headshot FROM users WHERE headshot IS NOT NULL ORDER BY name').all(),
     sectionLabels: SECTIONS,
@@ -148,12 +217,16 @@ router.get('/news', requireLogin, (req, res) => {
   // weeks stay one click away so last year's stories never clutter the list.
   const rows = showAll ? all : all.filter((n) => n.week_start >= issueWeek);
   const olderCount = all.filter((n) => n.week_start < issueWeek).length;
+  const ctx = weekContext(req.user);
+  const fromWeek = isValidDateStr(req.query.from) ? req.query.from : null;
   res.render('news', {
     rows,
     weekStart,
     issueWeek,
     showAll,
     olderCount,
+    weekOptionsFor: (n) => weekChoices(ctx, n.week_start),
+    moved: req.query.moved ? movedNotice(req.query.moved, fromWeek, ctx) : null,
     isManager: canLayout(req.user),
     isReviewer: isReviewer(req.user),
     sectionLabels: SECTIONS,
@@ -188,7 +261,7 @@ router.post('/news', requireLogin, photosUpload, async (req, res) => {
       selfChecked ? 'approved' : 'pending',
       selfChecked ? req.user.id : null,
       req.user.id,
-      submissionWeekStart()
+      values.week
     );
   await normalizeFiles(req.contentPhotos);
   savePhotos(info.lastInsertRowid, req.contentPhotos);
@@ -198,12 +271,23 @@ router.post('/news', requireLogin, photosUpload, async (req, res) => {
   if (newLead) {
     db.prepare('UPDATE news SET lead_photo = ? WHERE id = ?').run(newLead, info.lastInsertRowid);
   }
-  res.redirect('/news');
+  // Filed somewhere other than the default issue: confirm where it went.
+  res.redirect(values.week === submissionWeekStart() ? '/news' : `/news?moved=${info.lastInsertRowid}`);
 });
 
 router.get('/news/:id/edit', requireLogin, loadNews, (req, res) => {
   const photos = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id').all(req.newsItem.id);
-  res.render('news_form', formLocals(req, { item: req.newsItem, photos, errors: [] }));
+  const fromWeek = isValidDateStr(req.query.moved_from) ? req.query.moved_from : null;
+  res.render(
+    'news_form',
+    formLocals(req, {
+      item: req.newsItem,
+      currentWeek: req.newsItem.week_start,
+      photos,
+      errors: [],
+      moved: fromWeek ? movedNotice(req.newsItem.id, fromWeek, weekContext(req.user)) : null,
+    })
+  );
 });
 
 router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) => {
@@ -219,13 +303,24 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) 
   if (errors.length) {
     req.cleanupUploads();
     const photos = db.prepare('SELECT * FROM photos WHERE news_id = ? ORDER BY id').all(req.newsItem.id);
-    return res
-      .status(400)
-      .render('news_form', formLocals(req, { item: { ...values, id: req.newsItem.id }, photos, errors }));
+    return res.status(400).render(
+      'news_form',
+      formLocals(req, { item: { ...values, id: req.newsItem.id }, currentWeek: req.newsItem.week_start, photos, errors })
+    );
   }
   // Rewriting a checked story sends it back for review, unless the person
-  // editing is the one who would check it anyway.
-  const recheck = req.newsItem.review_status === 'approved' && !canReviewSection(req.user, values.section);
+  // editing is the one who would check it anyway. Only content counts:
+  // moving the story to another issue or section needs no second check.
+  const old = req.newsItem;
+  const contentChanged =
+    values.title !== old.title ||
+    values.body !== old.body ||
+    values.section !== old.section ||
+    req.contentPhotos.length > 0 ||
+    Boolean(req.leadPhotoFile || req.body.lead_user_id) ||
+    req.body.remove_lead_photo === '1';
+  const recheck = contentChanged && old.review_status === 'approved' && !canReviewSection(req.user, values.section);
+  const slot = values.slot || old.slot || defaultSlot(values.section);
   db.prepare(
     `UPDATE news SET title = ?, body = ?, section = ?, slot = ?, updated_at = datetime('now')
      ${recheck ? ", review_status = 'pending', reviewed_by = NULL, reviewed_at = NULL, review_note = NULL" : ''}
@@ -235,9 +330,10 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) 
     values.body,
     values.section,
     // Keep the existing placement - manual layout survives area changes.
-    values.slot || req.newsItem.slot || defaultSlot(values.section),
+    slot,
     req.newsItem.id
   );
+  if (values.week !== old.week_start) moveToWeek(old.id, slot, values.week);
   await normalizeFiles(req.contentPhotos);
   savePhotos(req.newsItem.id, req.contentPhotos);
   const newLead = req.leadPhotoFile ? req.leadPhotoFile.filename : headshotCopy(req.body.lead_user_id);
@@ -253,7 +349,9 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) 
     removeFiles([req.newsItem.lead_photo]);
     db.prepare('UPDATE news SET lead_photo = NULL, lead_photo_mailchimp_url = NULL WHERE id = ?').run(req.newsItem.id);
   }
-  res.redirect(`/news/${req.newsItem.id}/edit`);
+  res.redirect(
+    values.week !== old.week_start ? `/news/${old.id}/edit?moved_from=${old.week_start}` : `/news/${old.id}/edit`
+  );
 });
 
 // SLT sign-off: each SLT member checks the stories in their own area
@@ -298,6 +396,19 @@ router.post('/news/:id/slot', requireLayout, (req, res) => {
     .get(item.week_start, req.body.slot).m;
   db.prepare('UPDATE news SET slot = ?, sort_order = ? WHERE id = ?').run(req.body.slot, maxOrder + 10, item.id);
   res.redirect('/news');
+});
+
+// Move a story to another issue - e.g. back into this week's after it
+// missed the Thursday deadline and rolled into next week's.
+router.post('/news/:id/week', requireLayout, (req, res) => {
+  const item = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
+  if (!item) return res.status(404).render('error', { message: 'News item not found.' });
+  const allowed = weekChoices(weekContext(req.user), item.week_start).map((c) => c.value);
+  if (!allowed.includes(req.body.week)) {
+    return res.status(400).render('error', { message: 'Choose one of the issues offered in the list.' });
+  }
+  if (req.body.week !== item.week_start) moveToWeek(item.id, item.slot, req.body.week);
+  res.redirect(`/news?moved=${item.id}&from=${item.week_start}`);
 });
 
 router.post('/news/:id/delete', requireLogin, loadNews, (req, res) => {

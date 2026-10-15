@@ -1,8 +1,9 @@
-<%- include('partials/head', { title: 'News' }) %>
+<%- include('partials/head', { title: 'News', wide: true }) %>
 <div class="page-head">
   <h1>News articles</h1>
   <div class="page-actions"><a class="btn btn-primary" href="/news/new">+ Add news</a></div>
 </div>
+<% if (moved) { %><%- include('partials/moved_notice', { moved: moved }) %><% } %>
 <% if (olderCount > 0 || showAll) { %>
   <p class="muted">
     <% if (showAll) { %>
@@ -14,8 +15,10 @@
     <% } %>
   </p>
 <% } %>
-<p class="muted">Anyone on the staff can write a story for any area. The <strong>SLT member responsible for that area</strong> checks it, and only checked stories go into the newsletter.<% if (isManager) { %> Marketing then decides what makes this week's issue (<strong>Included</strong>) and where it sits in the template (D/F/H = left column, E/G/I = right column). Sections A-C are fixed: header &amp; quote, upcoming events, principal's message.<% } %></p>
+<p class="muted">Anyone on the staff can write a story for any area. The <strong>SLT member responsible for that area</strong> checks it, and only checked stories go into the newsletter.<% if (isManager) { %> Marketing then decides what makes this week's issue (<strong>Included</strong>) and where it sits in the template (D/F/H = left column, E/G/I = right column). Sections A-C are fixed: header &amp; quote, upcoming events, principal's message.
+Stories added after the Thursday deadline roll into next week&#39;s issue - use <strong>Week</strong> to move one into this week&#39;s issue or any later one.<% } %></p>
 <div class="card">
+  <div class="table-scroll">
   <table class="table">
     <thead><tr><th>Title</th><th>Area</th><th>SLT check</th><th>Template section</th><th>Included</th><th>Photos</th><th>Week</th><th>By</th><th></th></tr></thead>
     <tbody>
@@ -81,7 +84,17 @@
           </td>
           <td><%= n.photo_count %> 📷</td>
           <td>
-            <% if (n.week_start === issueWeek) { %>
+            <% if (isManager) { %>
+              <form method="post" action="/news/<%= n.id %>/week" class="stack-form">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <select name="week" class="slot-select" aria-label="Issue">
+                  <% weekOptionsFor(n).forEach(function(c) { %>
+                    <option value="<%= c.value %>" <%= n.week_start === c.value ? 'selected' : '' %>><%= c.short %></option>
+                  <% }) %>
+                </select>
+                <button class="btn btn-ghost btn-sm">Move</button>
+              </form>
+            <% } else if (n.week_start === issueWeek) { %>
               <span class="tag tag-approved">this week's issue</span>
             <% } else if (n.week_start === weekStart) { %>
               <span class="tag tag-pending">next week's issue</span>
@@ -106,5 +119,6 @@
       <% if (!rows.length) { %><tr><td colspan="9" class="muted">No news yet - add the first article!</td></tr><% } %>
     </tbody>
   </table>
+  </div>
 </div>
 <%- include('partials/foot') %>
