@@ -1902,6 +1902,44 @@ test('certificate rows reorder by drag-and-drop and the email follows', async ()
   db.prepare("DELETE FROM awards WHERE grade_stage LIKE 'Zed %'").run();
 });
 
+test('preview switches: final email without highlights, desktop or mobile', async () => {
+  const { generationWeekStart } = require('../src/appweek');
+  const { collectWeekData, buildRenderData } = require('../src/generate');
+  const { renderNewsletter } = require('../src/newsletter');
+  const week = generationWeekStart();
+
+  // The final view is the email exactly as sent - even if edit=1 rides along -
+  // with only the image paths kept relative to the panel.
+  const final = await (await get('/newsletter/preview.html?final=1&edit=1')).text();
+  assert.ok(!/SECTION [A-Z]/.test(final), 'no empty-section boxes');
+  assert.ok(!final.includes('data-edit=') && !final.includes('data-slot-block'), 'no editor markup');
+  assert.ok(!final.includes('preview-editor.js'), 'no editor script');
+  assert.strictEqual(final, renderNewsletter(buildRenderData(collectWeekData(week), { baseUrl: '' })));
+  // The working view keeps its highlights.
+  assert.match(await (await get('/newsletter/preview.html')).text(), /SECTION [A-Z]/);
+
+  // The page renders both switches in the chosen state.
+  const page = await (await get('/newsletter/preview?device=mobile&view=final')).text();
+  assert.match(page, /data-preview-stage data-device="mobile"/);
+  assert.match(page, /class="seg-btn is-on" href="[^"]*" data-set-device="mobile"/);
+  assert.match(page, /class="seg-btn is-on" href="[^"]*" data-set-view="final"/);
+  assert.ok(page.includes(`data-preview-frame src="/newsletter/preview.html?week=${week}&amp;final=1"`));
+  assert.ok(page.includes(`data-src-edit="/newsletter/preview.html?week=${week}&amp;edit=1"`), 'managers switch back to the live editor');
+  // Anything unexpected falls back to the desktop editor.
+  const fallback = await (await get('/newsletter/preview?device=tablet&view=nope')).text();
+  assert.match(fallback, /data-preview-stage data-device="desktop"/);
+  assert.match(fallback, /class="seg-btn is-on" href="[^"]*" data-set-view="edit"/);
+
+  // Staff without layout rights get the switches too, with section highlights
+  // (not the editor) as their working view.
+  const teacher = await makeUser('Preview Staff', 'preview.staff@test.local', 'staff');
+  const staffPage = await (await teacher.get('/newsletter/preview')).text();
+  assert.match(staffPage, /Section highlights/);
+  assert.ok(staffPage.includes(`data-src-edit="/newsletter/preview.html?week=${week}"`), 'no editor for staff');
+  assert.strictEqual((await teacher.get('/newsletter/preview.html?final=1')).status, 200);
+  db.prepare("DELETE FROM users WHERE email = 'preview.staff@test.local'").run();
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

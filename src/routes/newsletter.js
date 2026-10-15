@@ -22,12 +22,14 @@ router.get('/newsletter/preview.html', requireLogin, (req, res) => {
   // The preview always shows the template's structure: empty sections render
   // as labelled placeholders. With ?edit=1, managers get the live editor -
   // click any text or photo to change it in place. The generated Mailchimp
-  // draft contains neither placeholders nor editor markup.
-  const editable = req.query.edit === '1' && canLayout(req.user);
+  // draft contains neither placeholders nor editor markup, and ?final=1
+  // shows exactly that: the email as parents will see it.
+  const final = req.query.final === '1';
+  const editable = !final && req.query.edit === '1' && canLayout(req.user);
   // baseUrl '' keeps preview images and fonts relative to this panel, so
   // they load on any host regardless of the APP_BASE_URL setting.
   const renderData = buildRenderData(collectWeekData(weekStart), {
-    placeholders: true,
+    placeholders: !final,
     editable,
     csrf: req.session.csrf,
     baseUrl: '',
@@ -52,6 +54,9 @@ router.get('/newsletter/preview', requireLogin, (req, res) => {
   const subjectRow = db.prepare('SELECT subject FROM email_subjects WHERE week_start = ?').get(weekStart);
   res.render('preview', {
     weekStart,
+    // Which screen the preview imitates and whether section highlights show.
+    device: req.query.device === 'mobile' ? 'mobile' : 'desktop',
+    view: req.query.view === 'final' ? 'final' : 'edit',
     issueWeek: generationWeekStart(),
     submissionWeek: submissionWeekStart(),
     hasDemo: hasDemoData(),

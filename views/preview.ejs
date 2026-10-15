@@ -1,9 +1,19 @@
 <%- include('partials/head', { title: 'Preview' }) %>
-<% const canEdit = Boolean(locals.can && can.layout); %>
+<%
+  const canEdit = Boolean(locals.can && can.layout);
+  // The frame shows either the working view (live editor for managers,
+  // labelled section placeholders for everyone else) or the final email.
+  const frameSrc = {
+    edit: '/newsletter/preview.html?week=' + weekStart + (canEdit ? '&edit=1' : ''),
+    final: '/newsletter/preview.html?week=' + weekStart + '&final=1',
+  };
+  const pageHref = (d, v) => '/newsletter/preview?week=' + weekStart + '&device=' + d + '&view=' + v;
+  const editLabel = canEdit ? 'Live editor' : 'Section highlights';
+%>
 <div class="page-head">
   <h1><%= canEdit ? 'Live editor' : 'Newsletter preview' %> - week of <%= weekStart %></h1>
   <div class="page-actions">
-    <a class="btn btn-secondary" href="/newsletter/preview.html?week=<%= weekStart %><%= canEdit ? '&edit=1' : '' %>" target="_blank" rel="noopener">Open full size</a>
+    <a class="btn btn-secondary" href="<%= frameSrc[view] %>" target="_blank" rel="noopener" data-preview-open>Open full size</a>
     <button type="button" class="btn btn-secondary" data-copy-html="/newsletter/export.html?week=<%= weekStart %>">Copy HTML for Mailchimp</button>
     <% if (canEdit) { %>
     <form method="post" action="/demo-data/fill" data-confirm="Fill every template section with sample events, articles, photos and a principal&#39;s message? Content your staff wrote is kept - demo items are marked and can be removed again with one click.">
@@ -56,9 +66,44 @@
     <button class="btn btn-primary">Save subject</button>
   </form>
 </div>
-  <p class="muted">Edit directly in the preview: <strong>click any text</strong> to change it (Esc undoes, clicking away saves), <strong>hover a photo</strong> to replace or remove it, and use <strong>+ Add photo</strong> inside an article. The 200-word article limit still applies. Photos move to the Mailchimp CDN when the draft is generated.</p>
-<% } else { %>
-  <p class="muted">Live preview - refresh after adding content. Photos show from local uploads until the issue is generated, when they are moved to the Mailchimp CDN.</p>
 <% } %>
-<iframe class="preview-frame preview-frame-tall" src="/newsletter/preview.html?week=<%= weekStart %><%= canEdit ? '&edit=1' : '' %>" title="Newsletter preview"></iframe>
+
+<div class="preview-toolbar" data-preview-toolbar data-src-edit="<%= frameSrc.edit %>" data-src-final="<%= frameSrc.final %>">
+  <div class="seg" role="group" aria-label="Screen size">
+    <a class="seg-btn<%= device === 'desktop' ? ' is-on' : '' %>" href="<%= pageHref('desktop', view) %>" data-set-device="desktop">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><rect x="1.5" y="2" width="13" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 14h5M8 11v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Desktop</a>
+    <a class="seg-btn<%= device === 'mobile' ? ' is-on' : '' %>" href="<%= pageHref('mobile', view) %>" data-set-device="mobile">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><rect x="4" y="1.5" width="8" height="13" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 12.2h2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Mobile</a>
+  </div>
+  <div class="seg" role="group" aria-label="Section highlights">
+    <a class="seg-btn<%= view === 'edit' ? ' is-on' : '' %>" href="<%= pageHref(device, 'edit') %>" data-set-view="edit">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M3 13l.6-2.6 7.2-7.2a1.4 1.4 0 0 1 2 2l-7.2 7.2L3 13z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <%= editLabel %></a>
+    <a class="seg-btn<%= view === 'final' ? ' is-on' : '' %>" href="<%= pageHref(device, 'final') %>" data-set-view="final">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>
+      Final email</a>
+  </div>
+</div>
+
+<p class="muted" data-preview-note="edit"<%= view === 'final' ? ' hidden' : '' %>>
+<% if (canEdit) { %>
+  Edit directly in the preview: <strong>click any text</strong> to change it (Esc undoes, clicking away saves), <strong>hover a photo</strong> to replace or remove it, and use <strong>+ Add photo</strong> inside an article. The article word limit still applies. Photos move to the Mailchimp CDN when the draft is generated.
+<% } else { %>
+  Live preview - refresh after adding content. Empty sections show as labelled boxes so you can see where stories go. Photos show from local uploads until the issue is generated, when they are moved to the Mailchimp CDN.
+<% } %>
+</p>
+<p class="muted" data-preview-note="final"<%= view === 'edit' ? ' hidden' : '' %>>
+  <strong>Final email</strong> - exactly what parents receive: no section letters, empty-section boxes or editing tools, and empty sections simply don&#39;t appear.
+  Switch back to <strong><%= editLabel %></strong> <%= canEdit ? 'to make changes.' : 'to see which sections are still empty.' %>
+</p>
+
+<div class="preview-stage" data-preview-stage data-device="<%= device %>">
+  <div class="device-shell">
+    <div class="device-speaker" aria-hidden="true"></div>
+    <iframe class="preview-frame" data-preview-frame src="<%= frameSrc[view] %>" title="Newsletter preview"></iframe>
+  </div>
+  <p class="device-caption muted">Phone-size screen (390px wide). Gmail and Apple Mail on phones show this layout; Outlook on a computer always shows the desktop one.</p>
+</div>
 <%- include('partials/foot') %>

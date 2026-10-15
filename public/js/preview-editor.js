@@ -150,13 +150,15 @@
     '[data-drag-bar]{cursor:grab;}' +
     '.re-grip{display:inline-block; margin-right:8px; color:rgba(255,255,255,.85); font-size:12px; letter-spacing:1px; vertical-align:1px;}' +
     '.re-drop{outline:3px dashed #D9A441 !important; outline-offset:3px; border-radius:10px;}' +
-    '.re-dragging{opacity:.45;}';
+    '.re-dragging{opacity:.45;}' +
+    // On a phone-width screen the help text would fill the screen top.
+    '@media (max-width:640px){.re-help{display:none;}}';
   document.head.appendChild(style);
 
   var bar = document.createElement('div');
   bar.className = 're-bar';
   bar.innerHTML =
-    '<b>LIVE EDITOR</b><span>Click any text to edit it. Hover a photo to replace or remove it. Drag a section by its ⠿ header onto another section to swap them. Changes save instantly.</span><span class="re-status" id="re-status"></span>';
+    '<b>LIVE EDITOR</b><span class="re-help">Click any text to edit it. Hover a photo to replace or remove it. Drag a section by its ⠿ header onto another section to move it above that one. Changes save instantly.</span><span class="re-status" id="re-status"></span>';
   document.body.insertBefore(bar, document.body.firstChild);
   var statusEl = bar.querySelector('#re-status');
 
@@ -430,7 +432,7 @@
       var grip = document.createElement('span');
       grip.className = 're-grip';
       grip.textContent = '⠿';
-      grip.title = 'Drag onto another section to swap';
+      grip.title = 'Drag onto another section to move it above that one';
       barEl.insertBefore(grip, barEl.firstChild);
       barEl.addEventListener('dragstart', function (e) {
         dragState = { id: barEl.getAttribute('data-drag-bar'), slot: letter, block: block };

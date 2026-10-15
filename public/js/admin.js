@@ -319,6 +319,123 @@ document.addEventListener('click', function (e) {
   });
 })();
 
+// Newsletter preview switches. Desktop/Mobile only resizes the frame - the
+// email's own phone layout takes over below 641px, so the mobile view is the
+// real phone rendering - and Live editor/Final email swaps the frame between
+// the annotated working view and the email exactly as parents get it. Both
+// switch in place; the address bar keeps the choice for reloads.
+(function () {
+  var toolbar = document.querySelector('[data-preview-toolbar]');
+  var stage = document.querySelector('[data-preview-stage]');
+  if (!toolbar || !stage) return;
+  var frame = stage.querySelector('[data-preview-frame]');
+  var openLink = document.querySelector('[data-preview-open]');
+  // Wider than the 680px sheet plus margins, so the desktop layout holds.
+  var DESKTOP_W = 720;
+  var onView = toolbar.querySelector('[data-set-view].is-on');
+  var state = {
+    device: stage.getAttribute('data-device') === 'mobile' ? 'mobile' : 'desktop',
+    view: onView ? onView.getAttribute('data-set-view') : 'edit',
+  };
+  // Opened on a phone without an explicit choice: start with the phone view.
+  if (!/[?&]device=/.test(window.location.search) && window.innerWidth < DESKTOP_W) state.device = 'mobile';
+
+  function pageUrl(device, view) {
+    var u = new URL(window.location.href);
+    u.searchParams.set('device', device);
+    u.searchParams.set('view', view);
+    u.searchParams.delete('subject_saved');
+    u.searchParams.delete('demo');
+    return u.pathname + u.search;
+  }
+
+  // Phone scrollbars take no room, so the phone view hides the frame's own
+  // scrollbar and the email gets the full screen width.
+  function phoneScrollbar() {
+    var doc = null;
+    try {
+      doc = frame.contentDocument;
+    } catch (err) {
+      return;
+    }
+    if (!doc || !doc.head) return;
+    var el = doc.getElementById('pv-phone');
+    if (state.device === 'mobile' && !el) {
+      el = doc.createElement('style');
+      el.id = 'pv-phone';
+      el.textContent = 'html{scrollbar-width:none}html::-webkit-scrollbar{display:none}';
+      doc.head.appendChild(el);
+    } else if (state.device !== 'mobile' && el) {
+      el.parentNode.removeChild(el);
+    }
+  }
+
+  // Narrower than the email (e.g. on a phone), the desktop view renders at
+  // full desktop width and is scaled down to fit, instead of falling into
+  // the phone layout.
+  var lastWidth = -1;
+  function fit() {
+    var s = frame.style;
+    lastWidth = stage.clientWidth;
+    if (state.device !== 'desktop' || lastWidth >= DESKTOP_W) {
+      s.width = s.height = s.transform = s.transformOrigin = '';
+      stage.style.height = '';
+      return;
+    }
+    var scale = lastWidth / DESKTOP_W;
+    var visible = Math.max(420, Math.min(1100, window.innerHeight - 120));
+    s.width = DESKTOP_W + 'px';
+    s.height = Math.round(visible / scale) + 'px';
+    s.transformOrigin = '0 0';
+    s.transform = 'scale(' + scale + ')';
+    stage.style.height = visible + 'px';
+  }
+
+  function render() {
+    stage.setAttribute('data-device', state.device);
+    Array.prototype.forEach.call(toolbar.querySelectorAll('[data-set-device]'), function (a) {
+      var device = a.getAttribute('data-set-device');
+      a.classList.toggle('is-on', device === state.device);
+      a.setAttribute('href', pageUrl(device, state.view));
+    });
+    Array.prototype.forEach.call(toolbar.querySelectorAll('[data-set-view]'), function (a) {
+      var view = a.getAttribute('data-set-view');
+      a.classList.toggle('is-on', view === state.view);
+      a.setAttribute('href', pageUrl(state.device, view));
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-preview-note]'), function (p) {
+      p.hidden = p.getAttribute('data-preview-note') !== state.view;
+    });
+    var src = toolbar.getAttribute(state.view === 'final' ? 'data-src-final' : 'data-src-edit');
+    if (frame.getAttribute('src') !== src) frame.setAttribute('src', src);
+    if (openLink) openLink.setAttribute('href', src);
+    fit();
+    phoneScrollbar();
+  }
+
+  toolbar.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('[data-set-device], [data-set-view]');
+    // Ctrl/Cmd/Shift-clicks keep their open-in-new-tab meaning.
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    if (a.hasAttribute('data-set-device')) state.device = a.getAttribute('data-set-device');
+    else state.view = a.getAttribute('data-set-view');
+    render();
+    try {
+      window.history.replaceState(null, '', pageUrl(state.device, state.view));
+    } catch (err) {
+      /* the address bar is a convenience only */
+    }
+  });
+  frame.addEventListener('load', phoneScrollbar);
+  // Phone browsers fire resize while their toolbars slide away on scroll;
+  // only a real width change needs a refit.
+  window.addEventListener('resize', function () {
+    if (stage.clientWidth !== lastWidth) fit();
+  });
+  render();
+})();
+
 // Drag-and-drop ordering of the certificates table (/awards): grab a row's
 // grip, drop it on another row to slide it in above that row, and the new
 // order is saved immediately - the newsletter table follows it.
