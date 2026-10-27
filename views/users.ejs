@@ -196,6 +196,19 @@
               <% if (u.no_word_limit) { %><span class="tag tag-approved">no word cap</span><% } %>
               <button class="btn btn-ghost btn-sm"><%= u.no_word_limit ? 'Restore 100-word cap' : 'Lift word cap' %></button>
             </form>
+            <% if (!['slt', 'marketing', 'principal', 'admin'].includes(u.role)) { %>
+            <form method="post" action="/users/<%= u.id %>/house-points" class="inline-form" style="margin-top:4px">
+              <input type="hidden" name="_csrf" value="<%= csrf %>">
+              <select name="house_points" class="slot-select" aria-label="House points access for <%= u.name %>">
+                <option value="" <%= !u.house_points ? 'selected' : '' %>>House points: no</option>
+                <option value="primary" <%= u.house_points === 'primary' ? 'selected' : '' %>>House points: Primary</option>
+                <option value="secondary" <%= u.house_points === 'secondary' ? 'selected' : '' %>>House points: Secondary</option>
+                <option value="both" <%= u.house_points === 'both' ? 'selected' : '' %>>House points: Primary &amp; Secondary</option>
+              </select>
+              <button class="btn btn-ghost btn-sm">Set</button>
+              <% if (u.house_points) { %><span class="tag tag-approved">updates house points</span><% } %>
+            </form>
+            <% } %>
           </td>
           <td>
             <form method="post" action="/users/<%= u.id %>/password" class="inline-form">

@@ -6,7 +6,7 @@ const roles = require('./roles');
 function attachUser(req, res, next) {
   if (req.session && req.session.userId) {
     req.user =
-      db.prepare('SELECT id, email, name, role, section, no_word_limit FROM users WHERE id = ?').get(req.session.userId) ||
+      db.prepare('SELECT id, email, name, role, section, no_word_limit, house_points FROM users WHERE id = ?').get(req.session.userId) ||
       null;
     if (!req.user) req.session = null;
   }
@@ -22,6 +22,7 @@ function attachUser(req, res, next) {
     review: roles.isReviewer(req.user),
     approve: roles.canApproveIssue(req.user),
     administer: roles.canAdminister(req.user),
+    houses: roles.housePhases(req.user).length > 0,
   };
   next();
 }
@@ -115,6 +116,10 @@ const requireManager = requireCapability(
   roles.canManage,
   'You do not have permission to access this page.'
 );
+const requireHouses = requireCapability(
+  (user) => roles.housePhases(user).length > 0,
+  'House points are updated by managers and the staff an admin gives house points access to.'
+);
 
 module.exports = {
   attachUser,
@@ -128,6 +133,7 @@ module.exports = {
   requireApprover,
   requireAdmin,
   requireManager,
+  requireHouses,
   canManage,
   canEditRecord,
 };

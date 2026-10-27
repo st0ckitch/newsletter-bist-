@@ -55,7 +55,7 @@ function usersLocals(req, extra = {}) {
   const users = db
     .prepare(
       `SELECT id, email, name, role, section, created_at, invite_sent_at,
-              activated_at, last_login_at, headshot, no_word_limit, (password_hash = '') AS invited
+              activated_at, last_login_at, headshot, no_word_limit, house_points, (password_hash = '') AS invited
        FROM users ORDER BY role, name`
     )
     .all();
@@ -333,6 +333,16 @@ router.post('/users/:id/word-limit', requireAdmin, (req, res) => {
   const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).render('error', { message: 'User not found.' });
   db.prepare('UPDATE users SET no_word_limit = ? WHERE id = ?').run(req.body.unlimited === '1' ? 1 : 0, user.id);
+  res.redirect('/users');
+});
+
+// House points access for staff who keep a House Points table up to date:
+// 'primary', 'secondary', 'both' or '' (none). Managers always have both.
+router.post('/users/:id/house-points', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).render('error', { message: 'User not found.' });
+  const value = ['primary', 'secondary', 'both'].includes(req.body.house_points) ? req.body.house_points : null;
+  db.prepare('UPDATE users SET house_points = ? WHERE id = ?').run(value, user.id);
   res.redirect('/users');
 });
 

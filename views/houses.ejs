@@ -1,12 +1,18 @@
 <%- include('partials/head', { title: 'Houses' }) %>
+<%
+  const mine = phases.map(function (p) { return phaseLabels[p]; }).join(' and ');
+  const canEdit = function (p) { return phases.indexOf(p) !== -1; };
+%>
 <div class="page-head">
   <h1>House points</h1>
 </div>
 <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+<% if (saved) { %><div class="alert alert-ok">Saved - the next newsletter shows the new totals.</div><% } %>
 
 <div class="grid-2">
   <div class="card">
     <h2>How it works</h2>
+    <% if (isManager) { %>
     <p class="muted">House Points sit in every issue right under the calendar and the principal&#39;s message -
     always, automatically. <strong>Primary and Secondary have separate standings</strong>: every house has a Primary
     and a Secondary total, and the newsletter shows two tables, each with its own leader - side by side on a computer
@@ -14,23 +20,31 @@
     Houses (names, logos, tile colours) are set up once here and stay from issue to issue; the <strong>points are
     what you update</strong> before each newsletter. Tigers, Pumas, Panthers and Leopards get the school&#39;s brand
     colours automatically when you add them by name; the colour swatch on each row overrides it.
-    A table whose houses all have 0 points stays out of the email until points are entered.</p>
+    A table whose houses all have 0 points stays out of the email until points are entered.
+    Other staff can be given access to update one table (or both) on the <a href="/users">Users</a> page.</p>
+    <% } else { %>
+    <p class="muted">You look after the <strong><%= mine %> house points</strong>. Type each house&#39;s new total and
+    press <strong>Save points</strong> - the next newsletter shows them, leader first, in the House Points table
+    right under the principal&#39;s message. Get the numbers in before the Thursday deadline, when the issue is
+    put together.</p>
+    <% } %>
     <h3>In the newsletter</h3>
-    <% [['primary', 'Primary House Points'], ['secondary', 'Secondary House Points']].forEach(function(p) { var on = visible[p[0]]; %>
+    <% phases.forEach(function(p) { var on = visible[p]; %>
       <div class="inline-form" style="margin:8px 0; gap:10px; flex-wrap:wrap;">
-        <strong style="min-width:190px; font-weight:600; color:var(--navy);"><%= p[1] %></strong>
+        <strong style="min-width:190px; font-weight:600; color:var(--navy);"><%= phaseLabels[p] %> House Points</strong>
         <% if (on) { %><span class="tag tag-approved">shown</span><% } else { %><span class="tag tag-rejected">hidden</span><% } %>
         <form method="post" action="/houses/visibility" class="inline-form">
           <input type="hidden" name="_csrf" value="<%= csrf %>">
-          <input type="hidden" name="phase" value="<%= p[0] %>">
+          <input type="hidden" name="phase" value="<%= p %>">
           <input type="hidden" name="visible" value="<%= on ? '0' : '1' %>">
           <button class="btn btn-sm <%= on ? 'btn-ghost' : 'btn-primary' %>"><%= on ? 'Hide' : 'Show' %></button>
         </form>
       </div>
     <% }) %>
     <p class="muted" style="margin-top:8px">Hiding keeps all houses, logos and points saved - that table simply
-    stays out of the email until you switch it back on. With one table hidden, the other runs full width.</p>
+    stays out of the email until it is switched back on.<% if (isManager) { %> With one table hidden, the other runs full width.<% } %></p>
   </div>
+  <% if (isManager) { %>
   <div class="card">
     <h2>Add a house</h2>
     <form method="post" action="/houses">
@@ -43,52 +57,69 @@
       <button class="btn btn-primary">Add house</button>
     </form>
   </div>
+  <% } %>
 </div>
 
 <div class="card">
   <% if (!houses.length) { %>
-    <p class="muted">No houses yet - add the school&#39;s houses above and they appear in the newsletter straight away.</p>
+    <p class="muted"><%= isManager ? "No houses yet - add the school's houses above and they appear in the newsletter straight away." : 'No houses have been set up yet - marketing or SLT add them first.' %></p>
   <% } else { %>
-  <p class="muted">Update the numbers and press <strong>Save</strong> on that row - the newsletter always shows the
-  latest totals, leader first in each table. Logos are uploaded once and reused every week (square images look best).</p>
+  <p class="muted">Change the numbers and press <strong>Save points</strong> once for the whole table - the newsletter
+  always shows the latest totals, leader first in each table.<% if (isManager) { %> Logos are uploaded once and reused
+  every week (square images look best).<% } %></p>
+  <form method="post" action="/houses/save" id="houses-save">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+  </form>
   <table class="table">
-    <thead><tr><th>Logo</th><th>House</th><th>Primary points</th><th>Secondary points</th><th>Colour</th><th></th></tr></thead>
+    <thead><tr><th>Logo</th><th>House</th><th>Primary points</th><th>Secondary points</th><% if (isManager) { %><th>Colour</th><th></th><% } %></tr></thead>
     <tbody>
-      <% houses.forEach(function(h) { var f = 'house-' + h.id; %>
+      <% houses.forEach(function(h) { %>
         <tr>
           <td>
             <% if (h.logo) { %>
               <img src="/uploads/<%= h.logo %>" alt="<%= h.name %>" style="width:44px;height:44px;object-fit:contain;display:block;margin-bottom:4px;">
             <% } %>
+            <% if (isManager) { %>
             <form method="post" action="/houses/<%= h.id %>/logo" enctype="multipart/form-data" class="inline-form">
               <input type="hidden" name="_csrf" value="<%= csrf %>">
               <input type="file" name="logo" accept="image/jpeg,image/png,image/webp,image/gif" style="max-width:170px;">
-              <button class="btn btn-ghost btn-sm">Save</button>
+              <button class="btn btn-ghost btn-sm">Upload</button>
               <% if (h.logo) { %>
                 <label class="muted" style="font-size:12px"><input type="checkbox" name="remove_logo" value="1"> remove</label>
               <% } %>
             </form>
+            <% } %>
           </td>
           <td>
-            <form method="post" action="/houses/<%= h.id %>" id="<%= f %>" class="inline-form">
-              <input type="hidden" name="_csrf" value="<%= csrf %>">
-              <input type="text" name="name" value="<%= h.name %>" required maxlength="60" style="width:150px; margin:0;">
-            </form>
+            <% if (isManager) { %>
+              <input form="houses-save" type="text" name="name_<%= h.id %>" value="<%= h.name %>" required maxlength="60" aria-label="House name" style="width:150px; margin:0;">
+            <% } else { %>
+              <strong style="font-weight:600; color:var(--navy);"><%= h.name %></strong>
+            <% } %>
           </td>
-          <td><input form="<%= f %>" type="text" name="primary_points" inputmode="numeric" pattern="[0-9]*" value="<%= h.primary_points %>" aria-label="Primary points" style="width:90px; margin:0;"></td>
-          <td><input form="<%= f %>" type="text" name="secondary_points" inputmode="numeric" pattern="[0-9]*" value="<%= h.secondary_points %>" aria-label="Secondary points" style="width:90px; margin:0;"></td>
-          <td><input form="<%= f %>" type="color" name="color" value="<%= h.color || '#1d3061' %>" title="Tile colour" style="width:44px;height:34px;padding:2px;margin:0;"></td>
+          <% ['primary', 'secondary'].forEach(function(p) { %>
+          <td>
+            <% if (canEdit(p)) { %>
+              <input form="houses-save" type="text" name="<%= p %>_points_<%= h.id %>" inputmode="numeric" pattern="[0-9]*" value="<%= h[p + '_points'] %>" aria-label="<%= phaseLabels[p] %> points for <%= h.name %>" style="width:90px; margin:0;">
+            <% } else { %>
+              <span class="muted"><%= h[p + '_points'] %></span>
+            <% } %>
+          </td>
+          <% }) %>
+          <% if (isManager) { %>
+          <td><input form="houses-save" type="color" name="color_<%= h.id %>" value="<%= h.color || '#1d3061' %>" title="Tile colour" style="width:44px;height:34px;padding:2px;margin:0;"></td>
           <td class="row-actions">
-            <button form="<%= f %>" class="btn btn-primary btn-sm">Save</button>
             <form method="post" action="/houses/<%= h.id %>/delete" data-confirm="Delete this house? Its logo file is removed too.">
               <input type="hidden" name="_csrf" value="<%= csrf %>">
               <button class="btn btn-danger btn-sm">Delete</button>
             </form>
           </td>
+          <% } %>
         </tr>
       <% }) %>
     </tbody>
   </table>
+  <div class="btn-row"><button form="houses-save" class="btn btn-primary">Save points</button></div>
   <% } %>
 </div>
 <%- include('partials/foot') %>

@@ -61,6 +61,16 @@ function canReviewSection(user, section) {
   return user.section === section || section === 'whole_school';
 }
 
+// The House Points tables a person may update. Managers look after both;
+// other staff only what an admin gave them on the Users page
+// (users.house_points: 'primary', 'secondary' or 'both').
+const HOUSE_PHASES = ['primary', 'secondary'];
+function housePhases(user) {
+  if (!user) return [];
+  if (canManage(user) || user.house_points === 'both') return HOUSE_PHASES;
+  return HOUSE_PHASES.includes(user.house_points) ? [user.house_points] : [];
+}
+
 function roleLabel(role) {
   return ROLE_LABELS[role] || role;
 }
@@ -78,6 +88,8 @@ module.exports = {
   canManage,
   canLayout,
   canApproveIssue,
+  housePhases,
+  HOUSE_PHASES,
   canAdminister,
   canSubmit,
   isReviewer,

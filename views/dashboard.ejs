@@ -29,6 +29,18 @@
   <div class="alert alert-warn">Mailchimp is not configured - reminders and draft creation are disabled. Set <code>MAILCHIMP_API_KEY</code>, <code>MAILCHIMP_SERVER_PREFIX</code> and <code>MAILCHIMP_AUDIENCE_ID</code> in <code>.env</code>.</div>
 <% } %>
 
+<% if (houseTables.length && !isManager) { %>
+<div class="card">
+  <div class="card-head-row">
+    <h2>House points</h2>
+    <a class="btn btn-primary btn-sm" href="/houses">Update house points</a>
+  </div>
+  <p class="muted">You look after the <strong><%= houseTables.join(' and ') %> house points</strong>. Enter the new
+  totals before <%= deadlineHuman %> at <%= generateTime %>, when the newsletter is put together - they appear in the
+  House Points table under the principal&#39;s message.</p>
+</div>
+<% } %>
+
 <% if (locals.can && can.review) { %>
 <div class="card">
   <div class="card-head-row">

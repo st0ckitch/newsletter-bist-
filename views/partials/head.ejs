@@ -28,7 +28,11 @@
       <% } %>
       <% if (locals.can && can.manage) { %>
         <a href="/menus">Menus</a>
+      <% } %>
+      <% if (locals.can && can.houses) { %>
         <a href="/houses">Houses</a>
+      <% } %>
+      <% if (locals.can && can.manage) { %>
         <a href="/settings">Settings</a>
       <% } %>
     </nav>

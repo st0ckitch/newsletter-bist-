@@ -2107,6 +2107,73 @@ test('stories go into a chosen issue; after the deadline only the layout team pi
   }
 });
 
+test('house points access: staff an admin picks update their own table and nothing else', async () => {
+  await post('/houses', { name: 'Tigers', primary_points: '100', secondary_points: '200' });
+  await post('/houses', { name: 'Pumas', primary_points: '90', secondary_points: '210' });
+  const tigers = db.prepare("SELECT * FROM houses WHERE name = 'Tigers'").get();
+  const pumas = db.prepare("SELECT * FROM houses WHERE name = 'Pumas'").get();
+  const points = (id) => db.prepare('SELECT * FROM houses WHERE id = ?').get(id);
+
+  const coordinator = await makeUser('House Coordinator', 'house.coord@test.local', 'staff');
+  const colleague = await makeUser('House Colleague', 'house.colleague@test.local', 'staff');
+  const id = db.prepare("SELECT id FROM users WHERE email = 'house.coord@test.local'").get().id;
+  // Plain staff have no Houses page and no menu link.
+  assert.strictEqual((await coordinator.get('/houses')).status, 403);
+  assert.ok(!(await (await coordinator.get('/')).text()).includes('href="/houses"'));
+
+  // An admin gives Primary house points access on the Users page...
+  assert.match(await (await get('/users')).text(), /House points: Primary/);
+  assert.strictEqual((await post(`/users/${id}/house-points`, { house_points: 'primary' })).status, 302);
+  assert.strictEqual(db.prepare('SELECT house_points FROM users WHERE id = ?').get(id).house_points, 'primary');
+  // ...and the menu link, a dashboard card and the page appear.
+  const dash = await (await coordinator.get('/')).text();
+  assert.ok(dash.includes('href="/houses"'), 'Houses in the menu');
+  assert.match(dash, /You look after the <strong>Primary house points/);
+  const page = await (await coordinator.get('/houses')).text();
+  assert.ok(page.includes(`name="primary_points_${tigers.id}"`), 'Primary points editable');
+  assert.ok(!page.includes(`name="secondary_points_${tigers.id}"`), 'Secondary points read-only');
+  assert.ok(!page.includes('Add a house') && !page.includes('/delete"'), 'no house set-up tools');
+
+  // One save updates their whole table - and only their table's points.
+  const save = await coordinator.post('/houses/save', {
+    [`primary_points_${tigers.id}`]: '130',
+    [`primary_points_${pumas.id}`]: '95',
+    [`secondary_points_${tigers.id}`]: '999',
+    [`name_${tigers.id}`]: 'Renamed',
+  });
+  assert.strictEqual(save.status, 302);
+  assert.deepStrictEqual(
+    [points(tigers.id).name, points(tigers.id).primary_points, points(tigers.id).secondary_points],
+    ['Tigers', 130, 200]
+  );
+  assert.strictEqual(points(pumas.id).primary_points, 95);
+  assert.match(await (await get('/newsletter/preview.html')).text(), /130 Points/, 'the newsletter picks it up');
+  // A bad number saves nothing at all.
+  const bad = await coordinator.post('/houses/save', { [`primary_points_${tigers.id}`]: 'abc', [`primary_points_${pumas.id}`]: '1' });
+  assert.strictEqual(bad.status, 400);
+  assert.strictEqual(points(pumas.id).primary_points, 95);
+
+  // They show/hide their own table only; setting houses up stays with managers.
+  assert.strictEqual((await coordinator.post('/houses/visibility', { phase: 'primary', visible: '0' })).status, 302);
+  assert.strictEqual((await coordinator.post('/houses/visibility', { phase: 'secondary', visible: '0' })).status, 403);
+  await coordinator.post('/houses/visibility', { phase: 'primary', visible: '1' });
+  assert.strictEqual((await coordinator.post('/houses', { name: 'Rogue' })).status, 403);
+  assert.strictEqual((await coordinator.post(`/houses/${tigers.id}/delete`, {})).status, 403);
+  assert.ok(points(tigers.id), 'house still there');
+
+  // Colleagues without access still see nothing, and only admins hand it out.
+  assert.strictEqual((await colleague.get('/houses')).status, 403);
+  const marketing = await makeUser('House Marketing', 'house.marketing@test.local', 'marketing');
+  assert.strictEqual((await marketing.post(`/users/${id}/house-points`, { house_points: 'both' })).status, 403);
+  await post(`/users/${id}/house-points`, { house_points: 'both' });
+  assert.ok((await (await coordinator.get('/houses')).text()).includes(`name="secondary_points_${tigers.id}"`), 'both tables');
+  await post(`/users/${id}/house-points`, { house_points: '' });
+  assert.strictEqual((await coordinator.get('/houses')).status, 403, 'access removed');
+
+  db.prepare("DELETE FROM houses WHERE name IN ('Tigers', 'Pumas')").run();
+  db.prepare("DELETE FROM users WHERE email IN ('house.coord@test.local', 'house.colleague@test.local', 'house.marketing@test.local')").run();
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

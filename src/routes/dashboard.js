@@ -1,7 +1,7 @@
 const express = require('express');
 const { db, getSetting } = require('../db');
 const { requireLogin, canManage } = require('../auth');
-const { isReviewer, canReviewSection, canLayout, canApproveIssue } = require('../roles');
+const { isReviewer, canReviewSection, canLayout, canApproveIssue, housePhases } = require('../roles');
 const { SECTIONS } = require('../sections');
 const { formatHuman, todayStr } = require('../week');
 const { submissionWeekStart, generationWeekStart, generationDay, generationTimeLabel } = require('../appweek');
@@ -56,6 +56,7 @@ router.get('/', requireLogin, (req, res) => {
     reminderLog,
     isManager: canManage(req.user),
     isLayout: canLayout(req.user),
+    houseTables: housePhases(req.user).map((p) => (p === 'primary' ? 'Primary' : 'Secondary')),
     canApprove: canApproveIssue(req.user),
     awaitingReview,
     sectionLabels: SECTIONS,
