@@ -1701,7 +1701,7 @@ test('export.html is the paste-into-Mailchimp version: no placeholders or editor
   assert.strictEqual(anon.status, 302);
 });
 
-test('house points strip (fixed under the principal) and the primary awards table', async () => {
+test('house points: separate Primary and Secondary tables under the principal; the primary awards table', async () => {
   const sharp = require('sharp');
   const config = require('../src/config');
   const png = (w, h, bg) => sharp({ create: { width: w, height: h, channels: 3, background: bg } }).png().toBuffer();
@@ -1713,43 +1713,69 @@ test('house points strip (fixed under the principal) and the primary awards tabl
     return fetch(base + url, { method: 'POST', headers: { cookie: cookies }, body: form, redirect: 'manual' });
   };
 
-  // Houses: create two, give one a logo.
-  await post('/houses', { name: 'Phoenix', points: '120' });
-  await post('/houses', { name: 'Dragon', points: '250' });
+  // Houses: create two, give one a logo. Each has a Primary and a Secondary total.
+  await post('/houses', { name: 'Phoenix', primary_points: '120', secondary_points: '300' });
+  await post('/houses', { name: 'Dragon', primary_points: '250', secondary_points: '90' });
   const phoenix = db.prepare("SELECT * FROM houses WHERE name = 'Phoenix'").get();
+  assert.deepStrictEqual([phoenix.primary_points, phoenix.secondary_points], [120, 300]);
   const up = await mp(`/houses/${phoenix.id}/logo`, {}, [['logo', await png(200, 200, '#aa2222'), 'crest.png']]);
   assert.strictEqual(up.status, 302);
   const logo = db.prepare('SELECT logo FROM houses WHERE id = ?').get(phoenix.id).logo;
   assert.ok(logo && fs.existsSync(path.join(config.uploadDir, logo)), 'house logo stored');
+  assert.strictEqual((await post('/houses', { name: 'Bad', primary_points: 'lots' })).status, 400, 'points must be numbers');
 
   // A house named after the school palette gets its brand colour; others navy.
-  await post('/houses', { name: 'Tigers', points: '205' });
+  await post('/houses', { name: 'Tigers', primary_points: '205', secondary_points: '150' });
   assert.strictEqual(db.prepare("SELECT color FROM houses WHERE name = 'Tigers'").get().color, '#DD2127');
   assert.strictEqual(db.prepare('SELECT color FROM houses WHERE id = ?').get(phoenix.id).color, '#1d3061');
 
   let preview = await (await get('/newsletter/preview.html')).text();
-  assert.match(preview, /House Points/);
+  const table = (html, label) => {
+    const at = html.indexOf(`${label} House Points`);
+    return at === -1 ? '' : html.slice(at, at + 9000);
+  };
+  // Two separate tables: Primary (left) then Secondary (right).
+  assert.ok(preview.includes('Primary House Points') && preview.includes('Secondary House Points'));
+  assert.ok(preview.indexOf('Primary House Points') < preview.indexOf('Secondary House Points'));
   assert.ok(preview.includes(`/uploads/${logo}`), 'logo renders');
   assert.ok(preview.includes('background:#DD2127'), 'tile painted in the house colour');
-  assert.match(preview, /205 Points/);
+  assert.match(table(preview, 'Primary'), /205 Points/);
+  assert.match(table(preview, 'Secondary'), /150 Points/);
   // The strip is fixed below the events/principal top block...
   assert.ok(preview.indexOf('House Points') > preview.indexOf('Upcoming Events'), 'sits under the top block');
-  // ...and the leader (most points) comes first with the gold treatment.
-  assert.ok(preview.indexOf('Dragon') < preview.indexOf('Phoenix'), 'leader first');
-  assert.match(preview, /LEADING/);
-  // Updating points reorders next issue's strip - logos and names stay.
-  await post(`/houses/${phoenix.id}`, { name: 'Phoenix', points: '400' });
+  // ...and each table puts its own leader first, with the gold treatment.
+  const primary = table(preview, 'Primary');
+  const secondary = table(preview, 'Secondary');
+  assert.ok(primary.indexOf('Dragon') < primary.indexOf('Phoenix'), 'Primary leader (Dragon 250) first');
+  assert.ok(secondary.indexOf('Phoenix') < secondary.indexOf('Dragon'), 'Secondary leader (Phoenix 300) first');
+  assert.match(primary, /LEADING/);
+  // Updating points reorders next issue's tables - logos and names stay.
+  await post(`/houses/${phoenix.id}`, { name: 'Phoenix', primary_points: '400', secondary_points: '300' });
   preview = await (await get('/newsletter/preview.html')).text();
-  assert.ok(preview.indexOf('Phoenix') < preview.indexOf('Dragon'), 'updated points lead');
+  assert.ok(table(preview, 'Primary').indexOf('Phoenix') < table(preview, 'Primary').indexOf('Dragon'), 'updated points lead');
 
-  // The strip can be hidden from the newsletter without losing any data.
-  assert.strictEqual((await post('/houses/visibility', { visible: '0' })).status, 302);
-  const hiddenExport = await (await get('/newsletter/export.html')).text();
-  assert.ok(!hiddenExport.includes('House Points'), 'hidden strip stays out of the email');
-  assert.match(await (await get('/newsletter/preview.html')).text(), /House Points - hidden/);
+  // Each table can be hidden on its own without losing any data; the other
+  // then runs full width.
+  assert.strictEqual((await post('/houses/visibility', { phase: 'secondary', visible: '0' })).status, 302);
+  let email = await (await get('/newsletter/export.html')).text();
+  assert.ok(email.includes('Primary House Points') && !email.includes('Secondary House Points'));
+  assert.match(email, /width="110"/, 'a table on its own gets the big tiles');
+  assert.match(await (await get('/newsletter/preview.html')).text(), /Secondary House Points - hidden/);
+  // Without a phase, both switch together.
+  await post('/houses/visibility', { visible: '0' });
+  email = await (await get('/newsletter/export.html')).text();
+  assert.ok(!email.includes('House Points'), 'hidden tables stay out of the email');
+  assert.match(await (await get('/newsletter/preview.html')).text(), /Primary House Points - hidden/);
   assert.ok(db.prepare('SELECT COUNT(*) AS c FROM houses').get().c >= 2, 'houses kept while hidden');
   await post('/houses/visibility', { visible: '1' });
-  assert.match(await (await get('/newsletter/export.html')).text(), /House Points/);
+  email = await (await get('/newsletter/export.html')).text();
+  assert.ok(email.includes('Primary House Points') && email.includes('Secondary House Points'));
+
+  // A table with no points entered yet stays out instead of showing zeros.
+  db.prepare('UPDATE houses SET secondary_points = 0').run();
+  email = await (await get('/newsletter/export.html')).text();
+  assert.ok(email.includes('Primary House Points') && !email.includes('Secondary House Points'));
+  assert.match(await (await get('/newsletter/preview.html')).text(), /Secondary House Points - no points yet/);
 
   // Rewards: the topic title plus a class row from an ordinary staff member.
   await post('/awards/topic', { title: 'Generosity of Spirit Certificate Winners 12.12.25' });
@@ -1772,7 +1798,7 @@ test('house points strip (fixed under the principal) and the primary awards tabl
   assert.ok(!db.prepare('SELECT 1 FROM awards WHERE id = ?').get(row.id));
 
   // Houses are manager-only; deleting a house removes its logo file.
-  assert.strictEqual((await teacher.post('/houses', { name: 'Rogue', points: '1' })).status, 403);
+  assert.strictEqual((await teacher.post('/houses', { name: 'Rogue', primary_points: '1' })).status, 403);
   await post(`/houses/${phoenix.id}/delete`, {});
   assert.ok(!fs.existsSync(path.join(config.uploadDir, logo)), 'logo file cleaned up');
   db.prepare('DELETE FROM houses').run();

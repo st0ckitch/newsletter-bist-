@@ -1,12 +1,13 @@
 const express = require('express');
-const { db, getSetting, setSetting } = require('../db');
+const { db, setSetting, housePointsVisible } = require('../db');
 const { requireManager, csrfOk } = require('../auth');
 const { upload, isRealImage, removeFiles } = require('../uploads');
 
 // The school houses and their running point totals. Houses (names + logos)
 // live across the whole year; the points are what changes from issue to
-// issue - a manager updates the numbers here and the newsletter's fixed
-// House Points strip (right under the principal's message) picks them up.
+// issue - Primary and Secondary each keep their own total per house. A
+// manager updates the numbers here and the newsletter's fixed House Points
+// tables (right under the principal's message) pick them up.
 const router = express.Router();
 
 // The school's house palette (from the brand sheet): a new house with one of
@@ -19,10 +20,12 @@ const HOUSE_COLORS = {
   leopards: '#F0E928',
 };
 
+const PHASES = ['primary', 'secondary'];
+
 function housesLocals(extra = {}) {
   return {
-    houses: db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all(),
-    visible: getSetting('house_points_visible') !== '0',
+    houses: db.prepare('SELECT * FROM houses ORDER BY id').all(),
+    visible: { primary: housePointsVisible('primary'), secondary: housePointsVisible('secondary') },
     errors: [],
     ...extra,
   };
@@ -30,14 +33,18 @@ function housesLocals(extra = {}) {
 
 function validate(body) {
   const name = (body.name || '').trim().slice(0, 60);
-  const points = parseInt(body.points, 10);
   const color = /^#[0-9a-fA-F]{6}$/.test(body.color || '') ? body.color : null;
   const errors = [];
   if (!name) errors.push('The house needs a name.');
-  if (body.points !== undefined && body.points !== '' && (Number.isNaN(points) || points < 0)) {
-    errors.push('Points must be a whole number (0 or more).');
+  const points = {};
+  for (const phase of PHASES) {
+    const raw = String(body[`${phase}_points`] ?? '').trim();
+    if (raw && !/^\d+$/.test(raw)) {
+      errors.push(`${phase === 'primary' ? 'Primary' : 'Secondary'} points must be a whole number (0 or more).`);
+    }
+    points[phase] = /^\d+$/.test(raw) ? parseInt(raw, 10) : 0;
   }
-  return { name, points: Number.isNaN(points) ? 0 : Math.max(0, points), color, errors };
+  return { name, points, color, errors };
 }
 
 router.get('/houses', requireManager, (req, res) => {
@@ -48,14 +55,23 @@ router.post('/houses', requireManager, (req, res) => {
   const { name, points, errors } = validate(req.body);
   if (errors.length) return res.status(400).render('houses', housesLocals({ errors }));
   const color = HOUSE_COLORS[name.toLowerCase()] || '#1d3061';
-  db.prepare('INSERT INTO houses (name, points, color) VALUES (?, ?, ?)').run(name, points, color);
+  db.prepare('INSERT INTO houses (name, primary_points, secondary_points, color) VALUES (?, ?, ?, ?)').run(
+    name,
+    points.primary,
+    points.secondary,
+    color
+  );
   res.redirect('/houses');
 });
 
-// Hide/show the whole strip in the newsletter without touching the data -
-// for weeks when the points were not updated.
+// Hide/show a standings table (Primary or Secondary) in the newsletter
+// without touching the data - for weeks when its points were not updated.
+// Without a phase, both switch together.
 router.post('/houses/visibility', requireManager, (req, res) => {
-  setSetting('house_points_visible', req.body.visible === '1' ? '1' : '0');
+  const value = req.body.visible === '1' ? '1' : '0';
+  for (const phase of PHASES.includes(req.body.phase) ? [req.body.phase] : PHASES) {
+    setSetting(`house_points_${phase}_visible`, value);
+  }
   res.redirect('/houses');
 });
 
@@ -109,12 +125,9 @@ router.post('/houses/:id', requireManager, (req, res) => {
   if (!row) return res.status(404).render('error', { message: 'House not found.' });
   const { name, points, color, errors } = validate(req.body);
   if (errors.length) return res.status(400).render('houses', housesLocals({ errors }));
-  db.prepare('UPDATE houses SET name = ?, points = ?, color = COALESCE(?, color) WHERE id = ?').run(
-    name,
-    points,
-    color,
-    row.id
-  );
+  db.prepare(
+    'UPDATE houses SET name = ?, primary_points = ?, secondary_points = ?, color = COALESCE(?, color) WHERE id = ?'
+  ).run(name, points.primary, points.secondary, color, row.id);
   res.redirect('/houses');
 });
 

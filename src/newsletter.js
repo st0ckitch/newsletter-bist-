@@ -561,9 +561,12 @@ function renderMenusBlock(menus, placeholders) {
 
 // The running house standings, styled after the school's own graphic: each
 // house is a solid tile in its brand colour with the crest, the house name
-// and "N Points" inside, two tiles per row. Leader (most points) comes
-// first. Fixed right under the events/principal top block in every issue;
-// managers keep the numbers current on the Houses page.
+// and "N Points" inside, two tiles per row, leader (most points) first.
+// Primary and Secondary keep separate standings - the same houses, two sets
+// of points - shown side by side like the rest of the issue (Primary left,
+// Secondary right) and stacked on phones; a table on its own runs full width
+// with bigger tiles. Fixed right under the events/principal top block in
+// every issue; managers keep the numbers current on the Houses page.
 function houseTileText(color) {
   const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color || '');
   if (!m) return { name: '#ffffff', points: '#ffffff' };
@@ -575,51 +578,102 @@ function houseTileText(color) {
   return { name: lum < 0.25 ? '#ffffff' : darken, points: '#ffffff' };
 }
 
-function renderHousePointsBlock(houses, placeholders, hidden) {
-  if (hidden) {
-    return placeholders
-      ? placeholderBox('HP', 'House Points - hidden', 'Hidden from the newsletter this week - switch it back on from the Houses page.')
-      : '';
-  }
-  if (!houses || !houses.length) {
-    return placeholders
-      ? placeholderBox('HP', 'House Points', 'Add the houses (name, logo, points) on the Houses page.')
-      : '';
-  }
-  const tile = (h, leader) => {
+const HOUSE_PHASES = [
+  ['primary', 'Primary'],
+  ['secondary', 'Secondary'],
+];
+
+// Tile sizes: full width (one table) and half width (both side by side).
+const HOUSE_TILE = {
+  big: { logo: 110, initial: 64, name: 24, spacing: 4, points: 20, lead: 10, pad: '28px 12px 24px 12px', outline: 4 },
+  compact: { logo: 72, initial: 44, name: 15, spacing: 2, points: 15, lead: 9, pad: '18px 8px 16px 8px', outline: 3 },
+};
+
+function renderHouseStandings(houses, key, label, size) {
+  const t = HOUSE_TILE[size];
+  const pointsOf = (h) => Number(h[`${key}_points`]) || 0;
+  // Leader first; equal points keep the houses' usual order.
+  const ranked = [...houses].sort((a, b) => pointsOf(b) - pointsOf(a));
+  // In the leader's row both tiles carry the LEADING line (blank on the
+  // other one) so the two tiles end level.
+  const tile = (h, leader, leaderRow) => {
     const color = h.color || NAVY;
     const text = houseTileText(color);
     const logo = h.logoUrl
-      ? `<img src="${escapeHtml(h.logoUrl)}" alt="" width="110" style="width:110px; height:110px; object-fit:contain; display:block; margin:0 auto 14px auto;">`
-      : `<p style="margin:0 0 12px 0; font-family:${SERIF}; font-size:64px; font-weight:800; line-height:1; color:${text.name};">${escapeHtml(
+      ? `<img src="${escapeHtml(h.logoUrl)}" alt="" width="${t.logo}" style="width:${t.logo}px; height:${t.logo}px; object-fit:contain; display:block; margin:0 auto 12px auto;">`
+      : `<p style="margin:0 0 10px 0; font-family:${SERIF}; font-size:${t.initial}px; font-weight:800; line-height:1; color:${text.name};">${escapeHtml(
           (h.name || '?').charAt(0).toUpperCase()
         )}</p>`;
     return `
       <td class="hp-cell" width="50%" valign="top" style="padding:6px;">
-        <div style="background:${escapeHtml(color)}; border-radius:4px; ${leader ? `outline:4px solid ${GOLD}; ` : ''}padding:28px 12px 24px 12px; text-align:center;">
+        <div style="background:${escapeHtml(color)}; border-radius:4px; ${leader ? `outline:${t.outline}px solid ${GOLD}; ` : ''}padding:${t.pad}; text-align:center;">
           ${logo}
-          <p style="margin:0; font-family:${SERIF}; font-size:24px; font-weight:800; letter-spacing:4px; color:${text.name}; text-transform:uppercase;">${escapeHtml(
+          <p style="margin:0; font-family:${SERIF}; font-size:${t.name}px; font-weight:800; letter-spacing:${t.spacing}px; color:${text.name}; text-transform:uppercase;">${escapeHtml(
       h.name
     )}</p>
-          <p style="margin:10px 0 0 0; font-family:${SANS}; font-size:20px; font-weight:700; color:${text.points};">${Number(h.points) || 0} Points</p>
-          ${leader ? `<p style="margin:6px 0 0 0; font-family:${SANS}; font-size:10px; font-weight:600; letter-spacing:3px; color:${text.points};">&#9733; LEADING</p>` : ''}
+          <p style="margin:8px 0 0 0; font-family:${SANS}; font-size:${t.points}px; font-weight:700; color:${text.points};">${pointsOf(h)} Points</p>
+          ${
+            leaderRow
+              ? `<p style="margin:6px 0 0 0; font-family:${SANS}; font-size:${t.lead}px; line-height:${t.lead + 6}px; font-weight:600; letter-spacing:3px; color:${text.points};">${
+                  leader ? '&#9733; LEADING' : '&nbsp;'
+                }</p>`
+              : ''
+          }
         </div>
       </td>`;
   };
+  const hasLeader = ranked.length > 0 && pointsOf(ranked[0]) > 0;
   let rows = '';
-  for (let i = 0; i < houses.length; i += 2) {
-    const pair = [houses[i], houses[i + 1]];
+  for (let i = 0; i < ranked.length; i += 2) {
+    const pair = [ranked[i], ranked[i + 1]];
     rows += `<tr>${pair
-      .map((h, j) => (h ? tile(h, i + j === 0 && h.points > 0) : '<td class="hp-cell" width="50%" style="padding:5px;">&nbsp;</td>'))
+      .map((h, j) =>
+        h ? tile(h, hasLeader && i + j === 0, hasLeader && i === 0) : '<td class="hp-cell" width="50%" style="padding:5px;">&nbsp;</td>'
+      )
       .join('')}</tr>`;
   }
   return `
   <div style="padding:0 0 18px 0;">
-    ${columnHeading('House spirit', 'House Points')}
+    ${columnHeading('House spirit', `${label} House Points`)}
     <table role="presentation" class="hp-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;">
       ${rows}
     </table>
   </div>`;
+}
+
+// hidden: { primary, secondary } - the tables switched off on the Houses
+// page. A table whose houses all still have 0 points stays out too, so an
+// unfilled one never goes out as a row of zeros.
+function renderHousePointsBlock(houses, placeholders, hidden = {}) {
+  if (!houses || !houses.length) {
+    return placeholders
+      ? placeholderBox('HP', 'House Points', 'Add the houses (name, logo, Primary and Secondary points) on the Houses page.')
+      : '';
+  }
+  const notes = [];
+  const shown = HOUSE_PHASES.filter(([key, label]) => {
+    if (hidden[key]) {
+      notes.push(placeholderBox('HP', `${label} House Points - hidden`, 'Hidden from the newsletter - switch it back on from the Houses page.'));
+      return false;
+    }
+    if (!houses.some((h) => Number(h[`${key}_points`]) > 0)) {
+      notes.push(placeholderBox('HP', `${label} House Points - no points yet`, 'Shows up once its points are entered on the Houses page.'));
+      return false;
+    }
+    return true;
+  });
+  const placeholderNotes = placeholders ? notes.join('') : '';
+  if (shown.length === 1) return renderHouseStandings(houses, shown[0][0], shown[0][1], 'big') + placeholderNotes;
+  if (!shown.length) return placeholderNotes;
+  const [left, right] = shown.map(([key, label]) => renderHouseStandings(houses, key, label, 'compact'));
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td class="col" width="${COL_W}" valign="top">${left}</td>
+      <td class="gutter" width="16" style="font-size:0; line-height:0;">&nbsp;</td>
+      <td class="col" width="${COL_W}" valign="top">${right}</td>
+    </tr>
+  </table>`;
 }
 
 /* ---------- Primary rewards ---------- */

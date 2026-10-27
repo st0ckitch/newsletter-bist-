@@ -2,7 +2,7 @@
 // newsletter HTML and creates/updates the draft campaign in Mailchimp.
 const fs = require('fs');
 const path = require('path');
-const { db, getSetting, setSetting } = require('./db');
+const { db, getSetting, setSetting, housePointsVisible } = require('./db');
 const config = require('./config');
 const { publicBaseUrl, isPublicUrl } = require('./baseurl');
 const mailchimp = require('./mailchimp');
@@ -34,9 +34,13 @@ function collectWeekData(weekStart) {
     .prepare("SELECT id, title, section FROM news WHERE week_start = ? AND review_status = 'pending' ORDER BY created_at")
     .all(weekStart);
   const menus = db.prepare('SELECT * FROM menus ORDER BY id').all();
-  // House standings (leader first) and this week's Primary Awards rows.
-  const houses = db.prepare('SELECT * FROM houses ORDER BY points DESC, id').all();
-  const housePointsHidden = getSetting('house_points_visible') === '0';
+  // The houses (each with Primary and Secondary points - the newsletter
+  // ranks each standings table itself) and this week's Primary Awards rows.
+  const houses = db.prepare('SELECT * FROM houses ORDER BY id').all();
+  const housePointsHidden = {
+    primary: !housePointsVisible('primary'),
+    secondary: !housePointsVisible('secondary'),
+  };
   const awards = db.prepare('SELECT * FROM awards WHERE week_start = ? ORDER BY sort_order, id').all(weekStart);
   const subjectRow = db.prepare('SELECT subject FROM email_subjects WHERE week_start = ?').get(weekStart);
   const emailSubject = subjectRow ? subjectRow.subject.trim() : '';
@@ -146,7 +150,7 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
       ...h,
       logoUrl: h.logo ? h.logo_mailchimp_url || `${baseUrl}/uploads/${h.logo}` : null,
     })),
-    housePointsHidden: Boolean(data.housePointsHidden),
+    housePointsHidden: data.housePointsHidden || {},
     awards: data.awards || [],
     awardTopic: data.awardTopic || '',
     events: data.events,

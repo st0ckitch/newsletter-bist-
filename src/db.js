@@ -255,6 +255,13 @@ db.prepare(
      ELSE '#1d3061' END
    WHERE color IS NULL`
 ).run();
+// Primary and Secondary keep separate house standings: the same houses,
+// logos and colours with two sets of points. The single total kept before
+// the split carries over as the Primary one.
+if (ensureColumn('houses', 'primary_points', 'primary_points INTEGER NOT NULL DEFAULT 0')) {
+  db.exec('UPDATE houses SET primary_points = points');
+}
+ensureColumn('houses', 'secondary_points', 'secondary_points INTEGER NOT NULL DEFAULT 0');
 ensureColumn('photos', 'normalized', 'normalized INTEGER NOT NULL DEFAULT 0');
 ensureColumn('news', 'lead_photo', 'lead_photo TEXT');
 ensureColumn('news', 'lead_photo_mailchimp_url', 'lead_photo_mailchimp_url TEXT');
@@ -293,8 +300,9 @@ db.prepare("UPDATE settings SET value = '0 18 * * 4' WHERE key = 'friday_generat
 
 const SETTING_DEFAULTS = {
   timezone: 'Asia/Tbilisi',
-  // The House Points strip can be hidden from the newsletter for weeks with
-  // no update (toggled on the Houses page); houses and points stay stored.
+  // The original show/hide switch for the whole House Points strip. The
+  // Primary and Secondary tables now have their own switches on the Houses
+  // page (see housePointsVisible) and follow this one until first used.
   house_points_visible: '1',
   // Reminder to fill in content - every Monday morning
   monday_reminder_cron: '0 9 * * 1',
@@ -322,6 +330,14 @@ function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   if (row) return row.value;
   return SETTING_DEFAULTS[key] !== undefined ? SETTING_DEFAULTS[key] : null;
+}
+
+// Whether a House Points standings table ('primary' or 'secondary') goes
+// into the newsletter. A phase never switched on its own follows the
+// original single switch for the whole strip.
+function housePointsVisible(phase) {
+  const own = db.prepare('SELECT value FROM settings WHERE key = ?').get(`house_points_${phase}_visible`);
+  return (own ? own.value : getSetting('house_points_visible')) !== '0';
 }
 
 function setSetting(key, value) {
@@ -383,4 +399,14 @@ function seedAdmin() {
   }
 }
 
-module.exports = { db, getSetting, setSetting, allSettings, seedAdmin, SETTING_DEFAULTS, stripCheckClauses, dropCheckConstraints };
+module.exports = {
+  db,
+  getSetting,
+  setSetting,
+  housePointsVisible,
+  allSettings,
+  seedAdmin,
+  SETTING_DEFAULTS,
+  stripCheckClauses,
+  dropCheckConstraints,
+};
