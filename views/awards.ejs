@@ -3,7 +3,34 @@
   <h1>Primary Certificates of Recognition</h1>
 </div>
 <% if (errors.length) { %><div class="alert alert-error"><ul class="plain-list"><% errors.forEach(function(e){ %><li><%= e %></li><% }) %></ul></div><% } %>
+<% if (moved) { %><div class="alert alert-ok">Moved <%= moved %> row<%= moved === 1 ? '' : 's' %> here - this table is now in <%= isThisWeek ? "this week's" : "next week's" %> newsletter.</div><% } %>
 
+<div class="preview-toolbar">
+  <div class="seg" role="group" aria-label="Which issue">
+    <% tabs.forEach(function(t) { %>
+      <a class="seg-btn<%= t.week === week ? ' is-on' : '' %>" href="/awards?week=<%= t.week %>"><%= t.label %> &middot; <%= t.date %><% if (t.note) { %> (<%= t.note %>)<% } %></a>
+    <% }) %>
+  </div>
+</div>
+<p class="muted">Each issue has its own table - what you see on a tab is exactly what that week&#39;s newsletter gets.
+<% if (pastCutoff) { %>The <%= cutoff %> deadline has passed: this week&#39;s issue has been put together, so new certificates go into <strong>next week&#39;s</strong> table.<% } %></p>
+
+<% if (draftGenerated) { %>
+  <div class="alert alert-warn">This week&#39;s Mailchimp draft has already been generated. After changing this table, press
+  <strong>Generate Mailchimp draft</strong> on the <a href="/newsletter/preview">Preview</a> page so the draft includes it.</div>
+<% } %>
+<% if (isManager && other) { %>
+  <form method="post" action="/awards/move" class="inline-form" style="margin:0 0 14px 0; gap:10px; flex-wrap:wrap;"
+    data-confirm="Move this whole table<%= topic ? ' and its title' : '' %> to <%= other.label.toLowerCase() %> (<%= other.date %>)?">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="from" value="<%= week %>">
+    <input type="hidden" name="to" value="<%= other.week %>">
+    <button class="btn btn-secondary btn-sm" <%= rows.length ? '' : 'disabled' %>>Move this table to <%= other.label.toLowerCase() %> &middot; <%= other.date %></button>
+    <span class="muted">For a table filled in on the wrong tab - the rows and the title move together.</span>
+  </form>
+<% } %>
+
+<% if (canChange) { %>
 <div class="grid-2">
   <div class="card">
     <h2>Topic title</h2>
@@ -11,6 +38,7 @@
     <em>&quot;Generosity of Spirit Certificate Winners 12.12.25&quot;</em>.</p>
     <form method="post" action="/awards/topic">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="week" value="<%= week %>">
       <label>Title
         <input type="text" name="title" value="<%= topic %>" maxlength="160" placeholder="Generosity of Spirit Certificate Winners 12.12.25">
       </label>
@@ -23,6 +51,7 @@
     Each new issue starts with a fresh table; you can fix or remove the rows you added yourself.</p>
     <form method="post" action="/awards">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="week" value="<%= week %>">
       <div class="field-row">
         <label>Class * <input type="text" name="class_name" required maxlength="120" placeholder="e.g. Year 3W"></label>
         <label>Students * <input type="text" name="students" required maxlength="200" placeholder="e.g. Marta, Renee"></label>
@@ -31,11 +60,16 @@
     </form>
   </div>
 </div>
+<% } else { %>
+  <div class="alert alert-warn">This week&#39;s issue has already been put together, so its table is closed. Add new certificates
+  on the <a href="/awards?week=<%= other.week %>">next week&#39;s issue</a> tab - or ask marketing if one must still go in this week.</div>
+  <% if (topic) { %><p><strong>Title:</strong> <%= topic %></p><% } %>
+<% } %>
 
 <div class="card">
   <% if (!rows.length) { %>
-    <p class="muted">No rows for this issue yet - the Primary Certificates of Recognition block only appears in the newsletter once
-    at least one class is added.</p>
+    <p class="muted">No rows in this table yet - the Primary Certificates of Recognition block only appears in that
+    week&#39;s newsletter once at least one class is added.</p>
   <% } else { %>
   <p class="muted">Drag the <strong>&#8942;&#8942;</strong> grip to change the order of the classes - the
   newsletter table follows it exactly.</p>
@@ -53,18 +87,15 @@
               <input type="text" name="students" value="<%= r.student_name %>" required maxlength="200" style="width:240px">
               <button class="btn btn-ghost btn-sm">Save</button>
             </form>
-            <% if (r.week_start !== issueWeek) { %><span class="tag tag-pending">next week's issue</span><% } %>
           </td>
           <% } else { %>
           <td><%= r.grade_stage %></td>
-          <td><%= r.student_name %>
-            <% if (r.week_start !== issueWeek) { %><br><span class="tag tag-pending">next week's issue</span><% } %>
-          </td>
+          <td><%= r.student_name %></td>
           <% } %>
           <td class="muted"><%= r.author || '-' %></td>
           <td class="row-actions">
             <% if (r.canEdit) { %>
-            <form method="post" action="/awards/<%= r.id %>/delete" data-confirm="Remove this class from the rewards table?">
+            <form method="post" action="/awards/<%= r.id %>/delete" data-confirm="Remove this class from the certificates table?">
               <input type="hidden" name="_csrf" value="<%= csrf %>">
               <button class="btn btn-danger btn-sm">Delete</button>
             </form>

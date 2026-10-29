@@ -2174,6 +2174,60 @@ test('house points access: staff an admin picks update their own table and nothi
   db.prepare("DELETE FROM users WHERE email IN ('house.coord@test.local', 'house.colleague@test.local', 'house.marketing@test.local')").run();
 });
 
+test('certificates after the deadline: tabs per issue, and a table moves to this week in one click', async () => {
+  const { generationWeekStart } = require('../src/appweek');
+  const { addDays } = require('../src/week');
+  const thisWeek = generationWeekStart();
+  const nextWeek = addDays(thisWeek, 7);
+  const rowsIn = (week) =>
+    db.prepare("SELECT grade_stage FROM awards WHERE week_start = ? AND grade_stage LIKE 'Late %' ORDER BY sort_order").all(week).map((r) => r.grade_stage);
+  const topicOf = (week) => (db.prepare('SELECT title FROM award_topics WHERE week_start = ?').get(week) || {}).title;
+  // Every moment counts as past the Thursday deadline; this week's table
+  // starts untitled (a title already there would be kept by the move).
+  setSetting('friday_generate_cron', '0 0 * * 1');
+  const earlierTitle = topicOf(thisWeek);
+  db.prepare('DELETE FROM award_topics WHERE week_start = ?').run(thisWeek);
+  try {
+    const teacher = await makeUser('Late Teacher', 'late.teacher@test.local', 'staff');
+    // The page opens on next week's table, the one taking certificates now.
+    const page = await (await teacher.get('/awards')).text();
+    assert.match(page, /class="seg-btn is-on" href="\/awards\?week=\d{4}-\d{2}-\d{2}">Next week&#39;s issue/);
+    assert.match(page, /deadline passed/);
+    // Staff fill it in there; this week's table is closed to them...
+    assert.strictEqual((await teacher.post('/awards', { week: nextWeek, class_name: 'Late 3W', students: 'Marta' })).status, 302);
+    assert.strictEqual((await teacher.post('/awards', { week: thisWeek, class_name: 'Late 4B', students: 'Nika' })).status, 403);
+    assert.match(await (await teacher.get(`/awards?week=${thisWeek}`)).text(), /its table is closed/);
+    await post('/awards/topic', { week: nextWeek, title: 'Late Kindness Certificates' });
+    await post('/awards', { week: nextWeek, class_name: 'Late 5K', students: 'Luca' });
+    assert.deepStrictEqual(rowsIn(nextWeek), ['Late 3W', 'Late 5K']);
+    // ...so this week's newsletter does not have them - the reported problem.
+    assert.ok(!(await (await get('/newsletter/preview.html')).text()).includes('Late Kindness Certificates'));
+
+    // A manager moves the whole table - rows and title - into this week's issue.
+    assert.strictEqual((await teacher.post('/awards/move', { from: nextWeek, to: thisWeek })).status, 403);
+    const moved = await post('/awards/move', { from: nextWeek, to: thisWeek });
+    assert.strictEqual(moved.status, 302);
+    assert.strictEqual(moved.headers.get('location'), `/awards?week=${thisWeek}&moved=2`);
+    assert.deepStrictEqual(rowsIn(thisWeek), ['Late 3W', 'Late 5K']);
+    assert.deepStrictEqual(rowsIn(nextWeek), []);
+    assert.strictEqual(topicOf(thisWeek), 'Late Kindness Certificates');
+    const preview = await (await get('/newsletter/preview.html')).text();
+    assert.ok(preview.includes('Late Kindness Certificates') && preview.includes('Late 5K'), 'now in this week\'s newsletter');
+    // The page says the generated draft needs generating again.
+    await generateIssue({ trigger: 'test-late-awards' });
+    assert.match(await (await get(`/awards?week=${thisWeek}`)).text(), /draft has already been generated/);
+    // Managers can still add to this week's table directly.
+    assert.strictEqual((await post('/awards', { week: thisWeek, class_name: 'Late 6A', students: 'Ana' })).status, 302);
+    assert.deepStrictEqual(rowsIn(thisWeek), ['Late 3W', 'Late 5K', 'Late 6A']);
+  } finally {
+    setSetting('friday_generate_cron', '59 23 * * 7');
+    db.prepare("DELETE FROM awards WHERE grade_stage LIKE 'Late %'").run();
+    db.prepare("DELETE FROM award_topics WHERE title = 'Late Kindness Certificates'").run();
+    if (earlierTitle) db.prepare('INSERT OR REPLACE INTO award_topics (week_start, title) VALUES (?, ?)').run(thisWeek, earlierTitle);
+    db.prepare("DELETE FROM users WHERE email = 'late.teacher@test.local'").run();
+  }
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');
