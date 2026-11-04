@@ -775,6 +775,23 @@ function partnerLogo(p) {
   return `<img src="${escapeHtml(p.logo)}" alt="${escapeHtml(p.partner)}"${size} style="${css} max-width:100%; display:inline-block; vertical-align:middle; border:0;">`;
 }
 
+// Rough line count for text in a partner tile (about `perLine` characters a
+// line), so every tile of an issue can reserve room for the longest name and
+// badge and the tiles stay level - BGA's Georgian names run long.
+function tileLines(text, perLine) {
+  let lines = 1;
+  let len = 0;
+  for (const word of String(text || '').split(/\s+/).filter(Boolean)) {
+    if (len && len + 1 + word.length > perLine) {
+      lines += 1;
+      len = word.length;
+    } else {
+      len += (len ? 1 : 0) + word.length;
+    }
+  }
+  return Math.min(lines, 4);
+}
+
 function renderPartnersBlock(partners, placeholders, hidden) {
   if (hidden) {
     return placeholders
@@ -788,22 +805,26 @@ function renderPartnersBlock(partners, placeholders, hidden) {
   }
   const site = partners.site || 'https://circle.bist.ge';
   const host = site.replace(/^https?:\/\//, '');
-  // Fixed rows for the logo, a two-line name and the badge keep every tile
-  // the same height, side by side or stacked.
+  // Fixed rows for the logo, the name and the badge keep every tile the same
+  // height, side by side or stacked.
+  const nameH = 16 * Math.max(2, ...partners.list.map((p) => tileLines(p.partner, 15))) + 4;
+  const badgeH = 16 * Math.max(1, ...partners.list.map((p) => tileLines(p.badge, 13))) + 12;
   const tile = (p) => `
       <td class="pt-cell" width="25%" valign="top" style="padding:5px;">
         <a href="${escapeHtml(site)}" target="_blank" style="display:block; text-decoration:none;">
           <div style="background:#ffffff; border:1px solid #E7E4DB; border-radius:12px; padding:14px 8px 13px 8px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
               <tr><td height="44" align="center" valign="middle" style="height:44px;">${partnerLogo(p)}</td></tr>
-              <tr><td height="40" align="center" valign="middle" style="height:40px; padding-top:4px; font-family:${SANS}; font-size:12.5px; font-weight:700; line-height:1.3; color:${CIRCLE_NAVY};">${escapeHtml(
+              <tr><td height="${nameH}" align="center" valign="middle" style="height:${nameH}px; padding-top:4px; font-family:${SANS}; font-size:12.5px; font-weight:700; line-height:16px; color:${CIRCLE_NAVY};">${escapeHtml(
     p.partner
   )}</td></tr>
-              <tr><td align="center" style="padding-top:4px;"><span style="display:inline-block; background:${
-                p.badge ? CIRCLE_GOLD : 'transparent'
-              }; color:${CIRCLE_NAVY}; font-family:${SANS}; font-size:13px; font-weight:800; line-height:1.2; padding:5px 11px; border-radius:999px; white-space:nowrap;">${
-    p.badge ? escapeHtml(p.badge) : '&nbsp;'
-  }</span></td></tr>
+              <tr><td height="${badgeH}" align="center" valign="middle" style="height:${badgeH}px; padding-top:4px;">${
+                p.badge
+                  ? `<span style="display:inline-block; max-width:100%; box-sizing:border-box; background:${CIRCLE_GOLD}; color:${CIRCLE_NAVY}; font-family:${SANS}; font-size:13px; font-weight:800; line-height:16px; padding:5px 11px; border-radius:14px;">${escapeHtml(
+                      p.badge
+                    )}</span>`
+                  : '&nbsp;'
+              }</td></tr>
             </table>
           </div>
         </a>

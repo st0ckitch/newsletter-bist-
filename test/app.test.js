@@ -2275,12 +2275,14 @@ test('circle partner offers come from the Circle feed into the preview and the e
     // It sits at the bottom, just above the footer.
     assert.ok(email.indexOf('Partner offers') > email.indexOf('Upcoming Events'));
     assert.match(await (await get('/settings')).text(), /10 partners/);
+    assert.match(await (await post('/settings/partners/refresh', {})).text(), /Updated - 10 partners from Circle/);
 
     // If Circle cannot be reached, the last copy keeps the section going.
     failing = true;
     assert.strictEqual((await refreshPartners()).ok, false);
     assert.match(await (await get('/newsletter/export.html')).text(), /Partner offers/);
     assert.match(await (await get('/settings')).text(), /Circle could not be reached/);
+    assert.match(await (await post('/settings/partners/refresh', {})).text(), /Circle has not sent the partners yet/);
     failing = false;
 
     // The section can be hidden, and shown again.

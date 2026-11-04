@@ -115,7 +115,8 @@
       <p class="muted">Circle could not be reached at <%= partners.failure.at.replace('T', ' ').slice(0, 16) %> UTC - the
       newsletter keeps using the partners it last read.</p>
     <% } %>
-    <% if (partnersRefreshed) { %><div class="alert alert-ok">Read again from Circle.</div><% } %>
+    <% if (partnersRefreshed && partnersRefreshed.ok) { %><div class="alert alert-ok">Updated - <%= partnersRefreshed.count %> partners from Circle.</div><% } %>
+    <% if (partnersRefreshed && !partnersRefreshed.ok) { %><div class="alert alert-warn">Circle has not sent the partners yet - try again in a few minutes.</div><% } %>
     <form method="post" action="/settings/partners/refresh" class="inline-form" style="margin-bottom:14px;">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <button class="btn btn-secondary btn-sm">Refresh now</button>

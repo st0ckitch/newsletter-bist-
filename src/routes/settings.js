@@ -65,8 +65,7 @@ router.post('/settings/partners', requireManager, (req, res) => {
 // Read the Circle feed again now instead of waiting for the next scheduled read.
 router.post('/settings/partners/refresh', requireManager, async (req, res, next) => {
   try {
-    await refreshPartners();
-    res.render('settings', settingsLocals({ partnersRefreshed: true }));
+    res.render('settings', settingsLocals({ partnersRefreshed: await refreshPartners() }));
   } catch (err) {
     next(err);
   }
