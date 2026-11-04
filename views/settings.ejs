@@ -102,21 +102,18 @@
   each partner&#39;s logo, name and offer badge, read from the Circle API every few hours and again just before a draft
   is generated. The offer details stay behind the Circle login, which the section links to. Each issue shows a
   different set of partners, so all of them come round in turn.</p>
-  <% if (!partners.configured) { %>
-    <div class="alert alert-warn">Not connected yet - set <code>CIRCLE_FEED_URL</code> and <code>CIRCLE_FEED_TOKEN</code>
-    in the server&#39;s variables (Railway).</div>
-  <% } else { %>
+  <% if (partners.configured) { %>
     <p>
       <% if (partners.count) { %>
         <span class="tag tag-approved"><%= partners.count %> partners</span>
-        <span class="muted">from <%= partners.site.replace(/^https?:\/\//, '') %> - last read <%= partners.fetchedAt ? partners.fetchedAt.replace('T', ' ').slice(0, 16) + ' UTC' : '-' %></span>
+        <span class="muted">from <%= partners.site.replace(/^https?:\/\//, '') %> - last updated <%= partners.fetchedAt ? partners.fetchedAt.replace('T', ' ').slice(0, 16) + ' UTC' : '-' %></span>
       <% } else { %>
-        <span class="tag tag-pending">no partners read yet</span>
+        <span class="muted">Partners appear here as soon as Circle sends them.</span>
       <% } %>
     </p>
-    <% if (partners.failure) { %>
-      <div class="alert alert-error">The last attempt to read Circle failed (<%= partners.failure.at.replace('T', ' ').slice(0, 16) %> UTC):
-      <%= partners.failure.error %>.<%= partners.count ? ' The newsletter keeps using the last copy that was read.' : '' %></div>
+    <% if (partners.failure && partners.count) { %>
+      <p class="muted">Circle could not be reached at <%= partners.failure.at.replace('T', ' ').slice(0, 16) %> UTC - the
+      newsletter keeps using the partners it last read.</p>
     <% } %>
     <% if (partnersRefreshed) { %><div class="alert alert-ok">Read again from Circle.</div><% } %>
     <form method="post" action="/settings/partners/refresh" class="inline-form" style="margin-bottom:14px;">

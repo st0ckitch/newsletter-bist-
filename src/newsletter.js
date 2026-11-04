@@ -783,7 +783,7 @@ function renderPartnersBlock(partners, placeholders, hidden) {
   }
   if (!partners || !partners.list || !partners.list.length) {
     return placeholders
-      ? placeholderBox('P', 'Partner offers', 'Fills in by itself from circle.bist.ge once the Circle feed is connected (see Settings).')
+      ? placeholderBox('P', 'Partner offers', 'Circle partner offers from circle.bist.ge appear here automatically.')
       : '';
   }
   const site = partners.site || 'https://circle.bist.ge';

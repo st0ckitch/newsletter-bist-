@@ -2250,7 +2250,8 @@ test('circle partner offers come from the Circle feed into the preview and the e
   try {
     // Not connected: nothing in the email, a labelled placeholder in the preview.
     assert.strictEqual((await refreshPartners()).error, 'not configured');
-    assert.match(await (await get('/newsletter/preview.html')).text(), /Fills in by itself from circle\.bist\.ge/);
+    assert.match(await (await get('/newsletter/preview.html')).text(), /appear here automatically/);
+    assert.ok(!(await (await get('/settings')).text()).includes('CIRCLE_FEED_URL'), 'no setup instructions on the dashboard');
     assert.ok(!(await (await get('/newsletter/export.html')).text()).includes('Partner offers'));
 
     config.circle.feedUrl = `${site}/newsletter/bist/offers`;
@@ -2279,7 +2280,7 @@ test('circle partner offers come from the Circle feed into the preview and the e
     failing = true;
     assert.strictEqual((await refreshPartners()).ok, false);
     assert.match(await (await get('/newsletter/export.html')).text(), /Partner offers/);
-    assert.match(await (await get('/settings')).text(), /The last attempt to read Circle failed/);
+    assert.match(await (await get('/settings')).text(), /Circle could not be reached/);
     failing = false;
 
     // The section can be hidden, and shown again.
