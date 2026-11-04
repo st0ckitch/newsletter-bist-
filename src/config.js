@@ -27,6 +27,12 @@ module.exports = {
     // first boot and printed to the server log.
     password: process.env.ADMIN_PASSWORD || '',
   },
+  // The Circle API's partner feed (partner names, logos and offer badges for
+  // the Partner offers section) and the token it is read with.
+  circle: {
+    feedUrl: process.env.CIRCLE_FEED_URL || '',
+    token: process.env.CIRCLE_FEED_TOKEN || '',
+  },
   mailchimp: {
     apiKey: process.env.MAILCHIMP_API_KEY || '',
     serverPrefix:

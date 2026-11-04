@@ -6,6 +6,7 @@ const { upload, isRealImage, removeFiles } = require('../uploads');
 const mailchimp = require('../mailchimp');
 const scheduler = require('../scheduler');
 const config = require('../config');
+const { refreshPartners, partnersStatus } = require('../partners');
 
 const router = express.Router();
 
@@ -19,6 +20,8 @@ function settingsLocals(overrides = {}) {
     teachersAudienceId: config.mailchimp.teachersAudienceId,
     testResult: null,
     mastheadPhoto: getSetting('masthead_photo') || null,
+    partners: partnersStatus(),
+    partnersRefreshed: false,
     ...overrides,
   };
 }
@@ -49,6 +52,24 @@ function isValidTimezone(tz) {
 
 router.get('/settings', requireManager, (req, res) => {
   res.render('settings', settingsLocals({ saved: req.query.saved === '1' }));
+});
+
+// The Partner offers section: how many partners per issue, shown or hidden.
+router.post('/settings/partners', requireManager, (req, res) => {
+  const n = String(req.body.partners_per_issue || '').trim();
+  if (/^\d{1,3}$/.test(n)) setSetting('partners_per_issue', String(Number(n)));
+  setSetting('partners_visible', req.body.partners_visible === '1' ? '1' : '0');
+  res.redirect('/settings');
+});
+
+// Read the Circle feed again now instead of waiting for the next scheduled read.
+router.post('/settings/partners/refresh', requireManager, async (req, res, next) => {
+  try {
+    await refreshPartners();
+    res.render('settings', settingsLocals({ partnersRefreshed: true }));
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Masthead background image (behind "THE ROAR" in the header). Stored as a

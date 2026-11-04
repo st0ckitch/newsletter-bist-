@@ -8,6 +8,7 @@ const { publicBaseUrl, isPublicUrl } = require('./baseurl');
 const mailchimp = require('./mailchimp');
 const { renderNewsletter } = require('./newsletter');
 const { uploadSize } = require('./imagesize');
+const { refreshPartners, partnersForWeek } = require('./partners');
 const { generationWeekStart, generationDay } = require('./appweek');
 
 const { SECTIONS: SECTION_LABELS } = require('./sections');
@@ -46,7 +47,26 @@ function collectWeekData(weekStart) {
   const emailSubject = subjectRow ? subjectRow.subject.trim() : '';
   const topicRow = db.prepare('SELECT title FROM award_topics WHERE week_start = ?').get(weekStart);
   const awardTopic = topicRow ? topicRow.title : '';
-  return { weekStart, issueDate, events, news, photosByNews, principalMessage, awaitingReview, menus, houses, housePointsHidden, awards, awardTopic, emailSubject };
+  // This week's Circle partners (null until the feed has been read once).
+  const partnersHidden = getSetting('partners_visible') === '0';
+  const partners = partnersForWeek(weekStart, Number(getSetting('partners_per_issue')) || 0);
+  return {
+    weekStart,
+    issueDate,
+    events,
+    news,
+    photosByNews,
+    principalMessage,
+    awaitingReview,
+    menus,
+    houses,
+    housePointsHidden,
+    awards,
+    awardTopic,
+    emailSubject,
+    partners,
+    partnersHidden,
+  };
 }
 
 function photoPublicUrl(photo, baseUrl = publicBaseUrl()) {
@@ -151,6 +171,8 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
       logoUrl: h.logo ? h.logo_mailchimp_url || `${baseUrl}/uploads/${h.logo}` : null,
     })),
     housePointsHidden: data.housePointsHidden || {},
+    partners: data.partners || null,
+    partnersHidden: Boolean(data.partnersHidden),
     awards: data.awards || [],
     awardTopic: data.awardTopic || '',
     events: data.events,
@@ -185,7 +207,19 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
   // did not.
   const steps = [];
   const step = (ok, label, detail) => steps.push({ ok, label, detail: detail || null });
+  // The latest Circle partner offers go into the draft; if the Circle API
+  // cannot be reached, the last copy read is used instead.
+  const feed = await refreshPartners();
   const data = collectWeekData(weekStart);
+  if (feed.error !== 'not configured') {
+    step(
+      Boolean(data.partners),
+      'Circle partner offers',
+      data.partners
+        ? `${data.partners.list.length} of ${data.partners.total} partners this issue${feed.ok ? '' : ` (the Circle API could not be read - ${feed.error} - so the last copy was used)`}${data.partnersHidden ? ' - but the section is hidden in Settings' : ''}`
+        : `None yet: ${feed.error || 'the Circle feed has not been read'}.`
+    );
+  }
 
   if (!data.principalMessage) warnings.push("No principal's message was submitted this week.");
   if (data.news.length === 0) warnings.push('No news articles were submitted this week.');

@@ -2228,6 +2228,75 @@ test('certificates after the deadline: tabs per issue, and a table moves to this
   }
 });
 
+test('circle partner offers come from the Circle feed into the preview and the email by themselves', async () => {
+  const http = require('http');
+  const sharp = require('sharp');
+  const config = require('../src/config');
+  const { refreshPartners, partnersForWeek } = require('../src/partners');
+  const { generationWeekStart } = require('../src/appweek');
+  const { addDays } = require('../src/week');
+  const logo = await sharp({ create: { width: 300, height: 100, channels: 3, background: '#224488' } }).png().toBuffer();
+  const partners = Array.from({ length: 10 }, (_, i) => ({ partner: `Partner ${i + 1}`, badge: `-${i + 5}%`, logo: 'logos/p.png' }));
+  let failing = false;
+  const feed = http.createServer((req, res) => {
+    if (req.url === '/logos/p.png') return res.writeHead(200, { 'content-type': 'image/png' }).end(logo);
+    if (failing || req.headers.authorization !== 'Bearer feed-token-123') return res.writeHead(failing ? 500 : 401).end();
+    const site = `http://127.0.0.1:${feed.address().port}`;
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ school: 'bist', site, offers: partners.map((p) => ({ ...p, logo: `${site}/${p.logo}` })) }));
+  });
+  await new Promise((resolve) => feed.listen(0, '127.0.0.1', resolve));
+  const site = `http://127.0.0.1:${feed.address().port}`;
+  try {
+    // Not connected: nothing in the email, a labelled placeholder in the preview.
+    assert.strictEqual((await refreshPartners()).error, 'not configured');
+    assert.match(await (await get('/newsletter/preview.html')).text(), /Fills in by itself from circle\.bist\.ge/);
+    assert.ok(!(await (await get('/newsletter/export.html')).text()).includes('Partner offers'));
+
+    config.circle.feedUrl = `${site}/newsletter/bist/offers`;
+    config.circle.token = 'feed-token-123';
+    setSetting('partners_per_issue', '4');
+    assert.deepStrictEqual(await refreshPartners(), { ok: true, count: 10 });
+
+    // This week's four partners appear in the preview and the email: logo
+    // (sized from the real file: 300x100 -> 120x40), name and gold badge.
+    const email = await (await get('/newsletter/export.html')).text();
+    assert.match(email, /Partner offers/);
+    assert.strictEqual((email.match(/class="pt-cell" width="25%" valign="top"/g) || []).length, 4, 'four partners this issue');
+    assert.ok(email.includes(`src="${site}/logos/p.png"`) && /width="120" height="40"/.test(email));
+    assert.match(email, /background:#F2B32C[^>]*>-\d+%/);
+    assert.match(email, /See all 10 offers on 127\.0\.0\.1/);
+    const week = generationWeekStart();
+    const thisIssue = partnersForWeek(week, 4).list.map((p) => p.partner);
+    const nextIssue = partnersForWeek(addDays(week, 7), 4).list.map((p) => p.partner);
+    assert.notDeepStrictEqual(thisIssue, nextIssue, 'a different set every week');
+    for (const name of thisIssue) assert.ok(email.includes(name));
+    // It sits at the bottom, just above the footer.
+    assert.ok(email.indexOf('Partner offers') > email.indexOf('Upcoming Events'));
+    assert.match(await (await get('/settings')).text(), /10 partners/);
+
+    // If Circle cannot be reached, the last copy keeps the section going.
+    failing = true;
+    assert.strictEqual((await refreshPartners()).ok, false);
+    assert.match(await (await get('/newsletter/export.html')).text(), /Partner offers/);
+    assert.match(await (await get('/settings')).text(), /The last attempt to read Circle failed/);
+    failing = false;
+
+    // The section can be hidden, and shown again.
+    await post('/settings/partners', { partners_per_issue: '4' });
+    assert.ok(!(await (await get('/newsletter/export.html')).text()).includes('Partner offers'));
+    assert.match(await (await get('/newsletter/preview.html')).text(), /Partner offers - hidden/);
+    await post('/settings/partners', { partners_per_issue: '0', partners_visible: '1' });
+    const all = await (await get('/newsletter/export.html')).text();
+    assert.strictEqual((all.match(/class="pt-cell" width="25%" valign="top"/g) || []).length, 10, '0 shows every partner');
+  } finally {
+    config.circle.feedUrl = '';
+    config.circle.token = '';
+    db.prepare("DELETE FROM settings WHERE key IN ('circle_partners', 'circle_partners_error', 'partners_per_issue', 'partners_visible')").run();
+    feed.close();
+  }
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

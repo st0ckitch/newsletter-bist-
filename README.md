@@ -104,6 +104,22 @@ Without Mailchimp configured the app still works: content collection, preview
 and local issue generation all function; reminders/drafts are skipped and the
 dashboard shows a warning.
 
+### Circle partner offers
+
+The **Partner offers** section at the bottom of every issue (logo, name and
+offer badge of the partners on circle.bist.ge) fills in by itself from the
+Circle API's newsletter feed. Set two variables:
+
+- `CIRCLE_FEED_URL` - `https://<circle-api address>/newsletter/bist/offers`
+- `CIRCLE_FEED_TOKEN` - the same value as `NEWSLETTER_TOKEN` on the Circle API
+
+The feed is read at start, every six hours and just before each generation;
+the last copy read is kept, so the section keeps working if Circle is briefly
+down. **Settings → Circle partner offers** shows the status, reads it again on
+demand, sets how many partners each issue shows (a different set each week)
+and hides the section. Only names, logos and badges travel - the offer details
+stay behind the Circle members' login.
+
 ### Running in production
 
 - Set `APP_BASE_URL` to the public URL of the tool (used for links in

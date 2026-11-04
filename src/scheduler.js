@@ -7,6 +7,7 @@ const cron = require('node-cron');
 const { getSetting } = require('./db');
 const reminders = require('./reminders');
 const { generateIssue } = require('./generate');
+const { refreshPartners } = require('./partners');
 
 let jobs = [];
 
@@ -39,6 +40,9 @@ function start() {
   schedule(getSetting('thursday_reminder_cron'), tz, 'thursday-deadline-reminder', () =>
     reminders.sendThursdayReminder()
   );
+  // The Circle partner offers, kept fresh for the preview (generation reads
+  // them again itself).
+  schedule('17 */6 * * *', tz, 'circle-partners', () => refreshPartners());
   schedule(getSetting('friday_generate_cron'), tz, 'generate-draft', async () => {
     const result = await generateIssue({ trigger: 'cron' });
     // The editor reviews the assembled draft (curate articles, then send

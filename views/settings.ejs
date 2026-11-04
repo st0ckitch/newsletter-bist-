@@ -95,4 +95,43 @@
     </form>
   </div>
 </div>
+
+<div class="card card-narrow">
+  <h2>Circle partner offers</h2>
+  <p class="muted">The <strong>Partner offers</strong> section at the bottom of every issue comes from Circle by itself:
+  each partner&#39;s logo, name and offer badge, read from the Circle API every few hours and again just before a draft
+  is generated. The offer details stay behind the Circle login, which the section links to. Each issue shows a
+  different set of partners, so all of them come round in turn.</p>
+  <% if (!partners.configured) { %>
+    <div class="alert alert-warn">Not connected yet - set <code>CIRCLE_FEED_URL</code> and <code>CIRCLE_FEED_TOKEN</code>
+    in the server&#39;s variables (Railway).</div>
+  <% } else { %>
+    <p>
+      <% if (partners.count) { %>
+        <span class="tag tag-approved"><%= partners.count %> partners</span>
+        <span class="muted">from <%= partners.site.replace(/^https?:\/\//, '') %> - last read <%= partners.fetchedAt ? partners.fetchedAt.replace('T', ' ').slice(0, 16) + ' UTC' : '-' %></span>
+      <% } else { %>
+        <span class="tag tag-pending">no partners read yet</span>
+      <% } %>
+    </p>
+    <% if (partners.failure) { %>
+      <div class="alert alert-error">The last attempt to read Circle failed (<%= partners.failure.at.replace('T', ' ').slice(0, 16) %> UTC):
+      <%= partners.failure.error %>.<%= partners.count ? ' The newsletter keeps using the last copy that was read.' : '' %></div>
+    <% } %>
+    <% if (partnersRefreshed) { %><div class="alert alert-ok">Read again from Circle.</div><% } %>
+    <form method="post" action="/settings/partners/refresh" class="inline-form" style="margin-bottom:14px;">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="btn btn-secondary btn-sm">Refresh now</button>
+    </form>
+  <% } %>
+  <form method="post" action="/settings/partners" class="inline-form" style="flex-wrap:wrap; gap:10px;">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label class="muted" style="margin:0; font-weight:600;">Partners per issue
+      <input type="text" name="partners_per_issue" inputmode="numeric" pattern="[0-9]*" value="<%= settings.partners_per_issue %>" style="width:70px; display:inline-block; margin:0 0 0 6px;">
+    </label>
+    <label class="muted" style="margin:0; font-weight:600;"><input type="checkbox" name="partners_visible" value="1" <%= settings.partners_visible !== '0' ? 'checked' : '' %>> show in the newsletter</label>
+    <button class="btn btn-primary btn-sm">Save</button>
+  </form>
+  <p class="muted" style="margin-top:8px;">0 partners per issue shows all of them every time.</p>
+</div>
 <%- include('partials/foot') %>

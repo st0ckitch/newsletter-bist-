@@ -307,6 +307,11 @@ const SETTING_DEFAULTS = {
   // Primary and Secondary tables now have their own switches on the Houses
   // page (see housePointsVisible) and follow this one until first used.
   house_points_visible: '1',
+  // The Partner offers section at the bottom of every issue (from Circle):
+  // shown or hidden, and how many partners each issue shows - a different
+  // set every week; 0 shows them all.
+  partners_visible: '1',
+  partners_per_issue: '8',
   // Reminder to fill in content - every Monday morning
   monday_reminder_cron: '0 9 * * 1',
   // Hard-deadline reminder - Thursday morning, only to those who have not submitted
