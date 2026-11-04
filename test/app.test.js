@@ -2259,19 +2259,25 @@ test('circle partner offers come from the Circle feed into the preview and the e
     setSetting('partners_per_issue', '4');
     assert.deepStrictEqual(await refreshPartners(), { ok: true, count: 10 });
 
-    // This week's four partners appear in the preview and the email: logo
-    // (sized from the real file: 300x100 -> 120x40), name and gold badge.
+    // This week's four partners appear in the preview and the email, five
+    // tiles to a row: four partners and one empty filler, which phones drop.
     const email = await (await get('/newsletter/export.html')).text();
     assert.match(email, /Partner offers/);
-    assert.strictEqual((email.match(/class="pt-cell" width="25%" valign="top"/g) || []).length, 4, 'four partners this issue');
-    assert.ok(email.includes(`src="${site}/logos/p.png"`) && /width="120" height="40"/.test(email));
+    assert.strictEqual((email.match(/class="pt-cell" width="20%" valign="top"/g) || []).length, 4, 'four partners this issue');
+    assert.strictEqual((email.match(/class="pt-fill"/g) || []).length, 1, 'one filler completes the row');
+    assert.match(email, /\.pt-fill \{ display: none !important; \}/);
+    assert.match(email, /\.pt-table tr \{ display: inline !important; \}/);
+    // A 3:1 logo is sized from the real file, small: 61x20 (a square one would be 30x30).
+    assert.ok(email.includes(`src="${site}/logos/p.png"`) && /width="61" height="20"/.test(email));
+    // Logo and badge only - the partner's name is just the logo's alt text.
+    assert.ok(!/>Partner \d+</.test(email), 'no partner names printed');
     assert.match(email, /background:#F2B32C[^>]*>-\d+%/);
     assert.match(email, /See all 10 offers on 127\.0\.0\.1/);
     const week = generationWeekStart();
     const thisIssue = partnersForWeek(week, 4).list.map((p) => p.partner);
     const nextIssue = partnersForWeek(addDays(week, 7), 4).list.map((p) => p.partner);
     assert.notDeepStrictEqual(thisIssue, nextIssue, 'a different set every week');
-    for (const name of thisIssue) assert.ok(email.includes(name));
+    for (const name of thisIssue) assert.ok(email.includes(`alt="${name}"`));
     // It sits at the bottom, just above the footer.
     assert.ok(email.indexOf('Partner offers') > email.indexOf('Upcoming Events'));
     assert.match(await (await get('/settings')).text(), /10 partners/);
@@ -2291,7 +2297,8 @@ test('circle partner offers come from the Circle feed into the preview and the e
     assert.match(await (await get('/newsletter/preview.html')).text(), /Partner offers - hidden/);
     await post('/settings/partners', { partners_per_issue: '0', partners_visible: '1' });
     const all = await (await get('/newsletter/export.html')).text();
-    assert.strictEqual((all.match(/class="pt-cell" width="25%" valign="top"/g) || []).length, 10, '0 shows every partner');
+    assert.strictEqual((all.match(/class="pt-cell" width="20%" valign="top"/g) || []).length, 10, '0 shows every partner');
+    assert.strictEqual((all.match(/<tr>\s*<td class="pt-cell"/g) || []).length, 2, 'five to a row: 10 partners in 2 rows');
   } finally {
     config.circle.feedUrl = '';
     config.circle.token = '';

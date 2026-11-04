@@ -88,8 +88,10 @@ const MOBILE_CSS = `
     .hp-table, .hp-table tbody, .hp-table tr { display: block !important; width: 100% !important; }
     .hp-cell { display: inline-block !important; width: 48% !important; box-sizing: border-box !important; }
     .awards-table th, .awards-table td { padding: 7px 6px !important; font-size: 11px !important; }
-    .pt-table, .pt-table tbody, .pt-table tr { display: block !important; width: 100% !important; }
-    .pt-cell { display: inline-block !important; width: 48% !important; box-sizing: border-box !important; vertical-align: top !important; }
+    .pt-table, .pt-table tbody { display: block !important; width: 100% !important; }
+    .pt-table tr { display: inline !important; }
+    .pt-cell { display: inline-block !important; width: 32% !important; box-sizing: border-box !important; vertical-align: top !important; }
+    .pt-fill { display: none !important; }
   }`;
 
 function escapeHtml(s) {
@@ -754,7 +756,7 @@ function parseDirectory(footerNote) {
 /* ---------- Circle partner offers ---------- */
 
 // The partners of Circle (circle.bist.ge), styled like the website's cards:
-// the logo, the partner's name and the offer badge in Circle's gold. A
+// the logo and the offer badge in Circle's gold, five to a row. A
 // different set every issue (see src/partners.js); the details of each offer
 // stay behind the members' login, which every tile and the button link to.
 const CIRCLE_GOLD = '#F2B32C';
@@ -763,16 +765,22 @@ const PARTNER_SCHOOL = 'BIST';
 
 function partnerLogo(p) {
   if (!p.logo) return '';
-  // At most 40px tall and 120px wide, keeping the logo's own shape.
-  let h = 40;
-  let w = p.w && p.h ? Math.round((40 * p.w) / p.h) : 0;
-  if (w > 120) {
-    h = Math.max(1, Math.round((120 * p.h) / p.w));
-    w = 120;
+  // Small and visually even: a square logo is 30px tall, wider ones get
+  // shorter as they get wider (so a long wordmark does not dwarf a crest),
+  // and none is wider than 88px.
+  if (!(p.w && p.h)) {
+    return `<img src="${escapeHtml(p.logo)}" alt="${escapeHtml(p.partner)}" height="24" style="height:24px; width:auto; max-width:88px; display:inline-block; vertical-align:middle; border:0;">`;
   }
-  const size = w ? ` width="${w}" height="${h}"` : ' height="40"';
-  const css = w ? `width:${w}px; height:${h}px;` : 'height:40px; width:auto; max-width:120px;';
-  return `<img src="${escapeHtml(p.logo)}" alt="${escapeHtml(p.partner)}"${size} style="${css} max-width:100%; display:inline-block; vertical-align:middle; border:0;">`;
+  const ratio = p.w / p.h;
+  let h = Math.min(30, Math.max(16, 30 / Math.pow(Math.max(ratio, 1), 0.35)));
+  let w = h * ratio;
+  if (w > 88) {
+    w = 88;
+    h = 88 / ratio;
+  }
+  w = Math.max(1, Math.round(w));
+  h = Math.max(1, Math.round(h));
+  return `<img src="${escapeHtml(p.logo)}" alt="${escapeHtml(p.partner)}" width="${w}" height="${h}" style="width:${w}px; height:${h}px; max-width:100%; display:inline-block; vertical-align:middle; border:0;">`;
 }
 
 // Rough line count for text in a partner tile (about `perLine` characters a
@@ -805,22 +813,20 @@ function renderPartnersBlock(partners, placeholders, hidden) {
   }
   const site = partners.site || 'https://circle.bist.ge';
   const host = site.replace(/^https?:\/\//, '');
-  // Fixed rows for the logo, the name and the badge keep every tile the same
-  // height, side by side or stacked.
-  const nameH = 16 * Math.max(2, ...partners.list.map((p) => tileLines(p.partner, 15))) + 4;
-  const badgeH = 16 * Math.max(1, ...partners.list.map((p) => tileLines(p.badge, 13))) + 12;
+  // Logo and badge only, five to a row. On phones the rows dissolve and the
+  // tiles run on three to a line (the empty fillers drop out); the fixed logo
+  // and badge heights keep every tile the same height either way.
+  const PER_ROW = 5;
+  const badgeH = 16 * Math.max(1, ...partners.list.map((p) => tileLines(p.badge, 10))) + 10;
   const tile = (p) => `
-      <td class="pt-cell" width="25%" valign="top" style="padding:5px;">
+      <td class="pt-cell" width="20%" valign="top" style="padding:4px;">
         <a href="${escapeHtml(site)}" target="_blank" style="display:block; text-decoration:none;">
-          <div style="background:#ffffff; border:1px solid #E7E4DB; border-radius:12px; padding:14px 8px 13px 8px;">
+          <div style="background:#ffffff; border:1px solid #E7E4DB; border-radius:12px; padding:12px 6px 10px 6px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-              <tr><td height="44" align="center" valign="middle" style="height:44px;">${partnerLogo(p)}</td></tr>
-              <tr><td height="${nameH}" align="center" valign="middle" style="height:${nameH}px; padding-top:4px; font-family:${SANS}; font-size:12.5px; font-weight:700; line-height:16px; color:${CIRCLE_NAVY};">${escapeHtml(
-    p.partner
-  )}</td></tr>
-              <tr><td height="${badgeH}" align="center" valign="middle" style="height:${badgeH}px; padding-top:4px;">${
+              <tr><td height="34" align="center" valign="middle" style="height:34px;">${partnerLogo(p)}</td></tr>
+              <tr><td height="${badgeH}" align="center" valign="middle" style="height:${badgeH}px; padding-top:6px;">${
                 p.badge
-                  ? `<span style="display:inline-block; max-width:100%; box-sizing:border-box; background:${CIRCLE_GOLD}; color:${CIRCLE_NAVY}; font-family:${SANS}; font-size:13px; font-weight:800; line-height:16px; padding:5px 11px; border-radius:14px;">${escapeHtml(
+                  ? `<span style="display:inline-block; max-width:100%; box-sizing:border-box; background:${CIRCLE_GOLD}; color:${CIRCLE_NAVY}; font-family:${SANS}; font-size:12px; font-weight:800; line-height:16px; padding:4px 9px; border-radius:14px;">${escapeHtml(
                       p.badge
                     )}</span>`
                   : '&nbsp;'
@@ -830,9 +836,11 @@ function renderPartnersBlock(partners, placeholders, hidden) {
         </a>
       </td>`;
   let rows = '';
-  for (let i = 0; i < partners.list.length; i += 4) {
-    const four = partners.list.slice(i, i + 4);
-    rows += `<tr>${four.map(tile).join('')}${'<td class="pt-cell" width="25%" style="padding:5px;">&nbsp;</td>'.repeat(4 - four.length)}</tr>`;
+  for (let i = 0; i < partners.list.length; i += PER_ROW) {
+    const row = partners.list.slice(i, i + PER_ROW);
+    rows += `<tr>${row.map(tile).join('')}${'<td class="pt-fill" width="20%" style="padding:4px;">&nbsp;</td>'.repeat(
+      PER_ROW - row.length
+    )}</tr>`;
   }
   const more = partners.total > partners.list.length ? `See all ${partners.total} offers` : 'See every offer';
   return `
