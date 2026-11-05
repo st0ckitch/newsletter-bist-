@@ -7,6 +7,7 @@ const { formatHuman, todayStr } = require('../week');
 const { submissionWeekStart, generationWeekStart, generationDay, generationTimeLabel } = require('../appweek');
 const { submissionStatus } = require('../reminders');
 const mailchimp = require('../mailchimp');
+const { diskUsage } = require('../storage');
 
 const router = express.Router();
 
@@ -62,6 +63,7 @@ router.get('/', requireLogin, (req, res) => {
     sectionLabels: SECTIONS,
     myArea: req.user.section ? SECTIONS[req.user.section] || req.user.section : null,
     mailchimpConfigured: mailchimp.isConfigured(),
+    storage: canManage(req.user) ? diskUsage() : null,
   });
 });
 

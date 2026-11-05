@@ -6,7 +6,7 @@ const { SECTION_KEYS, SECTIONS, isSection } = require('../sections');
 const { submissionWeekStart, generationWeekStart, issueWeekChoices, cutoffLabel } = require('../appweek');
 const { addDays, isValidDateStr } = require('../week');
 const { CONTENT_SLOTS, SLOT_LABELS, MAX_ARTICLE_WORDS, wordCount, allowedSlots, defaultSlot, columnRule } = require('../slots');
-const { upload, isRealImage, removeFiles, normalizeFiles, copyUpload } = require('../uploads');
+const { upload, isRealImage, removeFiles, normalizeFiles, copyUpload, shrinkUpload } = require('../uploads');
 const { renderArticlePreview } = require('../newsletter');
 const { uploadSize, dataUriSize } = require('../imagesize');
 
@@ -273,6 +273,7 @@ router.post('/news', requireLogin, photosUpload, async (req, res) => {
     );
   await normalizeFiles(req.contentPhotos);
   savePhotos(info.lastInsertRowid, req.contentPhotos);
+  if (req.leadPhotoFile) await shrinkUpload(req.leadPhotoFile.filename);
   // An uploaded portrait wins; otherwise a saved staff headshot picked from
   // the dropdown is copied in as this article's own lead photo.
   const newLead = req.leadPhotoFile ? req.leadPhotoFile.filename : headshotCopy(req.body.lead_user_id);
@@ -344,6 +345,7 @@ router.post('/news/:id', requireLogin, loadNews, photosUpload, async (req, res) 
   if (values.week !== old.week_start) moveToWeek(old.id, slot, values.week);
   await normalizeFiles(req.contentPhotos);
   savePhotos(req.newsItem.id, req.contentPhotos);
+  if (req.leadPhotoFile) await shrinkUpload(req.leadPhotoFile.filename);
   const newLead = req.leadPhotoFile ? req.leadPhotoFile.filename : headshotCopy(req.body.lead_user_id);
   if (newLead) {
     // A new head-of-grade portrait (uploaded, or a saved staff headshot)

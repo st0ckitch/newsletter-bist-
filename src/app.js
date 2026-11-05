@@ -83,6 +83,14 @@ function createApp() {
   app.use((err, req, res, next) => {
     console.error('[app] Unhandled error:', err);
     if (res.headersSent) return next(err);
+    // A full storage volume gets a message that says so (the nightly
+    // tidy-up in src/storage.js normally keeps space free).
+    if (err.code === 'ENOSPC') {
+      return res.status(507).render('error', {
+        message:
+          "The newsletter server's storage is full, so this could not be saved. Ask the site admin to press \"Tidy up now\" under Settings - Storage, then try again.",
+      });
+    }
     const message = err.status === 400 || err.expose ? err.message : 'Something went wrong. Please try again.';
     res.status(err.status || 500).render('error', { message });
   });

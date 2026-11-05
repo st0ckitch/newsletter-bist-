@@ -27,7 +27,10 @@ const app = createApp();
 app.listen(config.port, () => {
   console.log(`[server] Newsletter admin panel running on ${config.appBaseUrl} (port ${config.port})`);
   scheduler.start();
-  normalizeOldPhotos().catch((err) => console.error('[uploads] Photo catch-up failed:', err.message));
+  // Then the storage tidy-up (src/storage.js), which logs where the space goes.
+  normalizeOldPhotos()
+    .catch((err) => console.error('[uploads] Photo catch-up failed:', err.message))
+    .then(() => require('./src/storage').startupTidy());
   require('./src/partners')
     .refreshPartners()
     .catch((err) => console.error('[partners] First read failed:', err.message));

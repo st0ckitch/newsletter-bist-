@@ -2,11 +2,12 @@ const express = require('express');
 const cron = require('node-cron');
 const { allSettings, getSetting, setSetting } = require('../db');
 const { requireManager, csrfOk } = require('../auth');
-const { upload, isRealImage, removeFiles } = require('../uploads');
+const { upload, isRealImage, removeFiles, shrinkUpload } = require('../uploads');
 const mailchimp = require('../mailchimp');
 const scheduler = require('../scheduler');
 const config = require('../config');
 const { refreshPartners, partnersStatus } = require('../partners');
+const { storageReport, tidyStorage, lastTidy } = require('../storage');
 
 const router = express.Router();
 
@@ -22,6 +23,8 @@ function settingsLocals(overrides = {}) {
     mastheadPhoto: getSetting('masthead_photo') || null,
     partners: partnersStatus(),
     partnersRefreshed: false,
+    storage: { ...storageReport(), tidy: lastTidy() },
+    storageTidied: null,
     ...overrides,
   };
 }
@@ -71,10 +74,20 @@ router.post('/settings/partners/refresh', requireManager, async (req, res, next)
   }
 });
 
+// The storage tidy-up (src/storage.js) now instead of waiting for the night.
+router.post('/settings/storage/tidy', requireManager, async (req, res, next) => {
+  try {
+    const storageTidied = await tidyStorage();
+    res.render('settings', settingsLocals({ storageTidied }));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Masthead background image (behind "THE ROAR" in the header). Stored as a
 // setting; the CDN copy is re-uploaded on the next generation.
 router.post('/settings/masthead-photo', requireManager, (req, res, next) => {
-  upload.single('masthead')(req, res, (err) => {
+  upload.single('masthead')(req, res, async (err) => {
     const cleanup = () => removeFiles(req.file ? [req.file.filename] : []);
     if (err) {
       cleanup();
@@ -95,6 +108,7 @@ router.post('/settings/masthead-photo', requireManager, (req, res, next) => {
         .status(400)
         .render('settings', { ...settingsLocals(), errors: [`"${req.file.originalname}" is not a valid image file.`] });
     }
+    await shrinkUpload(req.file.filename);
     const old = getSetting('masthead_photo');
     if (old) removeFiles([old]);
     setSetting('masthead_photo', req.file.filename);

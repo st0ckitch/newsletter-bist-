@@ -2,7 +2,7 @@ const express = require('express');
 const { db, setSetting, housePointsVisible } = require('../db');
 const { requireManager, requireHouses, csrfOk, canManage } = require('../auth');
 const { housePhases, HOUSE_PHASES } = require('../roles');
-const { upload, isRealImage, removeFiles } = require('../uploads');
+const { upload, isRealImage, removeFiles, shrinkUpload } = require('../uploads');
 
 // The school houses and their running point totals. Houses (names, logos,
 // colours) are set up by managers and live across the whole year; the points
@@ -147,7 +147,7 @@ router.post('/houses/:id/delete', requireManager, (req, res) => {
 // generation. This is a multipart route, so the CSRF token is verified
 // after multer has parsed the body (see MULTIPART_PATHS in auth.js).
 router.post('/houses/:id/logo', requireManager, (req, res) => {
-  upload.single('logo')(req, res, (err) => {
+  upload.single('logo')(req, res, async (err) => {
     const cleanup = () => removeFiles(req.file ? [req.file.filename] : []);
     if (err) {
       cleanup();
@@ -172,6 +172,7 @@ router.post('/houses/:id/logo', requireManager, (req, res) => {
       cleanup();
       return res.status(400).render('error', { message: 'Choose a valid image file for the house logo.' });
     }
+    await shrinkUpload(req.file.filename);
     removeFiles([row.logo]);
     db.prepare('UPDATE houses SET logo = ?, logo_mailchimp_url = NULL WHERE id = ?').run(req.file.filename, row.id);
     res.redirect('/houses');

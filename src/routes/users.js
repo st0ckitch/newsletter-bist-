@@ -5,7 +5,7 @@ const { requireAdmin, requireLogin, csrfOk } = require('../auth');
 const { ASSIGNABLE_ROLES, ALL_ROLES, ROLE_LABELS } = require('../roles');
 const { SECTIONS, SECTION_KEYS } = require('../sections');
 const invites = require('../invites');
-const { upload, isRealImage, removeFiles } = require('../uploads');
+const { upload, isRealImage, removeFiles, shrinkUpload } = require('../uploads');
 
 // The staff-import and invitation email actions belong to the site admin
 // alone (the marketing owner's account) - SLT keep the ordinary account
@@ -220,7 +220,7 @@ router.get('/users/export.txt', requireSiteAdmin, (req, res) => {
 // news form's "Photo of the section head" picker so nobody re-uploads the
 // same portrait every week. Admins and SLT manage these.
 router.post('/users/:id/headshot', requireAdmin, (req, res) => {
-  upload.single('headshot')(req, res, (err) => {
+  upload.single('headshot')(req, res, async (err) => {
     const cleanup = () => removeFiles(req.file ? [req.file.filename] : []);
     if (err) {
       cleanup();
@@ -245,6 +245,7 @@ router.post('/users/:id/headshot', requireAdmin, (req, res) => {
       cleanup();
       return res.status(400).render('error', { message: 'Choose a valid image file for the headshot.' });
     }
+    await shrinkUpload(req.file.filename);
     removeFiles([user.headshot]);
     db.prepare('UPDATE users SET headshot = ? WHERE id = ?').run(req.file.filename, user.id);
     res.redirect('/users');
@@ -297,7 +298,7 @@ router.get('/users/headshots', requireAdmin, (req, res) => {
 // One photo per request (the page sends them one by one, already downscaled
 // in the browser, so gigabytes of originals never travel anywhere).
 router.post('/api/headshots/import', requireAdmin, (req, res) => {
-  upload.single('photo')(req, res, (err) => {
+  upload.single('photo')(req, res, async (err) => {
     const cleanup = () => removeFiles(req.file ? [req.file.filename] : []);
     if (err) {
       cleanup();
@@ -321,6 +322,7 @@ router.post('/api/headshots/import', requireAdmin, (req, res) => {
       cleanup();
       return res.json({ ok: false, reason: `${user.name} already has a headshot (tick "replace existing" to overwrite)` });
     }
+    await shrinkUpload(req.file.filename);
     removeFiles([user.headshot]);
     db.prepare('UPDATE users SET headshot = ? WHERE id = ?').run(req.file.filename, user.id);
     res.json({ ok: true, matched: user.name });

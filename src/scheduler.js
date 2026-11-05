@@ -8,6 +8,7 @@ const { getSetting } = require('./db');
 const reminders = require('./reminders');
 const { generateIssue } = require('./generate');
 const { refreshPartners } = require('./partners');
+const { tidyStorage } = require('./storage');
 
 let jobs = [];
 
@@ -43,6 +44,9 @@ function start() {
   // The Circle partner offers, kept fresh for the preview (generation reads
   // them again itself).
   schedule('17 */6 * * *', tz, 'circle-partners', () => refreshPartners());
+  // Shares identical copies, removes unused files, scales down oversized
+  // pictures - so the storage volume never quietly fills up.
+  schedule('43 3 * * *', tz, 'storage-tidy', () => tidyStorage());
   schedule(getSetting('friday_generate_cron'), tz, 'generate-draft', async () => {
     const result = await generateIssue({ trigger: 'cron' });
     // The editor reviews the assembled draft (curate articles, then send

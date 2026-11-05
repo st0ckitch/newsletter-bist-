@@ -3,7 +3,7 @@ const { db } = require('../db');
 const { requireRole, csrfOk } = require('../auth');
 const { formatHuman } = require('../week');
 const { generationWeekStart, generationDay, generationTimeLabel } = require('../appweek');
-const { upload, isRealImage, removeFiles, copyUpload } = require('../uploads');
+const { upload, isRealImage, removeFiles, copyUpload, shrinkUpload } = require('../uploads');
 
 const router = express.Router();
 
@@ -61,7 +61,16 @@ router.get('/principal-message', requireRole('principal', 'admin'), (req, res) =
   res.render('principal', pageLocals(req, generationWeekStart()));
 });
 
-router.post('/principal-message', requireRole('principal', 'admin'), photoUpload, (req, res) => {
+router.post('/principal-message', requireRole('principal', 'admin'), photoUpload, async (req, res, next) => {
+  try {
+    if (req.file) await shrinkUpload(req.file.filename);
+    savePrincipalMessage(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+function savePrincipalMessage(req, res) {
   const weekStart = generationWeekStart();
   const body = (req.body.body || '').trim();
   const quote = (req.body.quote || '').trim() || null;
@@ -114,7 +123,7 @@ router.post('/principal-message', requireRole('principal', 'admin'), photoUpload
     }
   }
   res.redirect('/principal-message?saved=1');
-});
+}
 
 router.post('/principal-message/photo/delete', requireRole('principal', 'admin'), (req, res) => {
   const weekStart = generationWeekStart();

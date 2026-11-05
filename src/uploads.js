@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const config = require('./config');
+const { forgetUploadSize } = require('./imagesize');
 
 const MIME_EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif' };
 
@@ -88,17 +89,119 @@ async function normalizeFiles(files) {
   return files;
 }
 
+// A hard link where the disk allows it (the same bytes under a second
+// name, taking no extra space), else a real copy.
+function linkOrCopy(src, dest) {
+  try {
+    fs.linkSync(src, dest);
+  } catch {
+    fs.copyFileSync(src, dest);
+  }
+}
+
 // Copy an uploaded file to a fresh random name (same extension). Used when
 // an article reuses a person's saved headshot: the article gets its own copy,
 // so deleting the article never removes the shared headshot (and later
-// headshot updates do not rewrite already-sent issues).
+// headshot updates do not rewrite already-sent issues). The copy is a hard
+// link - nothing ever rewrites a stored file in place, so the names stay
+// independent while sharing one file's worth of disk. Returns null when the
+// file is missing or cannot be copied: the caller simply goes without.
 function copyUpload(filename) {
+  if (!filename) return null;
   const src = path.join(config.uploadDir, filename);
   if (!fs.existsSync(src)) return null;
   const ext = path.extname(filename) || '.jpg';
   const newName = crypto.randomBytes(16).toString('hex') + ext;
-  fs.copyFileSync(src, path.join(config.uploadDir, newName));
+  try {
+    linkOrCopy(src, path.join(config.uploadDir, newName));
+  } catch (err) {
+    console.error('[uploads] Could not copy photo file:', err.message);
+    return null;
+  }
   return newName;
 }
 
-module.exports = { upload, isRealImage, removeFiles, MIME_EXT, normalizePhoto, normalizeFiles, copyUpload };
+// Portraits, headshots, logos and the masthead keep their own format (a
+// logo's transparency survives) but, like article photos, are scaled to fit
+// within 1200x1200 - full-size phone originals run to several MB each, and
+// the server's storage is small.
+const MAX_SIDE = 1200;
+const BIG_FILE = 1024 * 1024;
+const ENCODERS = {
+  jpeg: (img) => img.jpeg({ quality: 82, mozjpeg: true }),
+  png: (img) => img.png({ compressionLevel: 9, adaptiveFiltering: true }),
+  webp: (img) => img.webp({ quality: 82 }),
+};
+
+// The smaller version of an image file as a buffer, or null when it is
+// already small enough (or unreadable, animated, or would barely shrink).
+async function shrunkImage(filePath) {
+  let input;
+  try {
+    input = fs.readFileSync(filePath);
+  } catch {
+    return null;
+  }
+  try {
+    const meta = await sharp(input).metadata();
+    const encode = ENCODERS[meta.format];
+    if (!encode || (meta.pages || 1) > 1) return null;
+    if (Math.max(meta.width || 0, meta.height || 0) <= MAX_SIDE && input.length <= BIG_FILE) return null;
+    const out = await encode(
+      sharp(input).rotate().resize(MAX_SIDE, MAX_SIDE, { fit: 'inside', withoutEnlargement: true })
+    ).toBuffer();
+    return out.length < input.length * 0.9 ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+const tempName = (kind) => `.${crypto.randomBytes(8).toString('hex')}.${kind}`;
+
+// Puts new bytes under each of the given names (a temp file, then atomic
+// renames), so names that shared one file share the new one too and no
+// name is ever left half-written.
+function replaceContent(names, buffer) {
+  const tmp = path.join(config.uploadDir, tempName('tmp'));
+  try {
+    fs.writeFileSync(tmp, buffer);
+    for (const name of names) {
+      const swap = path.join(config.uploadDir, tempName('swap'));
+      linkOrCopy(tmp, swap);
+      fs.renameSync(swap, path.join(config.uploadDir, name));
+    }
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+  forgetUploadSize(names);
+}
+
+// A just-uploaded picture scaled down in place (same name). Never fails: on
+// any problem the upload is kept as it came.
+async function shrinkUpload(filename) {
+  if (!filename) return filename;
+  const out = await shrunkImage(path.join(config.uploadDir, filename));
+  if (out) {
+    try {
+      replaceContent([filename], out);
+    } catch (err) {
+      console.error('[uploads] Could not shrink photo:', err.message);
+    }
+  }
+  return filename;
+}
+
+module.exports = {
+  upload,
+  isRealImage,
+  removeFiles,
+  MIME_EXT,
+  normalizePhoto,
+  normalizeFiles,
+  copyUpload,
+  linkOrCopy,
+  shrunkImage,
+  replaceContent,
+  shrinkUpload,
+  MAX_SIDE,
+};

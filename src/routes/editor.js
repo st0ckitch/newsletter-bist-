@@ -6,7 +6,7 @@ const path = require('path');
 const config = require('../config');
 const { db, getSetting, setSetting } = require('../db');
 const { requireLayout, csrfOk } = require('../auth');
-const { upload, isRealImage, removeFiles, normalizePhoto } = require('../uploads');
+const { upload, isRealImage, removeFiles, normalizePhoto, shrinkUpload } = require('../uploads');
 const { MAX_ARTICLE_WORDS, wordCount, CONTENT_SLOTS } = require('../slots');
 const { isValidDateStr } = require('../week');
 
@@ -171,19 +171,21 @@ function loadWeekMessage(week) {
   return isValidDateStr(week) ? db.prepare('SELECT * FROM principal_messages WHERE week_start = ?').get(week) : null;
 }
 
-router.post('/api/edit/principal-photo', manager, photoUpload, (req, res) => {
+router.post('/api/edit/principal-photo', manager, photoUpload, async (req, res) => {
   const pm = loadWeekMessage(req.body.week);
   if (!pm) {
     removeFiles([req.file.filename]);
     return bad(res, "Write the principal's message first, then add the portrait.", 404);
   }
+  await shrinkUpload(req.file.filename);
   if (pm.photo) removeFiles([pm.photo]);
   db.prepare('UPDATE principal_messages SET photo = ?, photo_mailchimp_url = NULL WHERE id = ?').run(req.file.filename, pm.id);
   res.json({ ok: true });
 });
 
 // Masthead background image (behind "THE ROAR"), stored as a setting.
-router.post('/api/edit/masthead-photo', manager, photoUpload, (req, res) => {
+router.post('/api/edit/masthead-photo', manager, photoUpload, async (req, res) => {
+  await shrinkUpload(req.file.filename);
   const old = getSetting('masthead_photo');
   if (old) removeFiles([old]);
   setSetting('masthead_photo', req.file.filename);

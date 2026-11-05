@@ -99,7 +99,7 @@
 <div class="card card-narrow">
   <h2>Circle partner offers</h2>
   <p class="muted">The <strong>Partner offers</strong> section at the bottom of every issue comes from Circle by itself:
-  each partner&#39;s logo, name and offer badge, read from the Circle API every few hours and again just before a draft
+  each partner&#39;s logo and offer badge, read from the Circle API every few hours and again just before a draft
   is generated. The offer details stay behind the Circle login, which the section links to. Each issue shows a
   different set of partners, so all of them come round in turn.</p>
   <% if (partners.configured) { %>
@@ -131,5 +131,41 @@
     <button class="btn btn-primary btn-sm">Save</button>
   </form>
   <p class="muted" style="margin-top:8px;">0 partners per issue shows all of them every time.</p>
+</div>
+
+<% const mb = function (n) { return (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB'; }; %>
+<div class="card card-narrow" id="storage">
+  <h2>Storage</h2>
+  <% if (storage.disk) { %>
+    <p>
+      <span class="tag <%= storage.disk.percent >= 85 ? 'tag-rejected' : 'tag-approved' %>"><%= storage.disk.percent %>% used</span>
+      <span class="muted"><%= mb(storage.disk.used) %> of <%= mb(storage.disk.total) %> on the server - where the photos, portraits and logos are kept.</span>
+    </p>
+  <% } %>
+  <p class="muted">Every night the newsletter tidies its storage: a picture used in several places (a headshot reused
+  in many articles, the principal&#39;s portrait carried from week to week) is kept on disk once, files nothing uses any
+  more are removed, and oversized portraits and logos are scaled down to 1200px. Nothing the newsletter still shows is
+  ever removed.</p>
+  <% if (storageTidied) { %>
+    <div class="alert alert-ok">Tidied up - freed <%= mb(storageTidied.freed) %>: <%= storageTidied.removed %> unused
+    file<%= storageTidied.removed === 1 ? '' : 's' %> removed, <%= storageTidied.shared %> identical cop<%= storageTidied.shared === 1 ? 'y' : 'ies' %> shared,
+    <%= storageTidied.shrunk %> oversized picture<%= storageTidied.shrunk === 1 ? '' : 's' %> scaled down.</div>
+  <% } else if (storage.tidy) { %>
+    <p class="muted">Last tidy-up <%= storage.tidy.at.replace('T', ' ').slice(0, 16) %> UTC - freed <%= mb(storage.tidy.freed) %>.</p>
+  <% } %>
+  <form method="post" action="/settings/storage/tidy" class="inline-form" style="margin-bottom:10px;">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="btn btn-secondary btn-sm">Tidy up now</button>
+  </form>
+  <% if (storage.kinds.length) { %>
+  <table class="table">
+    <thead><tr><th>What</th><th>Files</th><th>Space</th></tr></thead>
+    <tbody>
+      <% storage.kinds.forEach(function(k) { %>
+        <tr><td><%= k.label %></td><td><%= k.files %></td><td><%= mb(k.bytes) %></td></tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
 </div>
 <%- include('partials/foot') %>

@@ -78,4 +78,9 @@ function dataUriSize(uri) {
   return size && size.w > 0 && size.h > 0 ? size : null;
 }
 
-module.exports = { imageSize, uploadSize, dataUriSize };
+// Drops cached sizes for files whose content was just replaced.
+function forgetUploadSize(names) {
+  for (const name of names || []) cache.delete(name);
+}
+
+module.exports = { imageSize, uploadSize, dataUriSize, forgetUploadSize };

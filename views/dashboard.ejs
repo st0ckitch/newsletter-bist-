@@ -29,6 +29,11 @@
   <div class="alert alert-warn">Mailchimp is not configured - reminders and draft creation are disabled. Set <code>MAILCHIMP_API_KEY</code>, <code>MAILCHIMP_SERVER_PREFIX</code> and <code>MAILCHIMP_AUDIENCE_ID</code> in <code>.env</code>.</div>
 <% } %>
 
+<% if (typeof storage !== 'undefined' && storage && storage.percent >= 85) { %>
+  <div class="alert alert-warn">The newsletter server&#39;s storage is <strong><%= storage.percent %>% full</strong> -
+  photo uploads stop working once it is full. See <a href="/settings#storage">Settings - Storage</a>.</div>
+<% } %>
+
 <% if (houseTables.length && !isManager) { %>
 <div class="card">
   <div class="card-head-row">

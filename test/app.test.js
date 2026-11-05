@@ -2307,6 +2307,125 @@ test('circle partner offers come from the Circle feed into the preview and the e
   }
 });
 
+test('storage: copies share one file, unused files go, oversized pictures shrink - and a full disk never breaks a save', async () => {
+  const sharp = require('sharp');
+  const crypto = require('crypto');
+  const config = require('../src/config');
+  const { copyUpload } = require('../src/uploads');
+  const { tidyStorage, storageReport } = require('../src/storage');
+  const { generationWeekStart } = require('../src/appweek');
+  const DAY = 24 * 60 * 60 * 1000;
+  const at = (n) => path.join(config.uploadDir, n);
+  const fresh = (ext = '.jpg') => crypto.randomBytes(16).toString('hex') + ext;
+  const write = (buf, ext) => {
+    const name = fresh(ext);
+    fs.writeFileSync(at(name), buf);
+    return name;
+  };
+  const ino = (n) => fs.statSync(at(n)).ino;
+  const dims = async (n) => {
+    const m = await sharp(fs.readFileSync(at(n))).metadata();
+    return Math.max(m.width, m.height);
+  };
+  const small = await sharp({ create: { width: 300, height: 400, channels: 3, background: '#335577' } }).jpeg().toBuffer();
+  const big = await sharp({ create: { width: 2600, height: 1800, channels: 3, background: '#aa3322' } }).jpeg({ quality: 95 }).toBuffer();
+  const week = generationWeekStart();
+  const snapshot = db.prepare('SELECT * FROM principal_messages WHERE week_start = ?').get(week) || null;
+  const user = db
+    .prepare("INSERT INTO users (email, name, password_hash, role) VALUES ('storage@test.local', 'Storage Test', 'x', 'teacher')")
+    .run().lastInsertRowid;
+  const realLink = fs.linkSync;
+  const realCopy = fs.copyFileSync;
+  const made = [];
+  try {
+    // A copy of a headshot is a hard link: no extra space, yet its own name.
+    const head = write(small, '.jpg');
+    made.push(head);
+    const copy = copyUpload(head);
+    made.push(copy);
+    assert.notStrictEqual(copy, head);
+    assert.strictEqual(ino(copy), ino(head), 'the copy shares the bytes');
+
+    // Two weeks' portraits that are separate identical files, a full-size
+    // headshot, a file only an issue's saved HTML links to, one only a JSON
+    // setting names, and one nothing uses.
+    const twinA = write(small, '.jpg');
+    const twinB = write(small, '.jpg');
+    const huge = write(big, '.jpg');
+    const inHtml = write(Buffer.concat([small, Buffer.from('html')]), '.jpg');
+    const inJson = write(Buffer.concat([small, Buffer.from('json')]), '.jpg');
+    const unused = write(Buffer.concat([small, Buffer.from('unused')]), '.jpg');
+    made.push(twinA, twinB, huge, inHtml, inJson, unused);
+    db.prepare(
+      "INSERT INTO principal_messages (week_start, body, photo) VALUES ('2019-01-07', 'a', ?), ('2019-01-14', 'b', ?), ('2019-01-21', 'c', ?), ('2019-01-28', 'd', ?)"
+    ).run(twinA, twinB, head, copy);
+    db.prepare('UPDATE users SET headshot = ? WHERE id = ?').run(huge, user);
+    db.prepare("INSERT INTO issues (week_start, html, status) VALUES ('2019-01-07', ?, 'draft')").run(`<img src="https://x.test/uploads/${inHtml}">`);
+    setSetting('storage_test_ref', JSON.stringify({ pictures: [inJson] }));
+    assert.notStrictEqual(ino(twinA), ino(twinB));
+
+    // A fresh unused file is left alone (it may be an upload in flight).
+    await tidyStorage();
+    assert.ok(fs.existsSync(at(unused)), 'fresh unused file kept');
+    assert.strictEqual(ino(twinA), ino(twinB), 'identical portraits now share one file');
+    assert.ok((await dims(huge)) <= 1200, 'full-size headshot scaled down to 1200px');
+
+    // A day later the unused file goes; everything named anywhere stays.
+    const summary = await tidyStorage({ now: Date.now() + 2 * DAY });
+    assert.ok(!fs.existsSync(at(unused)), 'old unused file removed');
+    for (const n of [head, copy, twinA, twinB, huge, inHtml, inJson]) assert.ok(fs.existsSync(at(n)), `${n} kept`);
+    assert.ok(summary.removed >= 1 && summary.freed > 0);
+    assert.ok(storageReport().kinds.some((k) => k.label === 'Staff headshots'));
+
+    // Uploads are scaled down as they arrive.
+    const png = await sharp({ create: { width: 2000, height: 1500, channels: 4, background: { r: 0, g: 80, b: 160, alpha: 0.5 } } }).png().toBuffer();
+    const form = new FormData();
+    form.append('_csrf', csrf);
+    form.append('headshot', new Blob([png], { type: 'image/png' }), 'big.png');
+    await fetch(base + `/users/${user}/headshot`, { method: 'POST', headers: { cookie: cookies }, body: form, redirect: 'manual' });
+    const uploaded = db.prepare('SELECT headshot FROM users WHERE id = ?').get(user).headshot;
+    made.push(uploaded);
+    const meta = await sharp(fs.readFileSync(at(uploaded))).metadata();
+    assert.ok(Math.max(meta.width, meta.height) <= 1200 && meta.format === 'png' && meta.hasAlpha, 'PNG kept, transparency kept, 1200px');
+
+    // The Settings page shows the storage card; Tidy up now runs it.
+    assert.match(await (await get('/settings')).text(), /id="storage"[\s\S]*Tidy up now/);
+    assert.match(await (await post('/settings/storage/tidy', {})).text(), /Tidied up - freed/);
+
+    // Disk full: the principal's message still saves (this week's portrait
+    // carry-forward simply goes without) instead of an error page.
+    db.prepare('DELETE FROM principal_messages WHERE week_start = ?').run(week);
+    const full = () => {
+      const e = new Error('ENOSPC: no space left on device');
+      e.code = 'ENOSPC';
+      throw e;
+    };
+    fs.linkSync = full;
+    fs.copyFileSync = full;
+    const mp = new FormData();
+    mp.append('_csrf', csrf);
+    mp.append('body', 'Dear Parents, a full-disk week.');
+    const saved = await fetch(base + '/principal-message', { method: 'POST', headers: { cookie: cookies }, body: mp, redirect: 'manual' });
+    fs.linkSync = realLink;
+    fs.copyFileSync = realCopy;
+    assert.strictEqual(saved.status, 302, 'saved, not an error page');
+    assert.strictEqual(db.prepare('SELECT body FROM principal_messages WHERE week_start = ?').get(week).body, 'Dear Parents, a full-disk week.');
+  } finally {
+    fs.linkSync = realLink;
+    fs.copyFileSync = realCopy;
+    for (const n of made) if (n) fs.rmSync(at(n), { force: true });
+    db.prepare("DELETE FROM principal_messages WHERE week_start IN ('2019-01-07', '2019-01-14', '2019-01-21', '2019-01-28', ?)").run(week);
+    db.prepare("DELETE FROM issues WHERE week_start = '2019-01-07'").run();
+    db.prepare("DELETE FROM settings WHERE key IN ('storage_test_ref', 'storage_tidy')").run();
+    db.prepare('DELETE FROM users WHERE id = ?').run(user);
+    if (snapshot) {
+      db.prepare(
+        'INSERT INTO principal_messages (week_start, body, quote, quote_author, photo, photo_mailchimp_url, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(snapshot.week_start, snapshot.body, snapshot.quote, snapshot.quote_author, snapshot.photo, snapshot.photo_mailchimp_url, snapshot.created_by);
+    }
+  }
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');
