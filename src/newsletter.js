@@ -897,7 +897,7 @@ function renderJoinCircleBlock(partners, placeholders, hidden) {
       <tr><td style="padding:22px 24px 20px 24px;">
         <p style="margin:0 0 6px 0; font-family:${SANS}; font-size:10px; font-weight:700; letter-spacing:3px; color:${CIRCLE_GOLD};">CIRCLE &bull; THE BIST COMMUNITY</p>
         <h2 style="margin:0 0 10px 0; font-family:${SERIF}; font-size:24px; font-weight:800; line-height:1.2; color:#ffffff;">Join Circle in two minutes</h2>
-        <p style="margin:0 0 16px 0; font-family:${SANS}; font-size:14.5px; line-height:1.6; color:${GOLD_SOFT};">Circle brings BIST parents, guardians and staff together: ${offers} across Tbilisi, community events, and masterclasses on the topics you vote for.</p>
+        <p style="margin:0 0 16px 0; font-family:${SANS}; font-size:14.5px; line-height:1.6; color:${GOLD_SOFT};">Circle brings BIST parents, school society and children together: ${offers} across Tbilisi, community events, and masterclasses on the topics you vote for.</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${stepRows}</table>
         <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate; margin:10px 0 0 0;">
           <tr><td style="background:${CIRCLE_GOLD}; border-radius:999px; padding:11px 24px;"><a href="${escapeHtml(join)}" target="_blank" style="font-family:${SANS}; font-size:14px; font-weight:800; color:${CIRCLE_NAVY}; text-decoration:none;">Register now &rsaquo;</a></td></tr>
