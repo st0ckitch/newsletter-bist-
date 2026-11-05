@@ -6,6 +6,8 @@ const { ASSIGNABLE_ROLES, ALL_ROLES, ROLE_LABELS } = require('../roles');
 const { SECTIONS, SECTION_KEYS } = require('../sections');
 const invites = require('../invites');
 const { upload, isRealImage, removeFiles, shrinkUpload } = require('../uploads');
+const staffPhotos = require('../staff-photos');
+const config = require('../config');
 
 // The staff-import and invitation email actions belong to the site admin
 // alone (the marketing owner's account) - SLT keep the ordinary account
@@ -292,7 +294,34 @@ function matchUserByFilename(filename) {
 }
 
 router.get('/users/headshots', requireAdmin, (req, res) => {
-  res.render('headshots_import');
+  res.render('headshots_import', {
+    website: staffPhotos.lastImport(),
+    websiteSource: config.staffPhotosUrl,
+    websiteNotice: typeof req.query.used === 'string' ? req.query.used.slice(0, 120) : '',
+    websiteError: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : '',
+  });
+});
+
+// Portraits from the school website's team page, matched to accounts by
+// name (src/staff-photos.js); it also ran once by itself after it was added.
+router.post('/users/headshots/website', requireAdmin, async (req, res, next) => {
+  try {
+    await staffPhotos.importStaffPhotos();
+    res.redirect('/users/headshots#website');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// A suggested match (same surname and initial) confirmed with one click.
+router.post('/users/headshots/website/use', requireAdmin, async (req, res, next) => {
+  try {
+    const r = await staffPhotos.useSuggestion(parseInt(req.body.user_id, 10));
+    const q = r.ok ? `used=${encodeURIComponent(r.name)}` : `error=${encodeURIComponent(r.error)}`;
+    res.redirect(`/users/headshots?${q}#website`);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // One photo per request (the page sends them one by one, already downscaled

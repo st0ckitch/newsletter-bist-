@@ -2426,6 +2426,90 @@ test('storage: copies share one file, unused files go, oversized pictures shrink
   }
 });
 
+test('staff photos from the school website become headshots - clear matches saved, loose ones offered', async () => {
+  const http = require('http');
+  const sharp = require('sharp');
+  const config = require('../src/config');
+  const staffPhotos = require('../src/staff-photos');
+  const portrait = await sharp({ create: { width: 1200, height: 1600, channels: 4, background: { r: 40, g: 90, b: 150, alpha: 0.6 } } }).png().toBuffer();
+  const site = await new Promise((resolve) => {
+    const srv = http.createServer((req, res) => {
+      if (req.url.startsWith('/img/')) {
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        return res.end(portrait);
+      }
+      if (req.url !== '/our-team/') {
+        res.writeHead(404);
+        return res.end();
+      }
+      const base = `http://127.0.0.1:${srv.address().port}`;
+      const card = (id, name, role, file) =>
+        `<div data-elementor-type="loop-item" data-elementor-id="1782" class="elementor e-loop-item e-loop-item-${id} post-${id} teammembers"><a href="#"><div class="elementor-widget-image"><img decoding="async" width="1200" height="1600" src="${base}/img/${file}" class="attachment-full" alt="" srcset="${base}/img/${file} 1200w, ${base}/img/m-${file} 768w, ${base}/img/s-${file} 217w" /></div><div><h2 class="elementor-heading-title elementor-size-default">${name}</h2><h2 class="elementor-heading-title elementor-size-default">${role}</h2></div></a></div>`;
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(
+        '<html><body>' +
+          card(11, 'Alice Testwood', 'Head of Testing', 'Alice-Testwood-scaled.jpg') +
+          card(11, 'Alice Testwood', 'Head of Testing', 'Alice-Testwood-scaled.jpg') +
+          card(12, 'Robert Fakename', 'Teacher of Physics', 'Bobby-Fakename-scaled-2.png') +
+          card(13, 'Catherine Sampleton', 'Librarian', 'Catherine-Sampleton.png') +
+          card(14, 'Dora Already', 'Counsellor', 'Dora-Already.jpg') +
+          card(15, 'Eve Holder', 'Assistant', 'BIST-Portrait-Placeholder.png') +
+          '</body></html>'
+      );
+    });
+    srv.listen(0, () => resolve(srv));
+  });
+  const saved = config.staffPhotosUrl;
+  config.staffPhotosUrl = `http://127.0.0.1:${site.address().port}/our-team/`;
+  const add = db.prepare("INSERT INTO users (email, name, password_hash, role, headshot) VALUES (?, ?, 'x', 'teacher', ?)");
+  const ids = {
+    alice: add.run('alice.testwood@test.local', 'Alice Testwood', null).lastInsertRowid,
+    bobby: add.run('b.fakename@test.local', 'Bobby Fakename', null).lastInsertRowid,
+    cathy: add.run('c.sampleton@test.local', 'Cathy Sampleton', null).lastInsertRowid,
+    dora: add.run('dora.already@test.local', 'Dora Already', 'existing-dora.jpg').lastInsertRowid,
+    eve: add.run('eve.holder@test.local', 'Eve Holder', null).lastInsertRowid,
+    frank: add.run('frank.nobody@test.local', 'Frank Nobody', null).lastInsertRowid,
+  };
+  const headshot = (id) => db.prepare('SELECT headshot FROM users WHERE id = ?').get(id).headshot;
+  try {
+    const result = await staffPhotos.importStaffPhotos();
+    assert.ok(result.ok, result.error);
+    assert.strictEqual(result.people, 5, 'each person once, however often the page repeats them');
+    assert.deepStrictEqual(result.added.map((a) => a.userName).sort(), ['Alice Testwood', 'Bobby Fakename']);
+    assert.deepStrictEqual(result.suggestions.map((s) => `${s.userName} ~ ${s.siteName}`), ['Cathy Sampleton ~ Catherine Sampleton']);
+    assert.strictEqual(headshot(ids.dora), 'existing-dora.jpg', 'an existing headshot is never replaced');
+    assert.strictEqual(headshot(ids.eve), null, 'a placeholder picture is not a headshot');
+    assert.ok(result.missing.includes('Frank Nobody') && result.missing.includes('Eve Holder'));
+    for (const id of [ids.alice, ids.bobby]) {
+      const meta = await sharp(fs.readFileSync(path.join(config.uploadDir, headshot(id)))).metadata();
+      assert.ok(meta.format === 'jpeg' && Math.max(meta.width, meta.height) <= 800, 'headshot-sized JPEG');
+    }
+
+    // The import page lists the result; a loose match is saved with one click.
+    const page = await (await get('/users/headshots')).text();
+    assert.match(page, /2 headshots added/);
+    assert.match(page, /Catherine Sampleton[\s\S]*Use this photo/);
+    const use = await post('/users/headshots/website/use', { user_id: String(ids.cathy) });
+    assert.strictEqual(use.status, 302);
+    assert.ok(headshot(ids.cathy), 'confirmed suggestion saved');
+    assert.match(await (await get('/users/headshots?used=Cathy%20Sampleton')).text(), /Cathy Sampleton now has a headshot/);
+    // The new headshots are offered in the article form's picker.
+    assert.match(await (await get('/news/new')).text(), /Alice Testwood/);
+
+    // It runs by itself only once.
+    assert.strictEqual(await staffPhotos.importOnce(), null);
+  } finally {
+    config.staffPhotosUrl = saved;
+    site.close();
+    for (const id of Object.values(ids)) {
+      const h = headshot(id);
+      if (h && h !== 'existing-dora.jpg') fs.rmSync(path.join(config.uploadDir, h), { force: true });
+      db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    }
+    db.prepare("DELETE FROM settings WHERE key = 'staff_photos_import'").run();
+  }
+});
+
 // Keep this test LAST: recreating the admin row invalidates the shared session.
 test('seedAdmin re-syncs the configured admin account on every start', () => {
   const bcrypt = require('bcryptjs');

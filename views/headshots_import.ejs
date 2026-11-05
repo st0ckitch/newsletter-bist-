@@ -4,6 +4,64 @@
   <div class="page-actions"><a class="btn btn-secondary" href="/users">Back to staff accounts</a></div>
 </div>
 
+<div class="card" id="website">
+  <h2>From the school website</h2>
+  <p class="muted">The portraits on the school website&#39;s team page
+  (<% if (websiteSource) { %><a href="<%= websiteSource %>" target="_blank" rel="noopener"><%= websiteSource.replace(/^https?:\/\//, '').replace(/\/$/, '') %></a><% } else { %>not set up<% } %>)
+  are matched to staff accounts by name and saved as headshots - only for people who do not have one yet. A clear
+  match (the same name, or the name the site files the photo under) is saved straight away; a loose one (the same
+  surname and first initial) waits below for you to confirm.</p>
+  <% if (websiteNotice) { %><div class="alert alert-ok">Saved - <%= websiteNotice %> now has a headshot.</div><% } %>
+  <% if (websiteError) { %><div class="alert alert-error"><%= websiteError %></div><% } %>
+  <% if (website && !website.ok) { %>
+    <div class="alert alert-warn">The website could not be read at <%= website.at.replace('T', ' ').slice(0, 16) %> UTC: <%= website.error %>.</div>
+  <% } else if (website) { %>
+    <p><span class="tag tag-approved"><%= website.added.length %> headshot<%= website.added.length === 1 ? '' : 's' %> added</span>
+    <span class="muted">from <%= website.people %> people on the page - last checked <%= website.at.replace('T', ' ').slice(0, 16) %> UTC</span></p>
+    <% if (website.added.length) { %>
+      <details><summary class="muted">Who got a photo</summary>
+        <ul class="plain-list" style="margin:6px 0 10px 0;">
+          <% website.added.forEach(function(a) { %><li><%= a.userName %><% if (a.siteName !== a.userName) { %> <span class="muted">(on the website: <%= a.siteName %>)</span><% } %></li><% }) %>
+        </ul>
+      </details>
+    <% } %>
+    <% if (website.suggestions.length) { %>
+      <h3 style="margin-top:14px;">Please check</h3>
+      <table class="table">
+        <tbody>
+          <% website.suggestions.forEach(function(s) { %>
+            <tr>
+              <td style="width:64px;"><img src="<%= s.photo %>" alt="" style="width:52px;height:64px;object-fit:cover;border-radius:6px;display:block;"></td>
+              <td><strong><%= s.siteName %></strong><br><span class="muted"><%= s.role %></span></td>
+              <td>for the account <strong><%= s.userName %></strong>?</td>
+              <td class="row-actions">
+                <form method="post" action="/users/headshots/website/use">
+                  <input type="hidden" name="_csrf" value="<%= csrf %>">
+                  <input type="hidden" name="user_id" value="<%= s.userId %>">
+                  <button class="btn btn-primary btn-sm">Use this photo</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+    <% (website.failed || []).forEach(function(f) { %><p class="muted">Could not save <%= f.userName %>&#39;s photo: <%= f.error %>.</p><% }) %>
+    <% (website.unclear || []).forEach(function(u) { %><p class="muted">Skipped <%= u.userName %>: <%= u.reason %>.</p><% }) %>
+    <% if (website.missing.length) { %>
+      <details><summary class="muted"><%= website.missing.length %> account<%= website.missing.length === 1 ? '' : 's' %> without a headshot are not on the team page</summary>
+        <p class="muted" style="margin:6px 0 0 0;"><%= website.missing.join(', ') %> - add their photos below or on the Staff accounts page.</p>
+      </details>
+    <% } %>
+  <% } %>
+  <% if (websiteSource) { %>
+  <form method="post" action="/users/headshots/website" style="margin-top:12px;">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="btn btn-secondary btn-sm"><%= website ? 'Check the website again' : 'Get the photos from the website' %></button>
+  </form>
+  <% } %>
+</div>
+
 <div class="card">
   <h2>How it works</h2>
   <p class="muted">Got a folder (or zip archives) of staff photos? <strong>Unzip them on your computer first</strong>,

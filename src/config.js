@@ -33,6 +33,9 @@ module.exports = {
     feedUrl: process.env.CIRCLE_FEED_URL || '',
     token: process.env.CIRCLE_FEED_TOKEN || '',
   },
+  // The school website's team page; its portraits become staff headshots
+  // (src/staff-photos.js). Set STAFF_PHOTOS_URL to an empty value to turn it off.
+  staffPhotosUrl: process.env.STAFF_PHOTOS_URL ?? 'https://bist.ge/our-team/',
   mailchimp: {
     apiKey: process.env.MAILCHIMP_API_KEY || '',
     serverPrefix:

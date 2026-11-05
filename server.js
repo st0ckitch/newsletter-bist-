@@ -30,7 +30,9 @@ app.listen(config.port, () => {
   // Then the storage tidy-up (src/storage.js), which logs where the space goes.
   normalizeOldPhotos()
     .catch((err) => console.error('[uploads] Photo catch-up failed:', err.message))
-    .then(() => require('./src/storage').startupTidy());
+    .then(() => require('./src/storage').startupTidy())
+    // Staff portraits from the school website, the first time only.
+    .then(() => require('./src/staff-photos').importOnce());
   require('./src/partners')
     .refreshPartners()
     .catch((err) => console.error('[partners] First read failed:', err.message));

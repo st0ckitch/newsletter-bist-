@@ -106,8 +106,8 @@ dashboard shows a warning.
 
 ### Circle partner offers
 
-The **Partner offers** section at the bottom of every issue (logo, name and
-offer badge of the partners on circle.bist.ge) fills in by itself from the
+The **Partner offers** section at the bottom of every issue (logo and offer
+badge of the partners on circle.bist.ge) fills in by itself from the
 Circle API's newsletter feed. Set two variables:
 
 - `CIRCLE_FEED_URL` - `https://<circle-api address>/newsletter/bist/offers`
@@ -119,6 +119,22 @@ down. **Settings → Circle partner offers** shows the status, reads it again on
 demand, sets how many partners each issue shows (a different set each week)
 and hides the section. Only names, logos and badges travel - the offer details
 stay behind the Circle members' login.
+
+### Staff photos from the school website
+
+The portraits on the school website's team page (`STAFF_PHOTOS_URL`, default
+`https://bist.ge/our-team/`) become staff headshots - the ones the article
+form's "saved staff headshot" picker offers - for every account that has
+none. A clear name match is saved straight away; a loose one (same surname and
+first initial) waits on **Staff accounts → Import staff photos** for a
+one-click check. It runs once by itself, then from that page.
+
+### Storage
+
+Photos live on the data volume. Portraits, headshots, logos and the masthead
+are scaled to 1200px on upload, copies of a picture share one file, and a
+nightly tidy-up removes files nothing uses; **Settings → Storage** shows the
+space used and can tidy up on demand.
 
 ### Running in production
 
