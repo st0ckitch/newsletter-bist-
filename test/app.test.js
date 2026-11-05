@@ -2279,7 +2279,7 @@ test('circle partner offers come from the Circle feed into the preview and the e
     // Logo and badge only - the partner's name is just the logo's alt text.
     assert.ok(!/>Partner \d+</.test(email), 'no partner names printed');
     assert.match(email, /background:#F2B32C[^>]*>-\d+%/);
-    assert.match(email, /See all 10 offers on 127\.0\.0\.1/);
+    assert.match(email, /See all 10\+ offers on 127\.0\.0\.1/);
     const week = generationWeekStart();
     const thisIssue = partnersForWeek(week, 4).list.map((p) => p.partner);
     const nextIssue = partnersForWeek(addDays(week, 7), 4).list.map((p) => p.partner);

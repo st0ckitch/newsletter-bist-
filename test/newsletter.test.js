@@ -352,7 +352,7 @@ test('Join Circle: after the calendar and the principal message, with the regist
   const join = html.indexOf('Join Circle in two minutes');
   assert.ok(join > html.indexOf('class="desk-principal"') && join > html.indexOf('Sports Day'), 'after the events and the principal message');
   assert.ok(join < html.indexOf('Tennis &lt;win&gt;'), 'before the stories');
-  assert.match(html, /special prices from 34 partner businesses/);
+  assert.match(html, /special prices from 30\+ partner businesses/, '30+, not the exact 34');
   assert.match(html, /<a href="https:\/\/circle\.bist\.ge\/\?join=1"[^>]*>Register now &rsaquo;<\/a>/);
   assert.match(html, /<a href="https:\/\/circle\.bist\.ge\/\?login=1"[^>]*>Log in<\/a>/);
   // Without the feed yet it still invites people, to circle.bist.ge.
