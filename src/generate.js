@@ -49,6 +49,7 @@ function collectWeekData(weekStart) {
   const awardTopic = topicRow ? topicRow.title : '';
   // This week's Circle partners (null until the feed has been read once).
   const partnersHidden = getSetting('partners_visible') === '0';
+  const joinCircleHidden = getSetting('circle_join_visible') === '0';
   const partners = partnersForWeek(weekStart, Number(getSetting('partners_per_issue')) || 0);
   return {
     weekStart,
@@ -66,6 +67,7 @@ function collectWeekData(weekStart) {
     emailSubject,
     partners,
     partnersHidden,
+    joinCircleHidden,
   };
 }
 
@@ -173,6 +175,7 @@ function buildRenderData(data, { placeholders = false, editable = false, csrf = 
     housePointsHidden: data.housePointsHidden || {},
     partners: data.partners || null,
     partnersHidden: Boolean(data.partnersHidden),
+    joinCircleHidden: Boolean(data.joinCircleHidden),
     awards: data.awards || [],
     awardTopic: data.awardTopic || '',
     events: data.events,

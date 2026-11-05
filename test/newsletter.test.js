@@ -271,7 +271,8 @@ test('mobile: principal message stacks first, before events; desktop keeps it in
   assert.ok(mob !== -1 && desk !== -1, 'both principal copies present');
   assert.ok(mob < events, 'mobile principal copy comes before the events block in source order');
   // Hidden everywhere by default (incl. mso-hide for Outlook); the media query flips visibility.
-  assert.match(html, /class="mob-principal" style="display:none; max-height:0; overflow:hidden; mso-hide:all;"/);
+  // (The finished email drops the spaces inside inline styles.)
+  assert.match(html, /class="mob-principal" style="display:none;max-height:0;overflow:hidden;mso-hide:all"/);
   assert.match(html, /\.mob-principal \{ display: block !important;/);
   assert.match(html, /\.desk-principal \{ display: none !important; \}/);
   // No principal message and no placeholders -> neither copy renders (the
@@ -329,4 +330,34 @@ test('partner grid on phones: the phone rules reach the grid only, two tiles to 
   // The grid's own body and rows carry the phone classes; the table inside each tile keeps its layout.
   assert.match(long, /<tbody class="pt-body"><tr class="pt-row"><td class="pt-cell"/);
   assert.ok(!/\.pt-table (tr|tbody)/.test(long));
+});
+
+test('the email stays small: light partner tiles, no comments, compact inline styles', () => {
+  const tile = (i) => ({ partner: `Partner ${i}`, badge: '-20%', logo: `https://circle.example/logos/partner-${i}.png`, w: 640, h: 320 });
+  const issue = (n) => renderNewsletter({ ...baseData, partners: { site: 'https://circle.example', total: n, list: Array.from({ length: n }, (_, i) => tile(i)) } });
+  // Every partner costs about half a KB (it was over 1 KB), so all of them fit in an issue Gmail shows in full.
+  const perTile = (Buffer.byteLength(issue(34)) - Buffer.byteLength(issue(1))) / 33;
+  assert.ok(perTile < 600, `a partner tile costs ${Math.round(perTile)} bytes`);
+  const html = issue(34);
+  assert.ok(!html.includes('<!--'), 'no HTML comments');
+  assert.ok(!/ style="[^"]*[;:] /.test(html), 'no spaces inside inline styles');
+  assert.ok(!/\n[ \t]+</.test(html), 'no indentation');
+  assert.match(html, /\.pt-badge \{ display: inline-block;/, 'the tile styles are written once, in <style>');
+  assert.match(html, /<span class="pt-badge" style="background:#F2B32C;color:#0D1B3E">-20%<\/span>/, 'badges keep their colours inline');
+});
+
+test('Join Circle: after the calendar and the principal message, with the registration link', () => {
+  const partners = { site: 'https://circle.bist.ge', total: 34, list: [{ partner: 'A', badge: '-10%', logo: 'https://circle.bist.ge/a.png', w: 100, h: 100 }] };
+  const html = renderNewsletter({ ...baseData, partners });
+  const join = html.indexOf('Join Circle in two minutes');
+  assert.ok(join > html.indexOf('class="desk-principal"') && join > html.indexOf('Sports Day'), 'after the events and the principal message');
+  assert.ok(join < html.indexOf('Tennis &lt;win&gt;'), 'before the stories');
+  assert.match(html, /special prices from 34 partner businesses/);
+  assert.match(html, /<a href="https:\/\/circle\.bist\.ge\/\?join=1"[^>]*>Register now &rsaquo;<\/a>/);
+  assert.match(html, /<a href="https:\/\/circle\.bist\.ge\/\?login=1"[^>]*>Log in<\/a>/);
+  // Without the feed yet it still invites people, to circle.bist.ge.
+  assert.match(renderNewsletter(baseData), /href="https:\/\/circle\.bist\.ge\/\?join=1"/);
+  // Switched off in Settings: gone from the email, a labelled box in the preview.
+  assert.ok(!renderNewsletter({ ...baseData, joinCircleHidden: true }).includes('Join Circle'));
+  assert.match(renderNewsletter({ ...baseData, joinCircleHidden: true, placeholders: true }), /Join Circle - hidden/);
 });

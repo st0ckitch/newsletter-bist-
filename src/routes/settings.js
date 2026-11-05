@@ -57,11 +57,13 @@ router.get('/settings', requireManager, (req, res) => {
   res.render('settings', settingsLocals({ saved: req.query.saved === '1' }));
 });
 
-// The Partner offers section: how many partners per issue, shown or hidden.
+// The Partner offers section: how many partners per issue, shown or hidden;
+// and the "Join Circle" invitation, shown or hidden.
 router.post('/settings/partners', requireManager, (req, res) => {
   const n = String(req.body.partners_per_issue || '').trim();
   if (/^\d{1,3}$/.test(n)) setSetting('partners_per_issue', String(Number(n)));
   setSetting('partners_visible', req.body.partners_visible === '1' ? '1' : '0');
+  setSetting('circle_join_visible', req.body.circle_join_visible === '1' ? '1' : '0');
   res.redirect('/settings');
 });
 

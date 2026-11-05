@@ -1,7 +1,7 @@
-// Partners per issue: 10 by default since every partner in each issue made the
-// email too big for Gmail. Booting moves a database on the old default (8),
-// on all of them (0) or on more than 15 to 10 - once; a number chosen after
-// that is left alone. (A singleton module, so each boot is a child process.)
+// Partners per issue: every partner in every issue by default (0). Booting
+// moves a database on the old default (8), or on the 10 a short-lived update
+// set, back to all of them - once; any other number, and a number chosen after
+// that, is left alone. (A singleton module, so each boot is a child process.)
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -10,28 +10,25 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { DatabaseSync } = require('node:sqlite');
 
-function boot(dataDir) {
-  execFileSync(process.execPath, ['-e', "require('./src/db.js')"], {
-    cwd: path.join(__dirname, '..'),
-    env: { ...process.env, DATA_DIR: dataDir, ADMIN_PASSWORD: '', MAILCHIMP_API_KEY: '' },
-  });
-}
+const ENV = (dataDir) => ({ ...process.env, DATA_DIR: dataDir, ADMIN_PASSWORD: '', MAILCHIMP_API_KEY: '' });
+const boot = (dataDir, code = "require('./src/db.js')") =>
+  execFileSync(process.execPath, ['-e', code], { cwd: path.join(__dirname, '..'), env: ENV(dataDir) }).toString();
 const setting = (dbPath, key) => {
   const db = new DatabaseSync(dbPath);
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   db.close();
   return row ? row.value : null;
 };
-const store = (dbPath, value, { reviewed } = {}) => {
+const store = (dbPath, value, { migrated } = {}) => {
   const db = new DatabaseSync(dbPath);
   db.prepare(
     "INSERT INTO settings (key, value) VALUES ('partners_per_issue', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
   ).run(value);
-  if (!reviewed) db.prepare("DELETE FROM settings WHERE key = 'partners_per_issue_reviewed'").run();
+  if (!migrated) db.prepare("DELETE FROM settings WHERE key = 'partners_per_issue_all'").run();
   db.close();
 };
 
-for (const [before, after] of [['0', '10'], ['8', '10'], ['34', '10'], ['12', '12'], ['4', '4']]) {
+for (const [before, after] of [['8', '0'], ['10', '0'], ['0', '0'], ['12', '12'], ['4', '4']]) {
   test(`partners per issue: a database on ${before} boots with ${after}`, () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nl-partners-'));
     const dbPath = path.join(dataDir, 'newsletter.sqlite');
@@ -39,19 +36,14 @@ for (const [before, after] of [['0', '10'], ['8', '10'], ['34', '10'], ['12', '1
     store(dbPath, before); // as an older database left it
     boot(dataDir);
     assert.strictEqual(setting(dbPath, 'partners_per_issue'), after);
-    // Chosen again afterwards, even "all of them", it stays.
-    store(dbPath, '0', { reviewed: true });
+    // A number chosen afterwards - even 10 - stays.
+    store(dbPath, '10', { migrated: true });
     boot(dataDir);
-    assert.strictEqual(setting(dbPath, 'partners_per_issue'), '0');
+    assert.strictEqual(setting(dbPath, 'partners_per_issue'), '10');
   });
 }
 
-test('partners per issue: a new database shows 10', () => {
+test('partners per issue: a new database shows every partner', () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nl-partners-'));
-  boot(dataDir);
-  const out = execFileSync(process.execPath, ['-e', "process.stdout.write(String(require('./src/db.js').getSetting('partners_per_issue')))"], {
-    cwd: path.join(__dirname, '..'),
-    env: { ...process.env, DATA_DIR: dataDir, ADMIN_PASSWORD: '', MAILCHIMP_API_KEY: '' },
-  }).toString();
-  assert.strictEqual(out, '10');
+  assert.strictEqual(boot(dataDir, "process.stdout.write(String(require('./src/db.js').getSetting('partners_per_issue')))"), '0');
 });

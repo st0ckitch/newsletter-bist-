@@ -128,9 +128,10 @@
       <input type="text" name="partners_per_issue" inputmode="numeric" pattern="[0-9]*" value="<%= settings.partners_per_issue %>" style="width:70px; display:inline-block; margin:0 0 0 6px;">
     </label>
     <label class="muted" style="margin:0; font-weight:600;"><input type="checkbox" name="partners_visible" value="1" <%= settings.partners_visible !== '0' ? 'checked' : '' %>> show in the newsletter</label>
+    <label class="muted" style="margin:0; font-weight:600;"><input type="checkbox" name="circle_join_visible" value="1" <%= settings.circle_join_visible !== '0' ? 'checked' : '' %>> &ldquo;Join Circle&rdquo; invitation at the top</label>
     <button class="btn btn-primary btn-sm">Save</button>
   </form>
-  <p class="muted" style="margin-top:8px;">Each issue shows this many partners, a different set every week. Keep it to about 15 or fewer: with more, or with 0 (all of them every time), the email can grow too big for Gmail, which then cuts it off and shows &ldquo;View entire message&rdquo;.</p>
+  <p class="muted" style="margin-top:8px;">0 (the default) shows every partner in every issue; a number shows that many, a different set every week. After each generation the report says whether the email is small enough for Gmail, which cuts off longer emails (&ldquo;View entire message&rdquo;).</p>
 </div>
 
 <% const mb = function (n) { return (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB'; }; %>

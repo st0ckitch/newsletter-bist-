@@ -301,15 +301,13 @@ CREATE INDEX IF NOT EXISTS idx_issues_week ON issues(week_start);
 // someone chose deliberately is left alone.
 db.prepare("UPDATE settings SET value = '0 18 * * 4' WHERE key = 'friday_generate_cron' AND value = '0 15 * * 5'").run();
 
-// Partners per issue went from 8 to 10. With every partner in each issue
-// (0, or a number over 15) the email grows past the size at which Gmail
-// cuts it off ("View entire message"), so databases on the old default or on
-// that many move to 10 - once. A number chosen after this is left alone.
-if (!db.prepare("SELECT 1 FROM settings WHERE key = 'partners_per_issue_reviewed'").get()) {
-  db.prepare(
-    "UPDATE settings SET value = '10' WHERE key = 'partners_per_issue' AND (value IN ('', '0', '8') OR CAST(value AS INTEGER) > 15)"
-  ).run();
-  db.prepare("INSERT INTO settings (key, value) VALUES ('partners_per_issue_reviewed', '1')").run();
+// Every issue shows all the partners (0): the email is now small enough for
+// Gmail with all of them. Databases on the old default of 8, or on the 10 a
+// short-lived update set, go back to all of them - once. A number chosen after
+// this is left alone.
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'partners_per_issue_all'").get()) {
+  db.prepare("UPDATE settings SET value = '0' WHERE key = 'partners_per_issue' AND value IN ('8', '10')").run();
+  db.prepare("INSERT INTO settings (key, value) VALUES ('partners_per_issue_all', '1')").run();
 }
 
 const SETTING_DEFAULTS = {
@@ -322,7 +320,10 @@ const SETTING_DEFAULTS = {
   // shown or hidden, and how many partners each issue shows - a different
   // set every week; 0 shows them all.
   partners_visible: '1',
-  partners_per_issue: '10',
+  // The "Join Circle" invitation after the calendar and the principal's
+  // message, shown or hidden.
+  circle_join_visible: '1',
+  partners_per_issue: '0',
   // Reminder to fill in content - every Monday morning
   monday_reminder_cron: '0 9 * * 1',
   // Hard-deadline reminder - Thursday morning, only to those who have not submitted
