@@ -324,6 +324,18 @@ async function generateIssue({ weekStart, trigger = 'manual' } = {}) {
 
   const html = renderNewsletter(buildRenderData(data));
 
+  // Gmail cuts off an email whose HTML is over about 102 KB ("View entire
+  // message"), and Mailchimp adds a few KB of its own, so an issue should
+  // stay under 90 KB.
+  const sizeKb = Math.round(Buffer.byteLength(html, 'utf8') / 1024);
+  step(
+    sizeKb <= 90,
+    'Small enough for Gmail',
+    sizeKb <= 90
+      ? `${sizeKb} KB - Gmail shows the whole email`
+      : `${sizeKb} KB - Gmail cuts off emails over about 102 KB (Mailchimp adds a few more), so parents would have to click "View entire message". Show fewer partners per issue (Settings) or shorten the longest stories.`
+  );
+
   // Every image in the sent email should live on the Mailchimp CDN - a
   // self-hosted straggler (a failed upload) renders differently across email
   // clients and can show as a blocked/downloadable file instead of a photo.

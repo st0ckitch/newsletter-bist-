@@ -88,10 +88,11 @@ const MOBILE_CSS = `
     .hp-table, .hp-table tbody, .hp-table tr { display: block !important; width: 100% !important; }
     .hp-cell { display: inline-block !important; width: 48% !important; box-sizing: border-box !important; }
     .awards-table th, .awards-table td { padding: 7px 6px !important; font-size: 11px !important; }
-    .pt-table, .pt-table tbody { display: block !important; width: 100% !important; }
-    .pt-table tr { display: inline !important; }
+    .pt-table, .pt-body { display: block !important; width: 100% !important; }
+    .pt-row { display: inline !important; }
     .pt-cell { display: inline-block !important; width: 32% !important; box-sizing: border-box !important; vertical-align: top !important; }
     .pt-fill { display: none !important; }
+    .pt-two .pt-cell { width: 48% !important; }
   }`;
 
 function escapeHtml(s) {
@@ -769,7 +770,7 @@ function partnerLogo(p) {
   // shorter as they get wider (so a long wordmark does not dwarf a crest),
   // and none is wider than 88px.
   if (!(p.w && p.h)) {
-    return `<img src="${escapeHtml(p.logo)}" alt="${escapeHtml(p.partner)}" height="24" style="height:24px; width:auto; max-width:88px; display:inline-block; vertical-align:middle; border:0;">`;
+    return `<img src="${escapeHtml(p.logo)}" alt="${escapeHtml(p.partner)}" height="24" style="height:24px; max-width:88px; vertical-align:middle; border:0;">`;
   }
   const ratio = p.w / p.h;
   let h = Math.min(30, Math.max(16, 30 / Math.pow(Math.max(ratio, 1), 0.35)));
@@ -780,7 +781,7 @@ function partnerLogo(p) {
   }
   w = Math.max(1, Math.round(w));
   h = Math.max(1, Math.round(h));
-  return `<img src="${escapeHtml(p.logo)}" alt="${escapeHtml(p.partner)}" width="${w}" height="${h}" style="width:${w}px; height:${h}px; max-width:100%; display:inline-block; vertical-align:middle; border:0;">`;
+  return `<img src="${escapeHtml(p.logo)}" alt="${escapeHtml(p.partner)}" width="${w}" height="${h}" style="width:${w}px; height:${h}px; max-width:100%; vertical-align:middle; border:0;">`;
 }
 
 // Rough line count for text in a partner tile (about `perLine` characters a
@@ -818,27 +819,22 @@ function renderPartnersBlock(partners, placeholders, hidden) {
   // and badge heights keep every tile the same height either way.
   const PER_ROW = 5;
   const badgeH = 16 * Math.max(1, ...partners.list.map((p) => tileLines(p.badge, 10))) + 10;
-  const tile = (p) => `
-      <td class="pt-cell" width="20%" valign="top" style="padding:4px;">
-        <a href="${escapeHtml(site)}" target="_blank" style="display:block; text-decoration:none;">
-          <div style="background:#ffffff; border:1px solid #E7E4DB; border-radius:12px; padding:12px 6px 10px 6px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-              <tr><td height="34" align="center" valign="middle" style="height:34px;">${partnerLogo(p)}</td></tr>
-              <tr><td height="${badgeH}" align="center" valign="middle" style="height:${badgeH}px; padding-top:6px;">${
-                p.badge
-                  ? `<span style="display:inline-block; max-width:100%; box-sizing:border-box; background:${CIRCLE_GOLD}; color:${CIRCLE_NAVY}; font-family:${SANS}; font-size:12px; font-weight:800; line-height:16px; padding:4px 9px; border-radius:14px;">${escapeHtml(
-                      p.badge
-                    )}</span>`
-                  : '&nbsp;'
-              }</td></tr>
-            </table>
-          </div>
-        </a>
-      </td>`;
+  // One line per tile, and only the styles that matter: the partner grid is
+  // the biggest part of an issue, and Gmail cuts off emails over about 102 KB.
+  const tile = (p) =>
+    `<td class="pt-cell" width="20%" valign="top" style="padding:4px;"><a href="${escapeHtml(site)}" target="_blank" style="display:block; text-decoration:none;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff; border:1px solid #E7E4DB; border-radius:12px;"><tr><td height="34" align="center" valign="middle" style="padding:12px 6px 0 6px;">${partnerLogo(p)}</td></tr><tr><td height="${badgeH}" align="center" valign="middle" style="padding:6px 6px 10px 6px;">${
+      p.badge
+        ? `<span style="display:inline-block; background:${CIRCLE_GOLD}; color:${CIRCLE_NAVY}; font-family:${SANS}; font-size:12px; font-weight:800; line-height:16px; padding:4px 9px; border-radius:14px;">${escapeHtml(p.badge)}</span>`
+        : '&nbsp;'
+    }</td></tr></table></a></td>`;
+  // On phones the tiles run three to a line - two when a badge has a word
+  // too long for a third of the screen (Georgian words often are), so every
+  // tile stays the same size.
+  const longWord = partners.list.some((p) => String(p.badge || '').split(/\s+/).some((w) => w.length > 9));
   let rows = '';
   for (let i = 0; i < partners.list.length; i += PER_ROW) {
     const row = partners.list.slice(i, i + PER_ROW);
-    rows += `<tr>${row.map(tile).join('')}${'<td class="pt-fill" width="20%" style="padding:4px;">&nbsp;</td>'.repeat(
+    rows += `<tr class="pt-row">${row.map(tile).join('')}${'<td class="pt-fill" width="20%" style="padding:4px;">&nbsp;</td>'.repeat(
       PER_ROW - row.length
     )}</tr>`;
   }
@@ -849,8 +845,8 @@ function renderPartnersBlock(partners, placeholders, hidden) {
     <p style="margin:2px 0 6px 0; font-family:${SANS}; font-size:13.5px; line-height:1.6; color:${INK};">Through Circle, ${PARTNER_SCHOOL} families and staff get special prices from our partners. Log in at <a href="${escapeHtml(
       site
     )}" target="_blank" style="color:${NAVY}; font-weight:600;">${escapeHtml(host)}</a> to see each offer and how to use it.</p>
-    <table role="presentation" class="pt-table" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-      ${rows}
+    <table role="presentation" class="pt-table${longWord ? ' pt-two' : ''}" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; table-layout:fixed;">
+      <tbody class="pt-body">${rows}</tbody>
     </table>
     <table role="presentation" align="center" cellpadding="0" cellspacing="0" style="border-collapse:separate; margin:12px auto 0 auto;">
       <tr><td style="background:${CIRCLE_GOLD}; border-radius:999px; padding:10px 22px;">

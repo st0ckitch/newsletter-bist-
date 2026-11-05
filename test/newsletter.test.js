@@ -312,3 +312,21 @@ test('renderArticlePreview renders the draft article and filters photo sources',
   assert.match(html, /\/uploads\/x\.png/);
   assert.ok(!html.includes('javascript:alert'), 'unsafe photo sources dropped');
 });
+
+test('partner grid on phones: the phone rules reach the grid only, two tiles to a row for long words', () => {
+  const partners = (badge) => ({
+    site: 'https://circle.example',
+    total: 2,
+    list: [
+      { partner: 'A', badge, logo: 'https://circle.example/a.png', w: 100, h: 100 },
+      { partner: 'B', badge: '-10%', logo: 'https://circle.example/b.png', w: 100, h: 100 },
+    ],
+  });
+  const short = renderNewsletter({ ...baseData, partners: partners('Up to -46%') });
+  const long = renderNewsletter({ ...baseData, partners: partners('პრიორიტეტული წვდომა') });
+  assert.ok(short.includes('class="pt-table"') && !short.includes('class="pt-table pt-two"'), 'three to a row');
+  assert.ok(/class="pt-table pt-two"/.test(long), 'two to a row when a badge has a long word');
+  // The grid's own body and rows carry the phone classes; the table inside each tile keeps its layout.
+  assert.match(long, /<tbody class="pt-body"><tr class="pt-row"><td class="pt-cell"/);
+  assert.ok(!/\.pt-table (tr|tbody)/.test(long));
+});

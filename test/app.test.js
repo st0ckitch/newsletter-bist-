@@ -1965,6 +1965,11 @@ test('weekly email subject: SLT/principal/marketing edit it, generation uses it'
   let result = await generateIssue({ trigger: 'test-subject' });
   let stepRow = result.steps.find((s) => s.label === 'Catchy email subject set');
   assert.ok(stepRow && stepRow.ok, 'custom subject step is green');
+  // The report also says whether the email is small enough for Gmail, which
+  // cuts off emails over about 102 KB.
+  const sizeRow = result.steps.find((s) => s.label === 'Small enough for Gmail');
+  assert.ok(sizeRow && sizeRow.ok, 'a normal issue fits in Gmail');
+  assert.match(sizeRow.detail, /^\d+ KB - Gmail shows the whole email$/);
   assert.match(stepRow.detail, /The Roar - SLT subject line/, 'the newsletter name stays a static prefix');
   // ...and a missing one as a red nudge using the default.
   await post('/newsletter/subject', { subject: '' });
@@ -2266,7 +2271,9 @@ test('circle partner offers come from the Circle feed into the preview and the e
     assert.strictEqual((email.match(/class="pt-cell" width="20%" valign="top"/g) || []).length, 4, 'four partners this issue');
     assert.strictEqual((email.match(/class="pt-fill"/g) || []).length, 1, 'one filler completes the row');
     assert.match(email, /\.pt-fill \{ display: none !important; \}/);
-    assert.match(email, /\.pt-table tr \{ display: inline !important; \}/);
+    assert.match(email, /\.pt-row \{ display: inline !important; \}/);
+    // The phone rules reach the grid's rows, never the table inside each tile.
+    assert.ok(!/\.pt-table (tr|tbody)/.test(email), 'no phone rule for every row under the grid');
     // A 3:1 logo is sized from the real file, small: 61x20 (a square one would be 30x30).
     assert.ok(email.includes(`src="${site}/logos/p.png"`) && /width="61" height="20"/.test(email));
     // Logo and badge only - the partner's name is just the logo's alt text.
@@ -2298,7 +2305,7 @@ test('circle partner offers come from the Circle feed into the preview and the e
     await post('/settings/partners', { partners_per_issue: '0', partners_visible: '1' });
     const all = await (await get('/newsletter/export.html')).text();
     assert.strictEqual((all.match(/class="pt-cell" width="20%" valign="top"/g) || []).length, 10, '0 shows every partner');
-    assert.strictEqual((all.match(/<tr>\s*<td class="pt-cell"/g) || []).length, 2, 'five to a row: 10 partners in 2 rows');
+    assert.strictEqual((all.match(/<tr class="pt-row"><td class="pt-cell"/g) || []).length, 2, 'five to a row: 10 partners in 2 rows');
   } finally {
     config.circle.feedUrl = '';
     config.circle.token = '';
