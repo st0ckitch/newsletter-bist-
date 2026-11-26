@@ -3,11 +3,15 @@
 // message (C, right). Below them the news columns lead: Primary fills the
 // left column (D/F/H), Secondary and Foundation share the right (E/G/I);
 // then the full-width sections follow in order - Whole School (W), Sixth
-// Form (X) and Co-Curricular (Y).
+// Form (X) and Co-Curricular (Y). The Spotlight (S) is for the one story a
+// week that every parent must see: full width in BIST yellow, right under
+// the calendar and the principal's message, above Join Circle. It is empty
+// unless the layout team moves a story there, so it lasts one issue.
 const SLOT_LABELS = {
   A: 'A - Header & quote of the week (fixed)',
   B: 'B - Upcoming events · left column (fixed)',
   C: "C - Principal's message · right column (fixed)",
+  S: 'S - Spotlight · full width in yellow, above Join Circle',
   W: 'W - Whole School · full width, under the columns',
   D: 'D - Primary · left column, top',
   E: 'E - Secondary/Foundation · right column, top',
@@ -19,7 +23,7 @@ const SLOT_LABELS = {
   Y: 'Y - Co-Curricular · full width, at the bottom',
 };
 
-const CONTENT_SLOTS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
+const CONTENT_SLOTS = ['S', 'W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
 const LEFT_SLOTS = ['D', 'F', 'H'];
 const RIGHT_SLOTS = ['E', 'G', 'I'];
 // The full-width bands: articles placed here render across the whole sheet,

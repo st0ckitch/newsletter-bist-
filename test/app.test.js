@@ -729,7 +729,7 @@ test('Foundation stories are single-column, in the right column beside Primary',
   // The area appears in the news form dropdown and maps to the right column.
   const form = await (await get('/news/new')).text();
   assert.match(form, /<option value="foundation"[^>]*>Foundation<\/option>/);
-  assert.match(form, /data-slots="W,D,E,F,G,H,I,X,Y"/, 'every content section is choosable');
+  assert.match(form, /data-slots="S,W,D,E,F,G,H,I,X,Y"/, 'every content section is choosable');
   // ...a Foundation story lands at the top of the right column by default...
   await post('/news', { title: 'Foundation Sandpit News', body: 'Little ones had fun.', section: 'foundation' });
   const row = db.prepare("SELECT * FROM news WHERE title = 'Foundation Sandpit News'").get();
@@ -2515,6 +2515,40 @@ test('staff photos from the school website become headshots - clear matches save
     }
     db.prepare("DELETE FROM settings WHERE key = 'staff_photos_import'").run();
   }
+});
+
+test('spotlight (S): one story in BIST yellow above Join Circle, for its issue only', async () => {
+  const { generationWeekStart } = require('../src/appweek');
+  const { getSetting } = require('../src/db');
+  const week = generationWeekStart();
+  const joinVisible = getSetting('circle_join_visible');
+  setSetting('circle_join_visible', '1');
+  const id = db
+    .prepare(
+      "INSERT INTO news (title, body, section, slot, review_status, week_start) VALUES ('Spotlight Survey Story', 'Please take part: http://example.com/survey', 'whole_school', 'W', 'approved', ?)"
+    )
+    .run(week).lastInsertRowid;
+  try {
+    // The News list offers the Spotlight; the layout team moves the story there.
+    assert.match(await (await get('/news')).text(), /S - Spotlight/);
+    await post(`/news/${id}/slot`, { slot: 'S' });
+    assert.strictEqual(db.prepare('SELECT slot FROM news WHERE id = ?').get(id).slot, 'S');
+    const email = await (await get('/newsletter/export.html')).text();
+    const at = email.indexOf('Spotlight Survey Story');
+    assert.ok(at > 0 && at < email.indexOf('Join Circle in two minutes'), `above Join Circle (story ${at}, join ${email.indexOf('Join Circle in two minutes')})`);
+    assert.strictEqual(email.split('Spotlight Survey Story').length, 2, 'shown once - moved, not copied');
+    assert.match(email, /IN THE SPOTLIGHT · WHOLE SCHOOL/);
+    assert.match(email, /bgcolor="#f5b921"/);
+    // The live preview lets it be dragged like any other story.
+    const preview = await (await get('/newsletter/preview.html?edit=1')).text();
+    assert.match(preview, /data-slot-block="S"/);
+  } finally {
+    db.prepare('DELETE FROM news WHERE id = ?').run(id);
+  }
+  // Empty, it leaves no trace in the email.
+  assert.doesNotMatch(await (await get('/newsletter/export.html')).text(), /IN THE SPOTLIGHT/);
+  if (joinVisible === null) db.prepare("DELETE FROM settings WHERE key = 'circle_join_visible'").run();
+  else setSetting('circle_join_visible', joinVisible);
 });
 
 // Keep this test LAST: recreating the admin row invalidates the shared session.

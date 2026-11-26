@@ -406,10 +406,10 @@ const photoRatio = (p) => (p && p.w > 0 && p.h > 0 ? p.w / p.h : 4 / 3);
 // as its shape needs, and no row grows taller than a landscape photo filling
 // the width (a bit more in the narrow columns). Portrait shots therefore come
 // out smaller and centred instead of cut off or towering over the text.
-function renderPhotos(photos, editable, wide) {
+function renderPhotos(photos, editable, wide, rowWidth = 0) {
   if (!photos || !photos.length) return '';
-  const rowW = wide ? FULL_CARD_TEXT_W : CARD_TEXT_W;
-  const maxH = wide ? Math.ceil(FULL_CARD_TEXT_W * 0.75) : 300;
+  const rowW = rowWidth || (wide ? FULL_CARD_TEXT_W : CARD_TEXT_W);
+  const maxH = wide || rowWidth ? Math.ceil(rowW * 0.75) : 300;
   let first = true;
   const row = (items) => {
     const ratios = items.map(photoRatio);
@@ -501,6 +501,56 @@ function renderArticle(article, barColor, slotLetter, editable) {
   }>
           ${editable ? leadPhoto : ''}<div class="atext"${ed('body')}>${textToHtml(article.body, INK, 13.5, editable ? '' : leadPhoto)}</div>
           ${renderPhotos(article.photos, editable, wide)}
+        </td>
+      </tr>
+    </table>
+  </div>`;
+}
+
+// The Spotlight (S): a story every parent should see this week, full width
+// in BIST yellow under the calendar and the principal's message, above Join
+// Circle. The text sits on a white panel inside the yellow frame, so it and
+// its links read as easily as in any other story.
+const SPOTLIGHT_TEXT_W = FULL_W - 12 - 28; // 6px yellow frame + 14px padding => 612
+
+function renderSpotlight(article, slotLetter, editable) {
+  const ed = (field) => (editable && article.id ? ` data-edit="news:${article.id}:${field}"` : '');
+  const leadPhoto = article.leadPhotoUrl
+    ? `<img src="${escapeHtml(article.leadPhotoUrl)}" alt="Section head" width="104" align="right" style="width:104px; height:auto; border-radius:8px; margin:0 0 8px 14px;">`
+    : '';
+  const slotChip = slotLetter
+    ? `<span style="display:inline-block; background:rgba(13,27,62,0.14); border-radius:4px; padding:1px 7px; font-size:9px; letter-spacing:1px; margin-right:8px;">${escapeHtml(
+        slotLetter
+      )}</span>`
+    : '';
+  const kicker = ['In the spotlight', article.sectionLabel].filter(Boolean).join(' · ').toUpperCase();
+  const dragBlock = editable && slotLetter && article.id ? ` data-slot-block="${escapeHtml(slotLetter)}"` : '';
+  const dragBar = editable && slotLetter && article.id ? ` data-drag-bar="${article.id}"` : '';
+  return `
+  <div${dragBlock} style="padding:2px 0 20px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${GOLD}" style="border-collapse:separate; background:${GOLD}; border-radius:14px;">
+      <tr>
+        <td${dragBar} style="padding:16px 20px 13px 20px;">
+          <p style="margin:0 0 7px 0; font-family:${SANS}; font-size:10.5px; font-weight:800; letter-spacing:2.5px; line-height:1.3; color:${NAVY_DEEP};">${slotChip}&#9733;&nbsp; ${escapeHtml(
+            kicker
+          )}</p>
+          <h2 style="margin:0; font-family:${SERIF}; font-size:24px; font-weight:800; line-height:1.2; color:${NAVY_DEEP};"><span${ed('title')}>${escapeHtml(
+            article.title
+          )}</span></h2>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 6px 6px 6px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
+            <tr>
+              <td bgcolor="#ffffff" style="background:#ffffff; border-radius:10px; padding:16px 14px 6px 14px;"${
+                editable && article.id ? ` data-add-photo="${article.id}"` : ''
+              }>
+                ${editable ? leadPhoto : ''}<div class="atext"${ed('body')}>${textToHtml(article.body, INK, 14, editable ? '' : leadPhoto)}</div>
+                ${renderPhotos(article.photos, editable, true, SPOTLIGHT_TEXT_W)}
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
     </table>
@@ -1033,6 +1083,13 @@ function renderNewsletter(data) {
     ? `<div class="mob-principal" style="display:none; max-height:0; overflow:hidden; mso-hide:all;">${principalHtml}</div>`
     : '';
   const leftColumn = columnHtml(LEFT_SLOTS, articles, articleHtml, placeholders, articles);
+  // The Spotlight (S), when the layout team has put a story there.
+  const inSpotlight = articles.filter((a) => a.slot === 'S');
+  const spotlightHtml = inSpotlight.length
+    ? inSpotlight.map((a) => renderSpotlight(a, placeholders ? 'S' : null, editable)).join('')
+    : placeholders
+      ? placeholderBox('S', 'Spotlight - full width in yellow, above Join Circle', 'Move a story here to put it in front of every parent - for that issue only.')
+      : '';
   const rightColumn = columnHtml(RIGHT_SLOTS, articles, articleHtml, placeholders);
 
   // Dedicated full-width sections: Whole School (W) above the two columns,
@@ -1151,6 +1208,7 @@ ${fontFaceCss(fontBase)}
             <td class="col" width="${COL_W}" valign="top">${principalHtml ? `<div class="desk-principal">${principalHtml}</div>` : '&nbsp;'}</td>
           </tr>
         </table>
+        ${spotlightHtml}
         ${renderJoinCircleBlock(data.partners, placeholders, data.joinCircleHidden)}
         ${renderHousePointsBlock(data.houses, placeholders, data.housePointsHidden)}
         ${renderMenusBlock(data.menus, placeholders)}

@@ -384,7 +384,7 @@
   var CONTENT_LETTERS = ['D', 'E', 'F', 'G', 'H', 'I'];
   var dragState = null;
 
-  var CONTENT_LETTERS = ['W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
+  var CONTENT_LETTERS = ['S', 'W', 'D', 'E', 'F', 'G', 'H', 'I', 'X', 'Y'];
   // While a drag is in flight, scroll the page when the mouse nears the top
   // or bottom edge - without this, moving a story across a long email means
   // dropping it, scrolling, and picking it up again.

@@ -23,6 +23,24 @@ async function normalizeOldPhotos() {
   console.log('[uploads] Existing photos normalized.');
 }
 
+// One-off, asked for on 26 Nov 2026: the Annual Whole School Parents Survey
+// goes in the Spotlight (S) of that week's issue, above Join Circle. Runs
+// once - if someone moves the story again by hand, that sticks.
+function spotlightParentsSurvey() {
+  const { getSetting, setSetting } = require('./src/db');
+  const key = 'oneoff_spotlight_2026_11_23';
+  if (getSetting(key)) return;
+  const rows = db
+    .prepare("SELECT id FROM news WHERE week_start = '2026-11-23' AND slot = 'W' AND title LIKE '%parent%survey%'")
+    .all();
+  if (rows.length === 1) {
+    db.prepare("UPDATE news SET slot = 'S', updated_at = datetime('now') WHERE id = ?").run(rows[0].id);
+  }
+  setSetting(key, rows.length === 1 ? `moved ${rows[0].id}` : `${rows.length} matches`);
+  console.log(`[layout] Parents survey: ${rows.length === 1 ? 'moved to the Spotlight' : `not moved (${rows.length} matches)`}.`);
+}
+spotlightParentsSurvey();
+
 const app = createApp();
 app.listen(config.port, () => {
   console.log(`[server] Newsletter admin panel running on ${config.appBaseUrl} (port ${config.port})`);
